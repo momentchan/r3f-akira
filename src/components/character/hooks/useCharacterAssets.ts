@@ -63,6 +63,8 @@ export function useCharacterAssets() {
     clonedScene.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.frustumCulled = false;
+        child.castShadow = true;
+        child.receiveShadow = true;
 
         if (BODY_MESH_NAMES.includes(child.name)) {
           child.material = bodyMat;

@@ -4,6 +4,8 @@ import { LevaWrapper } from "@core";
 import { Canvas } from "@react-three/fiber";
 import { WebGPURenderer } from "three/webgpu";
 import { Character } from "../components/character/Character";
+import { DirectionalLight } from "../components/DirectionalLight";
+import Effects from "../components/Effects";
 
 export default function App() {
   return (
@@ -33,12 +35,20 @@ export default function App() {
         dpr={[1, 2]}
         performance={{ min: 0.5, max: 1 }}
       >
-        <Character position={[0, -1, 0]} />
+        <group position={[0, -1, 0]}>
+          <Character />
+          <mesh rotation-x={-Math.PI / 2} scale={10} receiveShadow>
+            <planeGeometry args={[2, 2]} />
+            <meshStandardMaterial color="color" />
+          </mesh>
+        </group>
+
         <AdaptiveDpr pixelated />
         <CameraControls makeDefault />
         <CanvasCapture />
-        <directionalLight position={[10, 10, 10]} intensity={1} />
-        <Environment preset="city" />
+        <Environment preset="city"  environmentIntensity={0.2} />
+        <DirectionalLight />
+        <Effects />
       </Canvas>
     </>
   );
