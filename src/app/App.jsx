@@ -1,14 +1,11 @@
-import { AdaptiveDpr, CameraControls } from "@react-three/drei";
-import BasicMesh from "../components/BasicMesh";
+import { AdaptiveDpr, CameraControls, Environment } from "@react-three/drei";
 import { CanvasCapture } from "@core";
 import { LevaWrapper } from "@core";
 import { Canvas } from "@react-three/fiber";
 import { WebGPURenderer } from "three/webgpu";
-import { useState } from "react";
+import { Character } from "../components/character/Character";
 
 export default function App() {
-  const [frameloop, setFrameloop] = useState("never");
-
   return (
     <>
       <LevaWrapper />
@@ -19,7 +16,7 @@ export default function App() {
           fov: 45,
           near: 0.1,
           far: 200,
-          position: [0, 0, 5],
+          position: [0, 0, 3],
         }}
         gl={(canvas) => {
           const renderer = new WebGPURenderer({
@@ -36,10 +33,12 @@ export default function App() {
         dpr={[1, 2]}
         performance={{ min: 0.5, max: 1 }}
       >
+        <Character position={[0, -1, 0]} />
         <AdaptiveDpr pixelated />
         <CameraControls makeDefault />
-        <BasicMesh />
         <CanvasCapture />
+        <directionalLight position={[10, 10, 10]} intensity={1} />
+        <Environment preset="city" />
       </Canvas>
     </>
   );
