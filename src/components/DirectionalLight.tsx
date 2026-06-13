@@ -12,14 +12,14 @@ export function DirectionalLight() {
     const { scene } = useThree()
     
     const { rotationSpeed, color, intensity, debug, shadowBias } = useControls('Directional Light', {
-        rotationSpeed: { value: 0.5, min: 0, max: 2, step: 0.1 },
+        rotationSpeed: { value: 0, min: 0, max: 2, step: 0.1 },
         color: { value: '#ffffff' },
         intensity: { value: 2.0, min: 0, max: 3, step: 0.1 },
         debug: { value: false },
         shadowBias: { value: -0.0005, min: -0.01, max: 0.01, step: 0.0001 },
     }, { collapsed: true })
 
-    const basePosition = useMemo(() => new THREE.Vector3(0, 5, 5), [])
+    const basePosition = useMemo(() => new THREE.Vector3(0, 3, 5), [])
     const positionRef = useRef(new THREE.Vector3())
     const rotationMatrixRef = useRef(new THREE.Matrix4())
 
