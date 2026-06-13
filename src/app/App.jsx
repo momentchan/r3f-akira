@@ -1,11 +1,11 @@
-import { AdaptiveDpr, CameraControls, Environment } from "@react-three/drei";
+import { AdaptiveDpr, CameraControls } from "@react-three/drei";
 import { CanvasCapture } from "@core";
 import { LevaWrapper } from "@core";
 import { Canvas } from "@react-three/fiber";
-import { WebGPURenderer } from "three/webgpu";
-import { Character } from "../components/character/Character";
+import * as THREE from "three/webgpu";
 import { DirectionalLight } from "../components/DirectionalLight";
 import Effects from "../components/Effects";
+import { ProceduralSmoke } from "../components/ProceduralSmoke";
 
 export default function App() {
   return (
@@ -21,7 +21,7 @@ export default function App() {
           position: [0, 0, 3],
         }}
         gl={(canvas) => {
-          const renderer = new WebGPURenderer({
+          const renderer = new THREE.WebGPURenderer({
             ...canvas,
             powerPreference: "high-performance",
             antialias: true,
@@ -30,23 +30,25 @@ export default function App() {
             shadowMap: true,
             preserveDrawingBuffer: true,
           });
+          renderer.outputColorSpace = THREE.SRGBColorSpace;
+          renderer.toneMapping = THREE.NoToneMapping;
           return renderer.init().then(() => renderer);
         }}
         dpr={[1, 2]}
         performance={{ min: 0.5, max: 1 }}
       >
         <group position={[0, -1, 0]}>
-          <Character />
+          {/* <Character /> */}
           <mesh rotation-x={-Math.PI / 2} scale={10} receiveShadow>
             <planeGeometry args={[2, 2]} />
-            <meshStandardMaterial color="color" />
+            <meshStandardMaterial color="#eeeeee" />
           </mesh>
+          <ProceduralSmoke position={[0, 0.1, 0]} />
         </group>
 
         <AdaptiveDpr pixelated />
         <CameraControls makeDefault />
         <CanvasCapture />
-        <Environment preset="city"  environmentIntensity={0.2} />
         <DirectionalLight />
         <Effects />
       </Canvas>

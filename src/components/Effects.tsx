@@ -1,12 +1,12 @@
 import * as THREE from 'three/webgpu';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { WebGPURenderer } from 'three/webgpu';
-import { vec4, pass, addMethodChaining } from 'three/tsl';
+import { pass } from 'three/tsl';
 import Stats from 'stats-gl';
+
 // @ts-ignore
-import { statsGL } from 'stats-gl/addons/StatsGLNode';
-addMethodChaining('toStatsGL', statsGL);
+import 'stats-gl/addons/StatsGLNode';
 
 export default function Effects() {
     const { gl, scene, camera } = useThree()
@@ -37,7 +37,7 @@ export default function Effects() {
         // @ts-ignore
         const scenePass = pass(scene, camera).toStatsGL('Test', stats);
         scenePass.getLinearDepthNode().toStatsGL('Depth', stats);
-        
+
         pp.outputNode = scenePass;
         postProcessingRef.current = pp;
 
