@@ -27,15 +27,15 @@ export const SMOKE_DEFAULTS = {
     normalEpsilon: 0.012,
   },
   shading: {
+    colorLevels: 5,
     rimStrength: 0.10,
     rimThreshold: 0.76,
     rimPower: 2.8,
-    midThreshold: 0.42,
-    highThreshold: 0.74,
+    thresholdLow: 0.42,
+    thresholdHigh: 0.74,
     thresholdNoiseScale: 240,
     thresholdNoiseStrength: 0.02,
     shadowColor: '#b4b5b8',
-    midColor: '#ececed',
     highlightColor: '#ececed',
   },
   outline: {
@@ -62,8 +62,8 @@ export function createSmokeControlsSchema(
       radiusScale: { value: 5, min: 0.2, max: 5, step: 0.01 },
     }),
     Motion: folder({
-      curlScale: { value: 0.5, min: 0, max: 200, step: 0.01 },
-      driftScale: { value: 10, min: 0, max: 20, step: 0.01 },
+      curlScale: { value: 0.5, min: 0, max: 20, step: 0.01, label: 'eddyStrength' },
+      driftScale: { value: 10, min: 0, max: 40, step: 0.01, label: 'wanderStrength' },
     }),
     Distortion: folder({
       deformBig: { value: 0.45, min: 0, max: 1, step: 0.001 },
@@ -80,17 +80,18 @@ export function createSmokeControlsSchema(
         rimThreshold: { value: 0.76, min: 0, max: 1, step: 0.01 },
         rimPower: { value: 2.8, min: 0.5, max: 8, step: 0.1 },
       }),
-      midThreshold: { value: 0.42, min: 0, max: 1, step: 0.01 },
-      highThreshold: { value: 0.74, min: 0, max: 1, step: 0.01 },
+      colorLevels: { value: 2, min: 2, max: 12, step: 1 },
+      thresholdLow: { value: 0.1, min: 0, max: 1, step: 0.01 },
+      thresholdHigh: { value: 0.5, min: 0, max: 1, step: 0.01 },
       thresholdNoiseScale: { value: 47.8, min: 0.1, max: 240, step: 0.1 },
       thresholdNoiseStrength: { value: 0.15, min: 0, max: 0.35, step: 0.005 },
       shadowColor: { value: '#b4b5b8' },
-      midColor: { value: '#ececed' },
       highlightColor: { value: '#ececed' },
+      }),
     }),
     Outline: folder({
       outlineWidth: { value: 0.016, min: 0, max: 0.12, step: 0.001 },
-      outlineColor: { value: '#7b7d82' },
+      outlineColor: { value: '#696969' },
     }),
   };
 }

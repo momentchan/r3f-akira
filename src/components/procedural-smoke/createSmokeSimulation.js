@@ -144,32 +144,59 @@ export function createSmokeSimulation(count, seed) {
     const radiusBreath = sin(
       time.mul(spinData.x.mul(0.18).add(0.11)).add(shapeData.w),
     ).mul(0.08).mul(driftEnvelope).add(1.0).toVar();
-    const radius = body
+    const spread = body
+      .mul(body)
       .mul(0.20)
       .add(0.02)
       .mul(shapeData.x)
       .mul(uniforms.radiusScale)
       .mul(radiusBreath)
       .toVar();
-    const curl = shapeData.z
-      .add(life.mul(shapeData.y).mul(uniforms.curlScale))
-      .add(sin(time.mul(0.12).add(shapeData.z)).mul(0.15))
-      .add(sin(time.mul(spinData.x.mul(0.21).add(0.17)).add(shapeData.w)).mul(0.08))
+    const baseX = cos(shapeData.z).mul(spread).toVar();
+    const baseZ = sin(shapeData.z).mul(spread).mul(0.72).toVar();
+    const shear = smoothstep(0.22, 1.0, life)
+      .mul(0.028)
+      .mul(motionData.w.add(0.35))
+      .mul(uniforms.radiusScale)
       .toVar();
-    const driftX = sin(time.mul(spinData.x).add(shapeData.w))
+    const shearX = cos(shapeData.w).mul(shear).toVar();
+    const shearZ = sin(shapeData.w).mul(shear).mul(0.72).toVar();
+    const driftTime = time.mul(spinData.x.mul(0.24).add(0.07)).toVar();
+    const driftX = sin(driftTime.add(shapeData.w))
+      .mul(0.006)
+      .add(sin(driftTime.mul(1.47).add(rotationData.x)).mul(0.005))
+      .mul(driftEnvelope)
+      .mul(uniforms.driftScale)
+      .toVar();
+    const driftY = sin(driftTime.mul(0.81).add(rotationData.y))
+      .mul(0.006)
+      .mul(driftEnvelope)
+      .mul(uniforms.driftScale)
+      .toVar();
+    const driftZ = cos(driftTime.mul(1.13).add(rotationData.z))
+      .mul(0.006)
+      .add(sin(driftTime.mul(0.59).add(shapeData.z)).mul(0.004))
+      .mul(driftEnvelope)
+      .mul(uniforms.driftScale)
+      .toVar();
+    const eddyTime = time.mul(spinData.x.mul(0.16).add(0.05)).toVar();
+    const eddyX = sin(eddyTime.add(life.mul(shapeData.y)).add(shapeData.z))
+      .mul(0.014)
+      .mul(driftEnvelope)
+      .mul(uniforms.curlScale)
+      .toVar();
+    const eddyY = cos(eddyTime.mul(0.73).add(life.mul(shapeData.y).mul(0.67)).add(rotationData.y))
       .mul(0.007)
-      .add(sin(time.mul(spinData.x.mul(0.43).add(0.09)).add(rotationData.x)).mul(0.006))
       .mul(driftEnvelope)
-      .mul(uniforms.driftScale)
+      .mul(uniforms.curlScale)
       .toVar();
-    const driftZ = sin(time.mul(spinData.x.mul(0.67).add(0.13)).add(rotationData.z))
-      .mul(0.008)
-      .add(cos(time.mul(spinData.x.mul(0.31).add(0.07)).add(shapeData.z)).mul(0.005))
+    const eddyZ = sin(eddyTime.mul(1.31).add(life.mul(shapeData.y).mul(1.21)).add(shapeData.w))
+      .mul(0.014)
       .mul(driftEnvelope)
-      .mul(uniforms.driftScale)
+      .mul(uniforms.curlScale)
       .toVar();
     const bob = sin(time.mul(spinData.x.mul(0.27).add(0.16)).add(shapeData.w))
-      .mul(0.018)
+      .mul(0.012)
       .mul(driftEnvelope)
       .mul(uniforms.heightScale)
       .toVar();
@@ -187,11 +214,10 @@ export function createSmokeSimulation(count, seed) {
       .mul(deathScale)
       .mul(uniforms.scale)
       .toVar();
-    const zCurl = curl.add(sin(time.mul(0.10).add(shapeData.w)).mul(0.10).mul(driftEnvelope)).toVar();
     const position = vec3(
-      cos(curl).mul(radius).add(driftX),
-      life.mul(motionData.z).mul(uniforms.heightScale).add(bob),
-      sin(zCurl.mul(0.83)).mul(radius).mul(0.52).add(driftZ),
+      baseX.add(shearX).add(driftX).add(eddyX),
+      life.mul(motionData.z).mul(uniforms.heightScale).add(bob).add(driftY).add(eddyY),
+      baseZ.add(shearZ).add(driftZ).add(eddyZ),
     ).toVar();
     const squashPulse = sin(time.mul(spinData.x.mul(0.44).add(0.23)).add(rotationData.x))
       .mul(0.035)

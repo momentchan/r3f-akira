@@ -12,9 +12,7 @@ import {
   max,
   mix,
   modelViewPosition,
-  normalGeometry,
   normalLocal,
-  positionGeometry,
   positionLocal,
   positionWorld,
   pow,
@@ -144,70 +142,6 @@ const getDistortedPosition = Fn(([
   );
 });
 
-const getDistortedNormal = Fn(([
-  seed,
-  age,
-  deformBig,
-  deformSmall,
-  distortBigScale,
-  distortSmallScale,
-  distortBigSpeed,
-  distortSmallSpeed,
-  normalEpsilon,
-]) => {
-  const basePosition = vec3(positionGeometry).toVar();
-  const baseNormal = vec3(normalGeometry).normalize().toVar();
-  const helperAxis = baseNormal.y
-    .abs()
-    .lessThan(0.95)
-    .select(vec3(0.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0))
-    .toVar();
-  const tangent = helperAxis.cross(baseNormal).normalize().toVar();
-  const bitangent = baseNormal.cross(tangent).normalize().toVar();
-  const p0 = getDisplacedPosition(
-    basePosition,
-    baseNormal,
-    seed,
-    age,
-    deformBig,
-    deformSmall,
-    distortBigScale,
-    distortSmallScale,
-    distortBigSpeed,
-    distortSmallSpeed,
-    0.0,
-  ).toVar();
-  const p1 = getDisplacedPosition(
-    basePosition.add(tangent.mul(normalEpsilon)),
-    baseNormal,
-    seed,
-    age,
-    deformBig,
-    deformSmall,
-    distortBigScale,
-    distortSmallScale,
-    distortBigSpeed,
-    distortSmallSpeed,
-    0.0,
-  ).toVar();
-  const p2 = getDisplacedPosition(
-    basePosition.add(bitangent.mul(normalEpsilon)),
-    baseNormal,
-    seed,
-    age,
-    deformBig,
-    deformSmall,
-    distortBigScale,
-    distortSmallScale,
-    distortBigSpeed,
-    distortSmallSpeed,
-    0.0,
-  ).toVar();
-  const localNormal = p1.sub(p0).cross(p2.sub(p0)).normalize().toVar();
-
-  return transformNormal(localNormal).normalize();
-});
-
 export function createPuffMaterial() {
   const { distortion, shading } = SMOKE_DEFAULTS;
   const puffSeed = attribute('smokeSeed', 'float');
@@ -220,15 +154,15 @@ export function createPuffMaterial() {
     distortBigSpeed: uniform(distortion.distortBigSpeed),
     distortSmallSpeed: uniform(distortion.distortSmallSpeed),
     lightDir: uniform(new THREE.Vector3(0, 5, 5).normalize()),
+    colorLevels: uniform(shading.colorLevels),
     shadowColor: uniform(new THREE.Color(shading.shadowColor)),
-    midColor: uniform(new THREE.Color(shading.midColor)),
     highlightColor: uniform(new THREE.Color(shading.highlightColor)),
     normalEpsilon: uniform(distortion.normalEpsilon),
     rimStrength: uniform(shading.rimStrength),
     rimThreshold: uniform(shading.rimThreshold),
     rimPower: uniform(shading.rimPower),
-    midThreshold: uniform(shading.midThreshold),
-    highThreshold: uniform(shading.highThreshold),
+    thresholdLow: uniform(shading.thresholdLow),
+    thresholdHigh: uniform(shading.thresholdHigh),
     thresholdNoiseScale: uniform(shading.thresholdNoiseScale),
     thresholdNoiseStrength: uniform(shading.thresholdNoiseStrength),
   };
@@ -272,17 +206,26 @@ export function createPuffMaterial() {
     const rimBand = step(uniforms.rimThreshold, rimRaw);
     const rimLift = rimBand.mul(uniforms.rimStrength).toVar();
 
-    const midBand = step(
-      uniforms.midThreshold.add(thresholdNoise).sub(rimLift),
-      bandTerm,
-    );
-    const highBand = step(
-      uniforms.highThreshold.add(thresholdNoise).sub(rimLift),
-      bandTerm,
-    );
-    const color = mix(vec3(uniforms.shadowColor), vec3(uniforms.midColor), midBand).toVar();
+    const thresholdWidth = max(uniforms.thresholdHigh.sub(uniforms.thresholdLow), 0.001).toVar();
+    const levelSteps = max(uniforms.colorLevels.sub(1.0), 1.0).toVar();
+    const shade = clamp(
+      bandTerm
+        .add(rimLift)
+        .sub(uniforms.thresholdLow.add(thresholdNoise))
+        .div(thresholdWidth),
+      0.0,
+      1.0,
+    ).toVar();
+    const quantizedShade = floor(shade.mul(levelSteps).add(0.5)).div(levelSteps).toVar();
+    const color = mix(
+      vec3(uniforms.shadowColor),
+      vec3(uniforms.highlightColor),
+      quantizedShade,
+    ).toVar();
+    const edge = float(1.0).sub(max(dot(N, V), 0.0)).toVar();
+    const shadowMask = float(1.0).sub(smoothstep(0.12, 0.86, shade)).toVar();
+    const edgeMask = smoothstep(uniforms.surfaceLineEdge, 1.0, edge).toVar();
 
-    color.assign(mix(color, vec3(uniforms.highlightColor), highBand));
 
     return vec4(clamp(color, 0.0, 1.0), 1.0);
   })();

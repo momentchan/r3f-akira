@@ -27,6 +27,7 @@ export function ProceduralSmoke({
   );
 
   const {
+    colorLevels,
     curlScale,
     deformBig,
     deformSmall,
@@ -37,9 +38,6 @@ export function ProceduralSmoke({
     driftScale,
     heightScale,
     highlightColor,
-    midColor,
-    midThreshold,
-    highThreshold,
     normalEpsilon,
     outlineColor,
     outlineWidth,
@@ -54,6 +52,8 @@ export function ProceduralSmoke({
     rimThreshold,
     shadowColor,
     speedScale,
+    thresholdHigh,
+    thresholdLow,
     thresholdNoiseScale,
     thresholdNoiseStrength,
   } = useControls('Smoke Effect', smokeControlsSchema, { collapsed: true });
@@ -134,15 +134,15 @@ export function ProceduralSmoke({
     puffUniforms.distortBigSpeed.value = distortBigSpeed;
     puffUniforms.distortSmallScale.value = distortSmallScale;
     puffUniforms.distortSmallSpeed.value = distortSmallSpeed;
+    puffUniforms.colorLevels.value = colorLevels;
     puffUniforms.highlightColor.value.set(highlightColor);
-    puffUniforms.midColor.value.set(midColor);
     puffUniforms.normalEpsilon.value = normalEpsilon;
     puffUniforms.rimStrength.value = rimStrength;
     puffUniforms.rimThreshold.value = rimThreshold;
     puffUniforms.rimPower.value = rimPower;
-    puffUniforms.midThreshold.value = midThreshold;
-    puffUniforms.highThreshold.value = highThreshold;
     puffUniforms.shadowColor.value.set(shadowColor);
+    puffUniforms.thresholdHigh.value = thresholdHigh;
+    puffUniforms.thresholdLow.value = thresholdLow;
     puffUniforms.thresholdNoiseScale.value = thresholdNoiseScale;
     puffUniforms.thresholdNoiseStrength.value = thresholdNoiseStrength;
 
@@ -155,6 +155,7 @@ export function ProceduralSmoke({
     outlineUniforms.outlineColor.value.set(outlineColor);
     outlineUniforms.outlineWidth.value = outlineWidth;
   }, [
+    colorLevels,
     deformBig,
     deformSmall,
     distortBigScale,
@@ -162,9 +163,6 @@ export function ProceduralSmoke({
     distortSmallScale,
     distortSmallSpeed,
     highlightColor,
-    midColor,
-    midThreshold,
-    highThreshold,
     normalEpsilon,
     outlineColor,
     outlineMaterialState,
@@ -174,6 +172,8 @@ export function ProceduralSmoke({
     rimStrength,
     rimThreshold,
     shadowColor,
+    thresholdHigh,
+    thresholdLow,
     thresholdNoiseScale,
     thresholdNoiseStrength,
   ]);
