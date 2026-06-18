@@ -5,10 +5,14 @@ import {
   attribute,
   cameraPosition,
   clamp,
+  cos,
   dot,
   float,
   floor,
   fract,
+  acos,
+  atan,
+  cross,
   max,
   mix,
   modelViewPosition,
@@ -70,6 +74,123 @@ const fbm3 = Fn(([p]) => {
   });
 
   return value;
+});
+
+const surfaceLightStrokes = Fn(([
+  surfaceNormal,
+  lightDirection,
+  seed,
+  scale,
+  density,
+  thickness,
+  rotationAmount,
+  startMin,
+  startMax,
+  lengthMin,
+  lengthMax,
+  fade,
+]) => {
+  const n = vec3(surfaceNormal).normalize().toVar();
+  const l = vec3(lightDirection).normalize().toVar();
+  const facing = clamp(dot(n, l), -0.999, 0.999).toVar();
+  const tangentRaw = n.sub(l.mul(facing)).toVar();
+  const tangentLenSq = dot(tangentRaw, tangentRaw).toVar();
+  const fallbackAxis = l.y
+    .abs()
+    .lessThan(0.95)
+    .select(vec3(0, 1, 0), vec3(1, 0, 0));
+  const lightRight = cross(fallbackAxis, l).normalize().toVar();
+  const lightUp = cross(l, lightRight).normalize().toVar();
+  const tangent = tangentLenSq
+    .greaterThan(float(1e-6))
+    .select(tangentRaw.normalize(), lightUp)
+    .toVar();
+
+  const bAngle = atan(dot(tangent, lightUp), dot(tangent, lightRight)).toVar();
+  const angle01 = bAngle.div(Math.PI * 2).add(0.5).toVar();
+  const phi = acos(clamp(dot(n, l), -0.999, 0.999))
+    .div(Math.PI)
+    .toVar();
+  const lineCount = max(scale, 1.0).toVar();
+  const baseCoord = angle01
+    .mul(lineCount)
+    .add(seed.mul(2.31))
+    .toVar();
+  const angleCell = floor(baseCoord).toVar();
+  const strokeStart = mix(
+    startMin,
+    startMax,
+    hash3(vec3(angleCell, seed, 2.3)),
+  ).toVar();
+  const strokeLength = mix(
+    lengthMin,
+    lengthMax,
+    hash3(vec3(angleCell, seed, 4.7)),
+  ).toVar();
+  const strokeEnd = strokeStart.add(strokeLength)
+    .toVar();
+  const strokeSpan = max(strokeEnd.sub(strokeStart), 0.001).toVar();
+  const strokeCenter = strokeStart.add(strokeEnd).mul(0.5).toVar();
+  const strokeProgress = clamp(
+    phi.sub(strokeStart).div(strokeSpan),
+    0.0,
+    1.0,
+  ).toVar();
+  const curveSign = hash3(vec3(angleCell, seed, 12.7))
+    .sub(0.5)
+    .mul(2.0)
+    .toVar();
+  const curveAmount = curveSign
+    .mul(mix(0.55, 1.35, hash3(vec3(angleCell, seed, 18.3))))
+    .toVar();
+  const curveOffset = pow(strokeProgress, 1.65)
+    .mul(0.)
+    .toVar();
+  const surfaceWobble = fbm3(vec3(angle01.mul(5.0), phi.mul(4.0), seed))
+    .sub(0.5)
+    .mul(0.08)
+    .mul(strokeProgress)
+    .toVar();
+  const angleCoord = baseCoord.sub(curveOffset).add(surfaceWobble).toVar();
+  const angleLocal = fract(angleCoord).sub(0.5).toVar();
+  const lengthLocal = phi.sub(strokeCenter).mul(lineCount).toVar();
+  const halfLength = strokeSpan.mul(lineCount).mul(0.5).toVar();
+  const lineRotation = hash3(vec3(angleCell, seed, 21.9))
+    .sub(0.5)
+    .mul(2.0)
+    .mul(rotationAmount)
+    .toVar();
+  const rotationCos = cos(lineRotation).toVar();
+  const rotationSin = sin(lineRotation).toVar();
+  const rotatedX = angleLocal
+    .mul(rotationCos)
+    .sub(lengthLocal.mul(rotationSin))
+    .abs()
+    .toVar();
+  const rotatedY = angleLocal
+    .mul(rotationSin)
+    .add(lengthLocal.mul(rotationCos))
+    .toVar();
+  const lineSoftness = thickness.mul(0.45).add(0.006).toVar();
+  const thinLine = float(1.0)
+    .sub(smoothstep(thickness, thickness.add(lineSoftness), rotatedX))
+    .toVar();
+  const fadeLocal = fade.mul(lineCount).toVar();
+  const startEdge = float(0.0).sub(halfLength).toVar();
+  const endEdge = halfLength.toVar();
+  const startMask = smoothstep(startEdge, startEdge.add(fadeLocal), rotatedY)
+    .toVar();
+  const endMask = float(1.0)
+    .sub(smoothstep(endEdge, endEdge.add(fadeLocal), rotatedY))
+    .toVar();
+  const lengthMask = startMask.mul(endMask).toVar();
+  const active = step(
+    float(1.0).sub(density),
+    hash3(vec3(angleCell, seed, 9.1)),
+  ).toVar();
+
+  // return lengthMask;
+  return thinLine.mul(lengthMask).mul(active);
 });
 
 const getDisplacedPosition = Fn(([
@@ -161,6 +282,17 @@ export function createPuffMaterial() {
     rimStrength: uniform(shading.rimStrength),
     rimThreshold: uniform(shading.rimThreshold),
     rimPower: uniform(shading.rimPower),
+    surfaceInkColor: uniform(new THREE.Color(shading.surfaceInkColor)),
+    surfaceInkStrength: uniform(shading.surfaceInkStrength),
+    surfaceLineScale: uniform(shading.surfaceLineScale),
+    surfaceLineDensity: uniform(shading.surfaceLineDensity),
+    surfaceLineThickness: uniform(shading.surfaceLineThickness),
+    surfaceLineRotation: uniform(shading.surfaceLineRotation),
+    surfaceLineStartMin: uniform(shading.surfaceLineStartMin),
+    surfaceLineStartMax: uniform(shading.surfaceLineStartMax),
+    surfaceLineLengthMin: uniform(shading.surfaceLineLengthMin),
+    surfaceLineLengthMax: uniform(shading.surfaceLineLengthMax),
+    surfaceLineFade: uniform(shading.surfaceLineFade),
     thresholdLow: uniform(shading.thresholdLow),
     thresholdHigh: uniform(shading.thresholdHigh),
     thresholdNoiseScale: uniform(shading.thresholdNoiseScale),
@@ -222,11 +354,30 @@ export function createPuffMaterial() {
       vec3(uniforms.highlightColor),
       quantizedShade,
     ).toVar();
-    const edge = float(1.0).sub(max(dot(N, V), 0.0)).toVar();
-    const shadowMask = float(1.0).sub(smoothstep(0.12, 0.86, shade)).toVar();
-    const edgeMask = smoothstep(uniforms.surfaceLineEdge, 1.0, edge).toVar();
+    const strokes = surfaceLightStrokes(
+      N,
+      L,
+      puffSeed,
+      uniforms.surfaceLineScale,
+      uniforms.surfaceLineDensity,
+      uniforms.surfaceLineThickness,
+      uniforms.surfaceLineRotation,
+      uniforms.surfaceLineStartMin,
+      uniforms.surfaceLineStartMax,
+      uniforms.surfaceLineLengthMin,
+      uniforms.surfaceLineLengthMax,
+      uniforms.surfaceLineFade,
+    ).toVar();
 
+    color.assign(
+      mix(
+        color,
+        vec3(uniforms.surfaceInkColor),
+        clamp(strokes.mul(uniforms.surfaceInkStrength), 0.0, 1.0),
+      ),
+    );
 
+    // return strokes;
     return vec4(clamp(color, 0.0, 1.0), 1.0);
   })();
 

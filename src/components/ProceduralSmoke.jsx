@@ -52,6 +52,17 @@ export function ProceduralSmoke({
     rimThreshold,
     shadowColor,
     speedScale,
+    surfaceInkColor,
+    surfaceInkStrength,
+    surfaceLineDensity,
+    surfaceLineFade,
+    surfaceLineLengthMax,
+    surfaceLineLengthMin,
+    surfaceLineRotation,
+    surfaceLineScale,
+    surfaceLineStartMax,
+    surfaceLineStartMin,
+    surfaceLineThickness,
     thresholdHigh,
     thresholdLow,
     thresholdNoiseScale,
@@ -141,6 +152,17 @@ export function ProceduralSmoke({
     puffUniforms.rimThreshold.value = rimThreshold;
     puffUniforms.rimPower.value = rimPower;
     puffUniforms.shadowColor.value.set(shadowColor);
+    puffUniforms.surfaceInkColor.value.set(surfaceInkColor);
+    puffUniforms.surfaceInkStrength.value = surfaceInkStrength;
+    puffUniforms.surfaceLineDensity.value = surfaceLineDensity;
+    puffUniforms.surfaceLineFade.value = surfaceLineFade;
+    puffUniforms.surfaceLineLengthMax.value = surfaceLineLengthMax;
+    puffUniforms.surfaceLineLengthMin.value = surfaceLineLengthMin;
+    puffUniforms.surfaceLineRotation.value = surfaceLineRotation;
+    puffUniforms.surfaceLineScale.value = surfaceLineScale;
+    puffUniforms.surfaceLineStartMax.value = surfaceLineStartMax;
+    puffUniforms.surfaceLineStartMin.value = surfaceLineStartMin;
+    puffUniforms.surfaceLineThickness.value = surfaceLineThickness;
     puffUniforms.thresholdHigh.value = thresholdHigh;
     puffUniforms.thresholdLow.value = thresholdLow;
     puffUniforms.thresholdNoiseScale.value = thresholdNoiseScale;
@@ -172,6 +194,17 @@ export function ProceduralSmoke({
     rimStrength,
     rimThreshold,
     shadowColor,
+    surfaceInkColor,
+    surfaceInkStrength,
+    surfaceLineDensity,
+    surfaceLineFade,
+    surfaceLineLengthMax,
+    surfaceLineLengthMin,
+    surfaceLineRotation,
+    surfaceLineScale,
+    surfaceLineStartMax,
+    surfaceLineStartMin,
+    surfaceLineThickness,
     thresholdHigh,
     thresholdLow,
     thresholdNoiseScale,

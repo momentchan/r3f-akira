@@ -40,10 +40,10 @@ export default function App() {
       >
         <group position={[0, -1, 0]}>
           {/* <Character /> */}
-          <mesh rotation-x={-Math.PI / 2} scale={10} receiveShadow>
+          {/* <mesh rotation-x={-Math.PI / 2} scale={10} receiveShadow>
             <planeGeometry args={[2, 2]} />
             <meshStandardMaterial color="#eeeeee" />
-          </mesh>
+          </mesh> */}
           <ProceduralSmoke position={[0, 0.1, 0]} />
         </group>
 
