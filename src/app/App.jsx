@@ -2,13 +2,21 @@ import { AdaptiveDpr, CameraControls } from "@react-three/drei";
 import { CanvasCapture } from "@core";
 import { LevaWrapper } from "@core";
 import { Canvas } from "@react-three/fiber";
+import { useControls } from "leva";
 import * as THREE from "three/webgpu";
 import { DirectionalLight } from "../components/DirectionalLight";
 import Effects from "../components/Effects";
+import { DahliaVAT } from "../components/dahlia-vat/DahliaVAT";
+import { Flower } from "../components/Flower";
 import { ProceduralSmoke } from "../components/ProceduralSmoke";
 import { Character } from "../components/character/Character";
+import { Environment } from "@react-three/drei";
 
 export default function App() {
+  const { bgColor } = useControls("Scene", {
+    bgColor: { value: "#f5d0d0", label: "background" },
+  });
+
   return (
     <>
       <LevaWrapper />
@@ -44,8 +52,13 @@ export default function App() {
             <planeGeometry args={[2, 2]} />
             <meshStandardMaterial color="#eeeeee" />
           </mesh> */}
-          <ProceduralSmoke position={[0, 0.1, 0]} />
+          <DahliaVAT />
+          {/* <Flower /> */}
+          {/* <ProceduralSmoke position={[0, 0.1, 0]} /> */}
         </group>
+
+        <color attach="background" args={[bgColor]} />
+        <Environment preset="sunset" />
 
         <AdaptiveDpr pixelated />
         <CameraControls makeDefault />
