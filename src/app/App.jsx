@@ -14,7 +14,7 @@ import { Environment } from "@react-three/drei";
 
 export default function App() {
   const { bgColor } = useControls("Scene", {
-    bgColor: { value: "#f5d0d0", label: "background" },
+    bgColor: { value: "#ede4d3", label: "background" },
   });
 
   return (

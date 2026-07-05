@@ -91,19 +91,49 @@ function applyPaperGrain(color, grainUniforms) {
   return clamp(color.mul(float(1.0).add(grainSample)), 0.0, 1.0);
 }
 
-function createVeinLinesFromTextureFn(veinTexture) {
-  return Fn(([uvCoord, scale, rotation, threshold]) => {
+function createVeinLinesFromTextureFn(veinTexture, veinUniforms) {
+  return Fn(([uvCoord, petalId]) => {
+    // petalId is vertex color G in 0–1; offsets distortion and coverage only.
+    const petalSeed = petalId.mul(veinUniforms.petalVariation).toVar();
+    const petalOffset = vec2(petalSeed, petalSeed.add(0.37)).toVar();
+
     const centered = uvCoord.sub(0.5).toVar();
-    const rotationCos = cos(rotation).toVar();
-    const rotationSin = sin(rotation).toVar();
+    const rotationCos = cos(veinUniforms.rotation).toVar();
+    const rotationSin = sin(veinUniforms.rotation).toVar();
     const rotated = vec2(
       centered.x.mul(rotationCos).sub(centered.y.mul(rotationSin)),
       centered.x.mul(rotationSin).add(centered.y.mul(rotationCos)),
     ).add(0.5).toVar();
-    const veinUV = rotated.mul(scale).toVar();
+
+    // Hand-drawn wobble: push the lookup UV around with low-frequency noise
+    // so the printed strokes stop being perfectly clean texture lines.
+    const distortCoord = uvCoord
+      .mul(veinUniforms.distortionScale)
+      .add(petalOffset)
+      .toVar();
+    const wobble = vec2(
+      noise3(vec3(distortCoord, 1.7)).sub(0.5),
+      noise3(vec3(distortCoord, 9.2)).sub(0.5),
+    ).mul(veinUniforms.distortion).toVar();
+
+    const veinUV = rotated.mul(veinUniforms.scale).add(wobble).toVar();
     const sample = texture(veinTexture, veinUV);
     const veinLine = float(1.0).sub(sample.r);
-    return step(threshold, veinLine);
+    const stroke = step(veinUniforms.threshold, veinLine).toVar();
+
+    // Organic coverage: a soft noise mask fades strokes in and out in
+    // patches instead of showing every vein at full strength everywhere.
+    const coverageNoise = noise3(
+      vec3(uvCoord.mul(veinUniforms.coverageScale).add(petalOffset), petalSeed),
+    ).toVar();
+    const cutoff = float(1.0).sub(veinUniforms.coverage).toVar();
+    const visibility = smoothstep(
+      cutoff.sub(0.15),
+      cutoff.add(0.15),
+      coverageNoise,
+    ).toVar();
+
+    return stroke.mul(visibility);
   });
 }
 
@@ -162,6 +192,8 @@ export function createFlowerUniforms() {
     petal: {
       lightDir,
       colorLevels: uniform(petal.colorLevels),
+      gradientLevels: uniform(petal.gradientLevels),
+      gradientBandStrength: uniform(petal.gradientBandStrength),
       shadowTint: uniform(new THREE.Color(petal.shadowTint)),
       highlightTint: uniform(new THREE.Color(petal.highlightTint)),
       rimStrength: uniform(petal.rimStrength),
@@ -179,6 +211,11 @@ export function createFlowerUniforms() {
       scale: uniform(vein.scale),
       rotation: uniform(vein.rotation),
       threshold: uniform(vein.threshold),
+      distortion: uniform(vein.distortion),
+      distortionScale: uniform(vein.distortionScale),
+      coverage: uniform(vein.coverage),
+      coverageScale: uniform(vein.coverageScale),
+      petalVariation: uniform(vein.petalVariation),
     },
     stem: {
       lightDir,
@@ -257,6 +294,18 @@ function buildQuantizedShade(shading, normalSource = normalLocal) {
 
 function buildPetalGradient(petal, uvCoord) {
   const gradientT = float(1.0).sub(uvCoord.y).toVar();
+
+  // Posterize the base->tip gradient toward flat woodblock-style zones.
+  // Blended with the smooth gradient so band edges don't read as hard cuts.
+  const levels = max(float(petal.gradientLevels), 1.0).toVar();
+  const zone = clamp(floor(gradientT.mul(levels)), 0.0, levels.sub(1.0));
+  const banded = zone.div(max(levels.sub(1.0), 1.0));
+  gradientT.assign(mix(
+    gradientT,
+    banded,
+    clamp(float(petal.gradientBandStrength), 0.0, 1.0),
+  ));
+
   const midBand = smoothstep(0.08, 0.62, gradientT).toVar();
   const tipBand = smoothstep(0.42, 1.0, gradientT).toVar();
   const baseToMid = mix(vec3(petal.baseColor), vec3(petal.midColor), midBand);
@@ -270,6 +319,7 @@ function buildPetalColor(
   outlineUniforms,
   grainUniforms,
   normalSource = normalLocal,
+  petalId = float(0.0),
 ) {
   const uvCoord = uv();
   const { quantizedShade } = buildQuantizedShade(petal, normalSource);
@@ -281,15 +331,10 @@ function buildPetalColor(
     quantizedShade,
   ).toVar();
 
-  const strokes = veinLinesFn(
-    uvCoord,
-    veinUniforms.scale,
-    veinUniforms.rotation,
-    veinUniforms.threshold,
-  ).toVar();
+  const strokes = veinLinesFn(uvCoord, petalId).toVar();
 
   litColor.assign(
-    mix(litColor, vec3(outlineUniforms.outlineColor), step(float(0.5), strokes)),
+    mix(litColor, vec3(outlineUniforms.outlineColor), clamp(strokes, 0.0, 1.0)),
   );
   litColor.assign(applyPaperGrain(litColor, grainUniforms));
 
@@ -331,7 +376,7 @@ export function createFlowerPetalMaterial(
 ) {
   const { normalSource = normalLocal } = options;
   const petal = flowerUniforms.petal;
-  const veinLinesFn = createVeinLinesFromTextureFn(veinTexture);
+  const veinLinesFn = createVeinLinesFromTextureFn(veinTexture, flowerUniforms.vein);
   const material = new THREE.MeshBasicNodeMaterial({
     toneMapped: false,
     side: THREE.DoubleSide,
@@ -368,9 +413,14 @@ export function createFlowerPetalMaterial(
   return material;
 }
 
-/** Vertex color tags: flower = (1,0,0), stem = (0,0,0). */
+/** Vertex color tags: flower = (1, petal_id, 0), stem = (0, 0, 0). */
 export function isFlowerVertexColor(vertexColor) {
   return step(float(0.5), vertexColor.r);
+}
+
+/** Normalized petal id from vertex color G channel (0–1). */
+export function getPetalIdFromVertexColor(vertexColor) {
+  return vertexColor.g;
 }
 
 export function createFlowerVertexColorMaterial(
@@ -384,7 +434,7 @@ export function createFlowerVertexColorMaterial(
   const { normalSource = normalLocal } = options;
   const petal = flowerUniforms.petal;
   const stem = flowerUniforms.stem;
-  const veinLinesFn = createVeinLinesFromTextureFn(veinTexture);
+  const veinLinesFn = createVeinLinesFromTextureFn(veinTexture, flowerUniforms.vein);
   const maskAlphaFn = createMaskAlphaFn(maskTexture);
   const maskEdgeFn = createMaskEdgeFn(maskAlphaFn);
 
@@ -406,6 +456,7 @@ export function createFlowerVertexColorMaterial(
     If(isFlower.greaterThan(float(0.5)), () => {
       applyMaskDiscard(maskAlphaFn, maskUniforms);
 
+      const petalId = getPetalIdFromVertexColor(vertexPart);
       const { color, uvCoord } = buildPetalColor(
         petal,
         flowerUniforms.vein,
@@ -413,6 +464,7 @@ export function createFlowerVertexColorMaterial(
         outlineUniforms,
         flowerUniforms.grain,
         normalSource,
+        petalId,
       );
       const maskEdge = maskEdgeFn(
         uvCoord,

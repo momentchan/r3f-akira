@@ -48,7 +48,7 @@ export function DahliaVAT({
     { collapsed: true },
   );
   const flowerControlsSchema = useMemo(
-    () => createFlowerControlsSchema({ mask: { edgeWidth: 0.005 } }),
+    () => createFlowerControlsSchema({ mask: { edgeWidth: 0.001 } }),
     [],
   );
   const flowerControls = useControls('Flower', flowerControlsSchema, { collapsed: true });
