@@ -5,9 +5,8 @@ import { useControls } from 'leva';
 import * as THREE from 'three/webgpu';
 import {
   calculateVATFrame,
-  extractGeometryFromScene,
+  extractMeshGeometriesFromScene,
   preloadVATAssets,
-  setupVATGeometry,
   useVATPreloader,
 } from '@core/vat';
 import {
@@ -63,19 +62,16 @@ export function DahliaVAT({
     configureFlowerTexture(veinTexture);
   }, [maskTexture, veinTexture]);
 
-  const geometry = useMemo(() => {
+  const meshParts = useMemo(() => {
     if (!vatData.isLoaded || !vatData.scene || !vatData.meta) {
       return null;
     }
 
-    const extracted = extractGeometryFromScene(vatData.scene);
-    if (!extracted) {
-      return null;
-    }
-
-    setupVATGeometry(extracted, vatData.meta, { flipX: true });
-    return extracted;
-  }, [vatData]);
+    return extractMeshGeometriesFromScene(vatData.scene, vatData.meta, {
+      flipX: true,
+      partColors: { stemYMax: vatControls.stemYMax },
+    });
+  }, [vatData, vatControls.stemYMax]);
 
   const materialBundle = useMemo(() => {
     if (
@@ -110,9 +106,9 @@ export function DahliaVAT({
   ]);
 
   useEffect(() => () => {
-    materialBundle?.fillMaterial.dispose();
-    geometry?.dispose();
-  }, [materialBundle, geometry]);
+    materialBundle?.material.dispose();
+    meshParts?.forEach(({ geometry }) => geometry.dispose());
+  }, [materialBundle, meshParts]);
 
   useEffect(() => {
     if (!materialBundle) {
@@ -124,7 +120,7 @@ export function DahliaVAT({
       flowerUniforms,
       maskUniforms,
       outlineUniforms,
-      { fillMaterial: materialBundle.fillMaterial },
+      { fillMaterial: materialBundle.material },
     );
   }, [flowerControls, flowerUniforms, maskUniforms, outlineUniforms, materialBundle]);
 
@@ -162,21 +158,23 @@ export function DahliaVAT({
       .normalize();
   }, 1);
 
-  if (!geometry || !materialBundle) {
+  if (!meshParts?.length || !materialBundle) {
     return null;
   }
 
   return (
-    <mesh
-      geometry={geometry}
-      material={materialBundle.fillMaterial}
-      position={position}
-      scale={vatControls.scale}
-      visible={visible}
-      frustumCulled={false}
-      castShadow
-      receiveShadow
-    />
+    <group position={position} scale={vatControls.scale} visible={visible}>
+      {meshParts.map(({ name, geometry }) => (
+        <mesh
+          key={name}
+          geometry={geometry}
+          material={materialBundle.material}
+          frustumCulled={false}
+          castShadow
+          receiveShadow
+        />
+      ))}
+    </group>
   );
 }
 

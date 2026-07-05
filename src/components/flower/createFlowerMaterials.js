@@ -4,6 +4,8 @@ import {
   Fn,
   If,
   Loop,
+  abs,
+  attribute,
   cameraPosition,
   clamp,
   cos,
@@ -183,6 +185,9 @@ export function createFlowerUniforms() {
       colorLevels: uniform(stem.colorLevels),
       shadowColor: uniform(new THREE.Color(stem.shadowColor)),
       highlightColor: uniform(new THREE.Color(stem.highlightColor)),
+      edgeColor: uniform(new THREE.Color(stem.edgeColor)),
+      edgeThreshold: uniform(stem.edgeThreshold),
+      edgeSoftness: uniform(stem.edgeSoftness),
       rimStrength: uniform(stem.rimStrength),
       rimThreshold: uniform(stem.rimThreshold),
       rimPower: uniform(stem.rimPower),
@@ -291,13 +296,27 @@ function buildPetalColor(
   return { color: litColor, uvCoord };
 }
 
-function buildStemColor(stem, grainUniforms) {
-  const { quantizedShade } = buildQuantizedShade(stem);
+function buildStemColor(stem, grainUniforms, normalSource = normalLocal) {
+  const { quantizedShade } = buildQuantizedShade(stem, normalSource);
   const color = mix(
     vec3(stem.shadowColor),
     vec3(stem.highlightColor),
     quantizedShade,
   ).toVar();
+
+  // Ink-line silhouette: fragments facing away from the camera at grazing
+  // angles get pulled to the edge color, reading as a drawn outline.
+  const N = transformNormal(normalSource).normalize().toVar();
+  const V = cameraPosition.sub(positionWorld).normalize().toVar();
+  const facing = abs(dot(N, V)).toVar();
+  const edge = float(1.0).sub(
+    smoothstep(
+      stem.edgeThreshold,
+      stem.edgeThreshold.add(max(stem.edgeSoftness, 0.001)),
+      facing,
+    ),
+  ).toVar();
+  color.assign(mix(color, vec3(stem.edgeColor), edge));
 
   return applyPaperGrain(color, grainUniforms);
 }
@@ -349,6 +368,73 @@ export function createFlowerPetalMaterial(
   return material;
 }
 
+/** Vertex color tags: flower = (1,0,0), stem = (0,0,0). */
+export function isFlowerVertexColor(vertexColor) {
+  return step(float(0.5), vertexColor.r);
+}
+
+export function createFlowerVertexColorMaterial(
+  flowerUniforms,
+  outlineUniforms,
+  maskUniforms,
+  maskTexture,
+  veinTexture,
+  options = {},
+) {
+  const { normalSource = normalLocal } = options;
+  const petal = flowerUniforms.petal;
+  const stem = flowerUniforms.stem;
+  const veinLinesFn = createVeinLinesFromTextureFn(veinTexture);
+  const maskAlphaFn = createMaskAlphaFn(maskTexture);
+  const maskEdgeFn = createMaskEdgeFn(maskAlphaFn);
+
+  const material = new THREE.MeshBasicNodeMaterial({
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    vertexColors: true,
+    transparent: false,
+    alphaTest: FLOWER_DEFAULTS.mask.threshold,
+    depthWrite: true,
+    depthTest: true,
+  });
+
+  material.fragmentNode = Fn(() => {
+    const vertexPart = attribute('color', 'vec3');
+    const isFlower = isFlowerVertexColor(vertexPart);
+    const result = vec4(0.0, 0.0, 0.0, 1.0).toVar();
+
+    If(isFlower.greaterThan(float(0.5)), () => {
+      applyMaskDiscard(maskAlphaFn, maskUniforms);
+
+      const { color, uvCoord } = buildPetalColor(
+        petal,
+        flowerUniforms.vein,
+        veinLinesFn,
+        outlineUniforms,
+        flowerUniforms.grain,
+        normalSource,
+      );
+      const maskEdge = maskEdgeFn(
+        uvCoord,
+        maskUniforms.threshold,
+        maskUniforms.edgeWidth,
+      ).toVar();
+
+      result.assign(vec4(
+        clamp(mix(color, vec3(outlineUniforms.outlineColor), maskEdge), 0.0, 1.0),
+        1.0,
+      ));
+    }).Else(() => {
+      const stemColor = buildStemColor(stem, flowerUniforms.grain, normalSource);
+      result.assign(vec4(clamp(stemColor, 0.0, 1.0), 1.0));
+    });
+
+    return result;
+  })();
+
+  return material;
+}
+
 export function createFlowerMaterial(
   flowerUniforms,
   maskUniforms,
@@ -365,7 +451,8 @@ export function createFlowerMaterial(
   );
 }
 
-export function createFlowerStemMaterial(flowerUniforms) {
+export function createFlowerStemMaterial(flowerUniforms, options = {}) {
+  const { normalSource = normalLocal } = options;
   const stem = flowerUniforms.stem;
   const material = new THREE.MeshBasicNodeMaterial({
     toneMapped: false,
@@ -375,7 +462,7 @@ export function createFlowerStemMaterial(flowerUniforms) {
   });
 
   material.fragmentNode = Fn(() => {
-    const color = buildStemColor(stem, flowerUniforms.grain);
+    const color = buildStemColor(stem, flowerUniforms.grain, normalSource);
     return vec4(clamp(color, 0.0, 1.0), 1.0);
   })();
 
@@ -416,7 +503,7 @@ export function createFlowerOutlineMaterial(
   return material;
 }
 
-function shouldUseMask(name = '') {
+export function isFlowerPetalMesh(name = '') {
   return !/stem|stamen|stalk|center|core|pistil|mech|wire/i.test(name);
 }
 
@@ -436,7 +523,7 @@ export function applyCartoonMaterials(
   fillScene.traverse((child) => {
     if (!child.isMesh) return;
 
-    const useMask = shouldUseMask(child.name);
+    const useMask = isFlowerPetalMesh(child.name);
     child.material = useMask ? maskedFillMaterial : stemFillMaterial;
     child.castShadow = true;
     child.receiveShadow = true;
@@ -451,7 +538,7 @@ export function applyCartoonMaterials(
   outlineScene.traverse((child) => {
     if (!child.isMesh) return;
 
-    const useMask = shouldUseMask(child.name);
+    const useMask = isFlowerPetalMesh(child.name);
     child.material = useMask ? maskedOutlineMaterial : stemOutlineMaterial;
     child.castShadow = false;
     child.receiveShadow = false;

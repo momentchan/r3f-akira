@@ -3,7 +3,7 @@ export const FLOWER_VEIN_PATH = '/textures/tujlip-veins.png';
 
 export const FLOWER_DEFAULTS = {
   petal: {
-    colorLevels: 3,
+    colorLevels: 2,
     rimStrength: 0.1,
     rimThreshold: 0.74,
     rimPower: 2.6,
@@ -31,8 +31,11 @@ export const FLOWER_DEFAULTS = {
     thresholdHigh: 0.62,
     thresholdNoiseScale: 18,
     thresholdNoiseStrength: 0.04,
-    shadowColor: '#a88ddb',
-    highlightColor: '#ffd0e8',
+    shadowColor: '#33474f',
+    highlightColor: '#4c6873',
+    edgeColor: '#1c2a31',
+    edgeThreshold: 0.32,
+    edgeSoftness: 0.08,
   },
   mask: {
     threshold: 0.24,

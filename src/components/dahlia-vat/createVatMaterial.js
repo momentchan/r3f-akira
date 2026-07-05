@@ -5,7 +5,7 @@ import {
   sampleVATNormalFrameBlended,
   sampleVATPosition,
 } from '@core/vat';
-import { createFlowerPetalMaterial } from '../flower/createFlowerMaterials';
+import { createFlowerVertexColorMaterial } from '../flower/createFlowerMaterials';
 
 export function configureVatTexture(texture) {
   texture.colorSpace = THREE.NoColorSpace;
@@ -20,17 +20,7 @@ export function configureVatTexture(texture) {
   return texture;
 }
 
-export function createVatFlowerMaterials(
-  posTex,
-  nrmTex,
-  meta,
-  flowerUniforms,
-  outlineUniforms,
-  maskUniforms,
-  maskTexture,
-  veinTexture,
-) {
-  const frameUniform = uniform(0);
+function createVatDeformation(posTex, nrmTex, meta, frameUniform) {
   const sampleUV = createVATSampleUV(frameUniform, meta);
   const vatPosition = sampleVATPosition(posTex, sampleUV);
   // Decode-then-blend across frames; blending raw oct-encoded texels
@@ -42,17 +32,32 @@ export function createVatFlowerMaterials(
     meta.compressNormal ?? true,
   );
 
-  // Single merged VAT mesh: inverted-hull outline backfaces stack at petal
-  // overlaps. Use mask-edge outline in the petal fragment shader instead.
-  const fillMaterial = createFlowerPetalMaterial(
+  return { vatPosition, vatNormalLocal };
+}
+
+export function createVatFlowerMaterials(
+  posTex,
+  nrmTex,
+  meta,
+  flowerUniforms,
+  outlineUniforms,
+  maskUniforms,
+  maskTexture,
+  veinTexture,
+) {
+  const frameUniform = uniform(0);
+  const deformation = createVatDeformation(posTex, nrmTex, meta, frameUniform);
+
+  // One merged ABC mesh: flower=(1,0,0), stem=(0,0,0) via COLOR_0.
+  const material = createFlowerVertexColorMaterial(
     flowerUniforms,
     outlineUniforms,
     maskUniforms,
     maskTexture,
     veinTexture,
-    { normalSource: vatNormalLocal },
+    { normalSource: deformation.vatNormalLocal },
   );
-  fillMaterial.positionNode = vatPosition;
+  material.positionNode = deformation.vatPosition;
 
-  return { fillMaterial, frameUniform };
+  return { material, frameUniform };
 }

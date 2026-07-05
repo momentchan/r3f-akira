@@ -5,6 +5,7 @@ export const DAHLIA_VAT_DEFAULTS = {
   frame: 0,
   useTime: true,
   scale: 1,
+  stemYMax: 0.05,
 };
 
 export function createDahliaVatControlsSchema() {
@@ -15,5 +16,12 @@ export function createDahliaVatControlsSchema() {
     frame: { value: defaults.frame, min: 0, max: 1, step: 0.001 },
     useTime: { value: defaults.useTime, label: 'animate' },
     scale: { value: defaults.scale, min: 0.01, max: 4, step: 0.01 },
+    stemYMax: {
+      value: defaults.stemYMax,
+      min: -0.5,
+      max: 0.5,
+      step: 0.01,
+      label: 'stem Y max',
+    },
   };
 }

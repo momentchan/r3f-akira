@@ -44,6 +44,9 @@ export function createFlowerControlsSchema(options = {}) {
       stemThresholdHigh: { value: stem.thresholdHigh, min: 0, max: 1, step: 0.01, label: 'thresholdHigh' },
       stemShadowColor: { value: stem.shadowColor, label: 'shadowColor' },
       stemHighlightColor: { value: stem.highlightColor, label: 'highlightColor' },
+      stemEdgeColor: { value: stem.edgeColor, label: 'edgeColor' },
+      stemEdgeThreshold: { value: stem.edgeThreshold, min: 0, max: 1, step: 0.01, label: 'edgeThreshold' },
+      stemEdgeSoftness: { value: stem.edgeSoftness, min: 0, max: 0.5, step: 0.005, label: 'edgeSoftness' },
     }),
     Mask: folder({
       threshold: { value: mask.threshold, min: 0, max: 1, step: 0.01 },
@@ -102,6 +105,9 @@ export function syncFlowerControls(
   stem.thresholdHigh.value = controls.stemThresholdHigh;
   stem.shadowColor.value.set(controls.stemShadowColor);
   stem.highlightColor.value.set(controls.stemHighlightColor);
+  stem.edgeColor.value.set(controls.stemEdgeColor);
+  stem.edgeThreshold.value = controls.stemEdgeThreshold;
+  stem.edgeSoftness.value = controls.stemEdgeSoftness;
 
   maskUniforms.threshold.value = controls.threshold;
   maskUniforms.edgeWidth.value = controls.edgeWidth;
