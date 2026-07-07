@@ -7,6 +7,7 @@ import * as THREE from "three/webgpu";
 import { DirectionalLight } from "../components/DirectionalLight";
 import Effects from "../components/Effects";
 import { DahliaVAT } from "../components/dahlia-vat/DahliaVAT";
+import { DahliaGeoNodes } from "../components/dahlia-geo/DahliaGeoNodes";
 import { Flower } from "../components/Flower";
 import { ProceduralSmoke } from "../components/ProceduralSmoke";
 import { Character } from "../components/character/Character";
@@ -52,7 +53,8 @@ export default function App() {
             <planeGeometry args={[2, 2]} />
             <meshStandardMaterial color="#eeeeee" />
           </mesh> */}
-          <DahliaVAT />
+          {/* <DahliaVAT /> */}
+          <DahliaGeoNodes position={[0, 1, 0]} />
           {/* <Flower /> */}
           {/* <ProceduralSmoke position={[0, 0.1, 0]} /> */}
         </group>

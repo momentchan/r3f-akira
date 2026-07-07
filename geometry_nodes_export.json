@@ -1,0 +1,6545 @@
+{
+  "node_tree": "Dahlia Flower",
+  "nodes": [
+    {
+      "name": "Frame",
+      "label": "Scale Fix 2",
+      "type": "NodeFrame",
+      "location": [
+        1523.6666259765625,
+        -32.86666488647461
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.001",
+      "label": "Transfer Between Open and Close Petal",
+      "type": "NodeFrame",
+      "location": [
+        1885.0,
+        570.4666748046875
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.011",
+      "label": "Instance Petals on Points",
+      "type": "NodeFrame",
+      "location": [
+        -286.3333435058594,
+        659.7999877929688
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.012",
+      "label": "Rotate by each petal (Index)",
+      "type": "NodeFrame",
+      "location": [
+        239.0,
+        606.4666748046875
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.014",
+      "label": "Scale Center Petals to be smaller",
+      "type": "NodeFrame",
+      "location": [
+        1233.0,
+        461.1333312988281
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.013",
+      "label": "Rotate by each petal (Index)",
+      "type": "NodeFrame",
+      "location": [
+        127.66666412353516,
+        -590.8666381835938
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.015",
+      "label": "Sphere Gradient for Scale Control",
+      "type": "NodeFrame",
+      "location": [
+        183.6666717529297,
+        -80.20000457763672
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.016",
+      "label": "Taper Adjustment",
+      "type": "NodeFrame",
+      "location": [
+        2699.666748046875,
+        577.1333618164062
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.017",
+      "label": "Taper Adjustment 2",
+      "type": "NodeFrame",
+      "location": [
+        3089.0,
+        168.46665954589844
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.018",
+      "label": "Twist ",
+      "type": "NodeFrame",
+      "location": [
+        3915.666748046875,
+        -42.20000076293945
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.005",
+      "label": "Closed Petal",
+      "type": "NodeFrame",
+      "location": [
+        -4201.0,
+        -183.7333221435547
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.010",
+      "label": "Bottom Taper",
+      "type": "NodeFrame",
+      "location": [
+        1120.0,
+        -49.80000305175781
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.004",
+      "label": "Bend",
+      "type": "NodeFrame",
+      "location": [
+        216.666748046875,
+        -35.80000305175781
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.009",
+      "label": "Open Petal",
+      "type": "NodeFrame",
+      "location": [
+        -4919.0,
+        -1214.4000244140625
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.008",
+      "label": "Bottom Taper",
+      "type": "NodeFrame",
+      "location": [
+        2104.0,
+        -35.800048828125
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.007",
+      "label": "Curl",
+      "type": "NodeFrame",
+      "location": [
+        1164.0,
+        -35.800048828125
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.006",
+      "label": "Bend",
+      "type": "NodeFrame",
+      "location": [
+        248.0,
+        -45.800048828125
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.003",
+      "label": "Point/Petal Spawn",
+      "type": "NodeFrame",
+      "location": [
+        -2737.666748046875,
+        505.1333312988281
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Frame.002",
+      "label": "Capturing Points for Transfer",
+      "type": "NodeFrame",
+      "location": [
+        -1509.0,
+        839.13330078125
+      ],
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "Combine XYZ.008",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        198.3829345703125,
+        -131.03311157226562
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 1.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 1.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 1.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.011",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        35.2860107421875,
+        -184.35488891601562
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 1.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Color Ramp.005",
+      "label": "",
+      "type": "ShaderNodeValToRGB",
+      "location": [
+        198.0836181640625,
+        -271.2367248535156
+      ],
+      "inputs": [
+        {
+          "name": "Factor",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Color",
+          "type": "NodeSocketColor",
+          "is_linked": true
+        },
+        {
+          "name": "Alpha",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Gradient Texture.004",
+      "label": "",
+      "type": "ShaderNodeTexGradient",
+      "location": [
+        31.3812255859375,
+        -349.1478576660156
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Color",
+          "type": "NodeSocketColor",
+          "is_linked": true
+        },
+        {
+          "name": "Factor",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Position.010",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        28.9007568359375,
+        -120.74624633789062
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Scale Instances.002",
+      "label": "",
+      "type": "GeometryNodeScaleInstances",
+      "location": [
+        361.3670654296875,
+        -36.09817886352539
+      ],
+      "inputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": true,
+          "default_value": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Center",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Local Space",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Set Position.002",
+      "label": "",
+      "type": "GeometryNodeSetPosition",
+      "location": [
+        548.760986328125,
+        -35.99737548828125
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Offset",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Mix",
+      "label": "",
+      "type": "ShaderNodeMix",
+      "location": [
+        381.201416015625,
+        -136.13247680664062
+      ],
+      "inputs": [
+        {
+          "name": "Factor",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Factor",
+          "type": "NodeSocketVectorFactor",
+          "is_linked": false,
+          "default_value": [
+            0.5,
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "name": "A",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "B",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "A",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "B",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "A",
+          "type": "NodeSocketColor",
+          "is_linked": true,
+          "default_value": [
+            0.5,
+            0.5,
+            0.5,
+            1.0
+          ]
+        },
+        {
+          "name": "B",
+          "type": "NodeSocketColor",
+          "is_linked": true,
+          "default_value": [
+            0.5,
+            0.5,
+            0.5,
+            1.0
+          ]
+        },
+        {
+          "name": "A",
+          "type": "NodeSocketRotation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "B",
+          "type": "NodeSocketRotation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Result",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Result",
+          "type": "NodeSocketVector",
+          "is_linked": false
+        },
+        {
+          "name": "Result",
+          "type": "NodeSocketColor",
+          "is_linked": true
+        },
+        {
+          "name": "Result",
+          "type": "NodeSocketRotation",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Index.002",
+      "label": "",
+      "type": "GeometryNodeInputIndex",
+      "location": [
+        38.245849609375,
+        -477.5713806152344
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Index",
+          "type": "NodeSocketInt",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Realize Instances.001",
+      "label": "",
+      "type": "GeometryNodeRealizeInstances",
+      "location": [
+        35.859130859375,
+        -393.6253662109375
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Realize All",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Depth",
+          "type": "NodeSocketInt",
+          "is_linked": false,
+          "default_value": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Position.006",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        33.554931640625,
+        -333.5494384765625
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Color Ramp.004",
+      "label": "",
+      "type": "ShaderNodeValToRGB",
+      "location": [
+        28.831298828125,
+        -118.9735107421875
+      ],
+      "inputs": [
+        {
+          "name": "Factor",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Color",
+          "type": "NodeSocketColor",
+          "is_linked": true
+        },
+        {
+          "name": "Alpha",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Sample Index",
+      "label": "",
+      "type": "GeometryNodeSampleIndex",
+      "location": [
+        205.575927734375,
+        -327.9610595703125
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Index",
+          "type": "NodeSocketInt",
+          "is_linked": true,
+          "default_value": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.006",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        205.251220703125,
+        -145.13394165039062
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Realize Instances",
+      "label": "",
+      "type": "GeometryNodeRealizeInstances",
+      "location": [
+        208.409423828125,
+        -47.272216796875
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Realize All",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Depth",
+          "type": "NodeSocketInt",
+          "is_linked": false,
+          "default_value": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Reroute.002",
+      "label": "",
+      "type": "NodeReroute",
+      "location": [
+        -754.9956665039062,
+        -271.786376953125
+      ],
+      "inputs": [
+        {
+          "name": "Input",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Output",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Instance on Points",
+      "label": "",
+      "type": "GeometryNodeInstanceOnPoints",
+      "location": [
+        195.26718139648438,
+        -35.7296142578125
+      ],
+      "inputs": [
+        {
+          "name": "Points",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Instance",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Pick Instance",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": false
+        },
+        {
+          "name": "Instance Index",
+          "type": "NodeSocketInt",
+          "is_linked": false,
+          "default_value": 0
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": false,
+          "default_value": [
+            0.5,
+            0.5,
+            0.5
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Map Range",
+      "label": "",
+      "type": "ShaderNodeMapRange",
+      "location": [
+        192.67529296875,
+        -166.587890625
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 1.0
+        },
+        {
+          "name": "From Min",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "From Max",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 1.0
+        },
+        {
+          "name": "To Min",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "To Max",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 1.0
+        },
+        {
+          "name": "Steps",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 4.0
+        },
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "From Min",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "From Max",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "To Min",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "To Max",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            -2.629999876022339,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Steps",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            4.0,
+            4.0,
+            4.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Result",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.001",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        30.454833984375,
+        -308.04534912109375
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": -0.0035000001080334187
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ.001",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        31.28857421875,
+        -466.7322082519531
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Index.004",
+      "label": "",
+      "type": "GeometryNodeInputIndex",
+      "location": [
+        28.75244140625,
+        -244.8006591796875
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Index",
+          "type": "NodeSocketInt",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Rotate Instances.001",
+      "label": "",
+      "type": "GeometryNodeRotateInstances",
+      "location": [
+        353.16845703125,
+        -35.57861328125
+      ],
+      "inputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Pivot Point",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Local Space",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Scale Instances.001",
+      "label": "",
+      "type": "GeometryNodeScaleInstances",
+      "location": [
+        28.969482421875,
+        -35.885101318359375
+      ],
+      "inputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": true,
+          "default_value": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Center",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Local Space",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Scale Instances",
+      "label": "",
+      "type": "GeometryNodeScaleInstances",
+      "location": [
+        42.1376953125,
+        -937.6964111328125
+      ],
+      "inputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": true,
+          "default_value": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Center",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Local Space",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Map Range.001",
+      "label": "",
+      "type": "ShaderNodeMapRange",
+      "location": [
+        186.92562866210938,
+        -94.966796875
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 1.0
+        },
+        {
+          "name": "From Min",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "From Max",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 1.0
+        },
+        {
+          "name": "To Min",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "To Max",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 1.0
+        },
+        {
+          "name": "Steps",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 4.0
+        },
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "From Min",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "From Max",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "To Min",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "To Max",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            -2.629999876022339,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Steps",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            4.0,
+            4.0,
+            4.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Result",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ.002",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        29.287437438964844,
+        -394.7958984375
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.010",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        31.478355407714844,
+        -241.148681640625
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": -0.0035000001080334187
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Index.005",
+      "label": "",
+      "type": "GeometryNodeInputIndex",
+      "location": [
+        28.968101501464844,
+        -182.3248291015625
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Index",
+          "type": "NodeSocketInt",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Rotate Instances",
+      "label": "",
+      "type": "GeometryNodeRotateInstances",
+      "location": [
+        353.1995544433594,
+        -35.9134521484375
+      ],
+      "inputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Pivot Point",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Local Space",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Instance on Points.001",
+      "label": "",
+      "type": "GeometryNodeInstanceOnPoints",
+      "location": [
+        212.70053100585938,
+        -1316.37353515625
+      ],
+      "inputs": [
+        {
+          "name": "Points",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Instance",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Pick Instance",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": false
+        },
+        {
+          "name": "Instance Index",
+          "type": "NodeSocketInt",
+          "is_linked": false,
+          "default_value": 0
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": false,
+          "default_value": [
+            1.0,
+            0.6800000071525574,
+            0.42000001668930054
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.002",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        441.97930908203125,
+        -36.012062072753906
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 1.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Color Ramp.002",
+      "label": "",
+      "type": "ShaderNodeValToRGB",
+      "location": [
+        187.3379669189453,
+        -65.9323501586914
+      ],
+      "inputs": [
+        {
+          "name": "Factor",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Color",
+          "type": "NodeSocketColor",
+          "is_linked": true
+        },
+        {
+          "name": "Alpha",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Gradient Texture.002",
+      "label": "",
+      "type": "ShaderNodeTexGradient",
+      "location": [
+        28.755203247070312,
+        -153.018310546875
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Color",
+          "type": "NodeSocketColor",
+          "is_linked": true
+        },
+        {
+          "name": "Factor",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Position.002",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        33.02888488769531,
+        -86.26709747314453
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Set Position.006",
+      "label": "",
+      "type": "GeometryNodeSetPosition",
+      "location": [
+        511.176513671875,
+        -35.84857177734375
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Offset",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ.009",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        354.922607421875,
+        -110.93255615234375
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.012",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        194.523681640625,
+        -116.947998046875
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.013",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        196.013916015625,
+        -153.67095947265625
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.014",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        197.634033203125,
+        -184.876220703125
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.06000000238418579
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 1.2599999904632568
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Separate XYZ.005",
+      "label": "",
+      "type": "ShaderNodeSeparateXYZ",
+      "location": [
+        29.066162109375,
+        -115.06927490234375
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Position",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        39.081298828125,
+        -245.074462890625
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Set Position.007",
+      "label": "",
+      "type": "GeometryNodeSetPosition",
+      "location": [
+        493.645263671875,
+        -35.623046875
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Offset",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ.010",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        336.757080078125,
+        -106.98524475097656
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.015",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        189.403564453125,
+        -110.76222229003906
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.016",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        189.653564453125,
+        -146.63124084472656
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Separate XYZ.006",
+      "label": "",
+      "type": "ShaderNodeSeparateXYZ",
+      "location": [
+        28.812255859375,
+        -107.05531311035156
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Position.001",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        35.597412109375,
+        -239.6513214111328
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.017",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        187.640380859375,
+        -177.9567413330078
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 1.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Transform Geometry.006",
+      "label": "",
+      "type": "GeometryNodeTransform",
+      "location": [
+        335.015869140625,
+        -35.7137565612793
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Mode",
+          "type": "NodeSocketMenu",
+          "is_linked": false,
+          "default_value": "Components"
+        },
+        {
+          "name": "Translation",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": false,
+          "default_value": [
+            0.5,
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "name": "Transform",
+          "type": "NodeSocketMatrix",
+          "is_linked": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Set Position.009",
+      "label": "",
+      "type": "GeometryNodeSetPosition",
+      "location": [
+        179.72607421875,
+        -39.8422966003418
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Offset",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Vector Rotate.006",
+      "label": "",
+      "type": "ShaderNodeVectorRotate",
+      "location": [
+        179.80029296875,
+        -187.74891662597656
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Center",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Axis",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Angle",
+          "type": "NodeSocketFloatAngle",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketVectorEuler",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ.011",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        31.830078125,
+        -104.89234924316406
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.018",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        33.8095703125,
+        -229.33216857910156
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Separate XYZ.007",
+      "label": "",
+      "type": "ShaderNodeSeparateXYZ",
+      "location": [
+        34.291015625,
+        -382.2269287109375
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Position.011",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        29.240234375,
+        -47.0378532409668
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Group Output",
+      "label": "",
+      "type": "NodeGroupOutput",
+      "location": [
+        5468.5810546875,
+        -238.1841278076172
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "",
+          "type": "NodeSocketVirtual",
+          "is_linked": false
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "name": "Set Position.003",
+      "label": "",
+      "type": "GeometryNodeSetPosition",
+      "location": [
+        496.40283203125,
+        -61.03521728515625
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Offset",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Vector Rotate.003",
+      "label": "",
+      "type": "ShaderNodeVectorRotate",
+      "location": [
+        336.13720703125,
+        -151.7564697265625
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Center",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.17999997735023499,
+            0.0
+          ]
+        },
+        {
+          "name": "Axis",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Angle",
+          "type": "NodeSocketFloatAngle",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketVectorEuler",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ.006",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        183.01513671875,
+        -355.0457763671875
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.007",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        178.986572265625,
+        -195.9150390625
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": -10.489999771118164
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Separate XYZ.003",
+      "label": "",
+      "type": "ShaderNodeSeparateXYZ",
+      "location": [
+        29.18798828125,
+        -216.48040771484375
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Position.008",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        182.1513671875,
+        -133.92169189453125
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Transform Geometry.004",
+      "label": "",
+      "type": "GeometryNodeTransform",
+      "location": [
+        655.24169921875,
+        -35.73846435546875
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Mode",
+          "type": "NodeSocketMenu",
+          "is_linked": false,
+          "default_value": "Components"
+        },
+        {
+          "name": "Translation",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": false,
+          "default_value": [
+            -0.46000003814697266,
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "name": "Transform",
+          "type": "NodeSocketMatrix",
+          "is_linked": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Object Info.002",
+      "label": "",
+      "type": "GeometryNodeObjectInfo",
+      "location": [
+        28.9375,
+        -66.22700500488281
+      ],
+      "inputs": [
+        {
+          "name": "Object",
+          "type": "NodeSocketObject",
+          "is_linked": false,
+          "default_value": {
+            "type": "Object",
+            "name": "Dahlia Petal"
+          }
+        },
+        {
+          "name": "As Instance",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Transform",
+          "type": "NodeSocketMatrix",
+          "is_linked": false
+        },
+        {
+          "name": "Location",
+          "type": "NodeSocketVector",
+          "is_linked": false
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": false
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVector",
+          "is_linked": false
+        },
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Set Position.004",
+      "label": "",
+      "type": "GeometryNodeSetPosition",
+      "location": [
+        503.96630859375,
+        -66.97283935546875
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Offset",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Vector Rotate.004",
+      "label": "",
+      "type": "ShaderNodeVectorRotate",
+      "location": [
+        330.9912109375,
+        -168.26239013671875
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Center",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Axis",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Angle",
+          "type": "NodeSocketFloatAngle",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketVectorEuler",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ.005",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        181.068115234375,
+        -376.87939453125
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.008",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        178.3154296875,
+        -218.327392578125
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 1.119999885559082
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Position.007",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        178.165283203125,
+        -159.5146484375
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Separate XYZ.002",
+      "label": "",
+      "type": "ShaderNodeSeparateXYZ",
+      "location": [
+        29.151611328125,
+        -227.3145751953125
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Transform Geometry.003",
+      "label": "",
+      "type": "GeometryNodeTransform",
+      "location": [
+        663.6357421875,
+        -35.50042724609375
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Mode",
+          "type": "NodeSocketMenu",
+          "is_linked": false,
+          "default_value": "Components"
+        },
+        {
+          "name": "Translation",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": false,
+          "default_value": [
+            0.20000000298023224,
+            0.20000000298023224,
+            0.1599999964237213
+          ]
+        },
+        {
+          "name": "Transform",
+          "type": "NodeSocketMatrix",
+          "is_linked": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Set Position.005",
+      "label": "",
+      "type": "GeometryNodeSetPosition",
+      "location": [
+        514.60302734375,
+        -59.269287109375
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Offset",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Vector Rotate.005",
+      "label": "",
+      "type": "ShaderNodeVectorRotate",
+      "location": [
+        339.578125,
+        -169.061767578125
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Center",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            -4.110000133514404,
+            0.0
+          ]
+        },
+        {
+          "name": "Axis",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Angle",
+          "type": "NodeSocketFloatAngle",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketVectorEuler",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ.007",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        182.491943359375,
+        -356.4210205078125
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.009",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        185.990234375,
+        -205.1531982421875
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 1.2899997234344482
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Position.009",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        184.389404296875,
+        -149.7965087890625
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Separate XYZ.004",
+      "label": "",
+      "type": "ShaderNodeSeparateXYZ",
+      "location": [
+        28.968017578125,
+        -217.3511962890625
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Transform Geometry.001",
+      "label": "",
+      "type": "GeometryNodeTransform",
+      "location": [
+        675.65283203125,
+        -35.9412841796875
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Mode",
+          "type": "NodeSocketMenu",
+          "is_linked": false,
+          "default_value": "Components"
+        },
+        {
+          "name": "Translation",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.5585052967071533,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": false,
+          "default_value": [
+            0.37382185459136963,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": false,
+          "default_value": [
+            0.5,
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "name": "Transform",
+          "type": "NodeSocketMatrix",
+          "is_linked": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Separate XYZ.001",
+      "label": "",
+      "type": "ShaderNodeSeparateXYZ",
+      "location": [
+        29.15625,
+        -204.160400390625
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ.004",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        186.3271484375,
+        -346.48388671875
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Set Position",
+      "label": "",
+      "type": "GeometryNodeSetPosition",
+      "location": [
+        497.9306640625,
+        -67.2420654296875
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Offset",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Vector Rotate.001",
+      "label": "",
+      "type": "ShaderNodeVectorRotate",
+      "location": [
+        337.892578125,
+        -158.180419921875
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Center",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            -1.0899999141693115,
+            0.07000000029802322
+          ]
+        },
+        {
+          "name": "Axis",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            1.0,
+            0.08999998867511749
+          ]
+        },
+        {
+          "name": "Angle",
+          "type": "NodeSocketFloatAngle",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketVectorEuler",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.004",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        185.29150390625,
+        -192.89892578125
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": -16.42009735107422
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Position.005",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        186.59130859375,
+        -135.71875
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Transform Geometry.005",
+      "label": "",
+      "type": "GeometryNodeTransform",
+      "location": [
+        656.353515625,
+        -35.81201171875
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Mode",
+          "type": "NodeSocketMenu",
+          "is_linked": false,
+          "default_value": "Components"
+        },
+        {
+          "name": "Translation",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            -0.1300000548362732
+          ]
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": false,
+          "default_value": [
+            -0.18343408405780792,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": false,
+          "default_value": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Transform",
+          "type": "NodeSocketMatrix",
+          "is_linked": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Position.003",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        181.529296875,
+        -143.13720703125
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.003",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        182.8115234375,
+        -208.98291015625
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.29534900188446045
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Separate XYZ",
+      "label": "",
+      "type": "ShaderNodeSeparateXYZ",
+      "location": [
+        28.90576171875,
+        -233.847412109375
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ.003",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        185.39208984375,
+        -369.2421875
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Vector Rotate",
+      "label": "",
+      "type": "ShaderNodeVectorRotate",
+      "location": [
+        347.11572265625,
+        -146.754150390625
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Center",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            -9.859999656677246
+          ]
+        },
+        {
+          "name": "Axis",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Angle",
+          "type": "NodeSocketFloatAngle",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketVectorEuler",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Set Position.001",
+      "label": "",
+      "type": "GeometryNodeSetPosition",
+      "location": [
+        517.87255859375,
+        -61.034912109375
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Offset",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Transform Geometry.002",
+      "label": "",
+      "type": "GeometryNodeTransform",
+      "location": [
+        671.3828125,
+        -36.03564453125
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Mode",
+          "type": "NodeSocketMenu",
+          "is_linked": false,
+          "default_value": "Components"
+        },
+        {
+          "name": "Translation",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": false,
+          "default_value": [
+            0.5400000214576721,
+            0.21000000834465027,
+            0.2800000011920929
+          ]
+        },
+        {
+          "name": "Transform",
+          "type": "NodeSocketMatrix",
+          "is_linked": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Object Info",
+      "label": "",
+      "type": "GeometryNodeObjectInfo",
+      "location": [
+        29.306640625,
+        -60.7579345703125
+      ],
+      "inputs": [
+        {
+          "name": "Object",
+          "type": "NodeSocketObject",
+          "is_linked": false,
+          "default_value": {
+            "type": "Object",
+            "name": "Dahlia Petal"
+          }
+        },
+        {
+          "name": "As Instance",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Transform",
+          "type": "NodeSocketMatrix",
+          "is_linked": false
+        },
+        {
+          "name": "Location",
+          "type": "NodeSocketVector",
+          "is_linked": false
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": false
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVector",
+          "is_linked": false
+        },
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Group Input",
+      "label": "",
+      "type": "NodeGroupInput",
+      "location": [
+        -3955.965087890625,
+        439.174072265625
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Amount of Petals",
+          "type": "NodeSocketInt",
+          "is_linked": true
+        },
+        {
+          "name": "Rotation Fix for ^",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Petal Rotate X",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Petal Rotate Y",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Petal Rotate Z",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Random Petal Scale",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Growth Noise Scale ",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Growth Noise Detail",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Petal Width",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Petal Bend",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "",
+          "type": "NodeSocketVirtual",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Curve to Points",
+      "label": "",
+      "type": "GeometryNodeCurveToPoints",
+      "location": [
+        365.392333984375,
+        -50.826263427734375
+      ],
+      "inputs": [
+        {
+          "name": "Curve",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Count",
+          "type": "NodeSocketInt",
+          "is_linked": true,
+          "default_value": 120
+        },
+        {
+          "name": "Length",
+          "type": "NodeSocketFloatDistance",
+          "is_linked": false,
+          "default_value": 0.10000000149011612
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Points",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Tangent",
+          "type": "NodeSocketVector",
+          "is_linked": false
+        },
+        {
+          "name": "Normal",
+          "type": "NodeSocketVector",
+          "is_linked": false
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        366.767578125,
+        -254.07568359375
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": -0.4899999797344208
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.019",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        45.585205078125,
+        -441.9881286621094
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 137.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Index.003",
+      "label": "",
+      "type": "GeometryNodeInputIndex",
+      "location": [
+        36.906005859375,
+        -373.16357421875
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Index",
+          "type": "NodeSocketInt",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Rotate Euler",
+      "label": "",
+      "type": "FunctionNodeRotateEuler",
+      "location": [
+        595.80859375,
+        -133.28384399414062
+      ],
+      "inputs": [
+        {
+          "name": "Rotation",
+          "type": "NodeSocketVectorEuler",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Rotate By",
+          "type": "NodeSocketVectorEuler",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            3.1415927410125732,
+            0.0
+          ]
+        },
+        {
+          "name": "Axis",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Angle",
+          "type": "NodeSocketFloatAngle",
+          "is_linked": false,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Rotation",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Transform Geometry",
+      "label": "",
+      "type": "GeometryNodeTransform",
+      "location": [
+        29.05078125,
+        -35.672698974609375
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Mode",
+          "type": "NodeSocketMenu",
+          "is_linked": false,
+          "default_value": "Components"
+        },
+        {
+          "name": "Translation",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Scale",
+          "type": "NodeSocketVectorXYZ",
+          "is_linked": false,
+          "default_value": [
+            1.0,
+            1.0,
+            0.10000000149011612
+          ]
+        },
+        {
+          "name": "Transform",
+          "type": "NodeSocketMatrix",
+          "is_linked": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.020",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        202.1162109375,
+        -339.953369140625
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 137.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Reverse Curve",
+      "label": "",
+      "type": "GeometryNodeReverseCurve",
+      "location": [
+        201.53759765625,
+        -149.45602416992188
+      ],
+      "inputs": [
+        {
+          "name": "Curve",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Curve",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Reroute",
+      "label": "",
+      "type": "NodeReroute",
+      "location": [
+        -319.857421875,
+        244.10311889648438
+      ],
+      "inputs": [
+        {
+          "name": "Input",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Output",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Vector Rotate.002",
+      "label": "",
+      "type": "ShaderNodeVectorRotate",
+      "location": [
+        29.042724609375,
+        -61.8109130859375
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Center",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Axis",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Angle",
+          "type": "NodeSocketFloatAngle",
+          "is_linked": false,
+          "default_value": 1.5707963705062866
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketVectorEuler",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Position.004",
+      "label": "",
+      "type": "GeometryNodeInputPosition",
+      "location": [
+        185.6397705078125,
+        -178.1126708984375
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Color Ramp.003",
+      "label": "",
+      "type": "ShaderNodeValToRGB",
+      "location": [
+        348.951904296875,
+        -35.7308349609375
+      ],
+      "inputs": [
+        {
+          "name": "Factor",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Color",
+          "type": "NodeSocketColor",
+          "is_linked": true
+        },
+        {
+          "name": "Alpha",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Capture Attribute",
+      "label": "",
+      "type": "GeometryNodeCaptureAttribute",
+      "location": [
+        609.1658935546875,
+        -129.59307861328125
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "",
+          "type": "NodeSocketVirtual",
+          "is_linked": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "",
+          "type": "NodeSocketVirtual",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Math.005",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        182.0550537109375,
+        -249.79803466796875
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": -0.039999961853027344
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Index.001",
+      "label": "",
+      "type": "GeometryNodeInputIndex",
+      "location": [
+        371.089599609375,
+        -246.4681396484375
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Index",
+          "type": "NodeSocketInt",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Delete Geometry",
+      "label": "",
+      "type": "GeometryNodeDeleteGeometry",
+      "location": [
+        376.30859375,
+        -311.146728515625
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": true,
+          "default_value": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Euler to Rotation",
+      "label": "",
+      "type": "FunctionNodeEulerToRotation",
+      "location": [
+        28.726898193359375,
+        -186.30645751953125
+      ],
+      "inputs": [
+        {
+          "name": "Euler",
+          "type": "NodeSocketVectorEuler",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Euler to Rotation.001",
+      "label": "",
+      "type": "FunctionNodeEulerToRotation",
+      "location": [
+        44.508392333984375,
+        -1466.416015625
+      ],
+      "inputs": [
+        {
+          "name": "Euler",
+          "type": "NodeSocketVectorEuler",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Group Input.001",
+      "label": "",
+      "type": "NodeGroupInput",
+      "location": [
+        2118.447998046875,
+        -148.1322479248047
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": false
+        },
+        {
+          "name": "Amount of Petals",
+          "type": "NodeSocketInt",
+          "is_linked": false
+        },
+        {
+          "name": "Rotation Fix for ^",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Petal Rotate X",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Petal Rotate Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Petal Rotate Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Random Petal Scale",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Growth Noise Scale ",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Growth Noise Detail",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Petal Width",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Petal Bend",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "",
+          "type": "NodeSocketVirtual",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Set Position.008",
+      "label": "",
+      "type": "GeometryNodeSetPosition",
+      "location": [
+        -1123.6602783203125,
+        -246.8533935546875
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Offset",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Set Position.010",
+      "label": "",
+      "type": "GeometryNodeSetPosition",
+      "location": [
+        -502.7774353027344,
+        -1228.472900390625
+      ],
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Position",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Offset",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Geometry",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Rotate Instances.002",
+      "label": "",
+      "type": "GeometryNodeRotateInstances",
+      "location": [
+        953.3009033203125,
+        -504.1472473144531
+      ],
+      "inputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        },
+        {
+          "name": "Selection",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        },
+        {
+          "name": "Rotation",
+          "type": "NodeSocketRotation",
+          "is_linked": true,
+          "default_value": [
+            0.6834709644317627,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Pivot Point",
+          "type": "NodeSocketVectorTranslation",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "Local Space",
+          "type": "NodeSocketBool",
+          "is_linked": false,
+          "default_value": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Instances",
+          "type": "NodeSocketGeometry",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math.021",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        664.8751220703125,
+        -1231.7781982421875
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.5
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0010000000474974513
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Index.006",
+      "label": "",
+      "type": "GeometryNodeInputIndex",
+      "location": [
+        505.9214172363281,
+        -1305.223876953125
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Index",
+          "type": "NodeSocketInt",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Combine XYZ.012",
+      "label": "",
+      "type": "ShaderNodeCombineXYZ",
+      "location": [
+        1130.730712890625,
+        -887.2289428710938
+      ],
+      "inputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Math",
+      "label": "",
+      "type": "ShaderNodeMath",
+      "location": [
+        878.1075439453125,
+        -1278.392578125
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.0010000000474974513
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": -0.3100000023841858
+        },
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Map Range.002",
+      "label": "",
+      "type": "ShaderNodeMapRange",
+      "location": [
+        950.9310913085938,
+        -1003.9761962890625
+      ],
+      "inputs": [
+        {
+          "name": "Value",
+          "type": "NodeSocketFloat",
+          "is_linked": true,
+          "default_value": 1.0
+        },
+        {
+          "name": "From Min",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 1.0
+        },
+        {
+          "name": "From Max",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 119.99999237060547
+        },
+        {
+          "name": "To Min",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 0.8600000143051147
+        },
+        {
+          "name": "To Max",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": -0.5600000023841858
+        },
+        {
+          "name": "Steps",
+          "type": "NodeSocketFloat",
+          "is_linked": false,
+          "default_value": 4.0
+        },
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "From Min",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "From Max",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "To Min",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "To Max",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "Steps",
+          "type": "NodeSocketVector",
+          "is_linked": false,
+          "default_value": [
+            4.0,
+            4.0,
+            4.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Result",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Index.007",
+      "label": "",
+      "type": "GeometryNodeInputIndex",
+      "location": [
+        726.533203125,
+        -962.5114135742188
+      ],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "Index",
+          "type": "NodeSocketInt",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Separate XYZ.008",
+      "label": "",
+      "type": "ShaderNodeSeparateXYZ",
+      "location": [
+        -1316.5985107421875,
+        796.7021484375
+      ],
+      "inputs": [
+        {
+          "name": "Vector",
+          "type": "NodeSocketVector",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "X",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Y",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Z",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Combine Color",
+      "label": "",
+      "type": "FunctionNodeCombineColor",
+      "location": [
+        -1296.5985107421875,
+        796.7021484375
+      ],
+      "inputs": [
+        {
+          "name": "Red",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Green",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Blue",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Alpha",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": false,
+          "default_value": 1.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Color",
+          "type": "NodeSocketColor",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Separate Color",
+      "label": "",
+      "type": "FunctionNodeSeparateColor",
+      "location": [
+        371.201416015625,
+        -136.13247680664062
+      ],
+      "inputs": [
+        {
+          "name": "Color",
+          "type": "NodeSocketColor",
+          "is_linked": true,
+          "default_value": [
+            0.5,
+            0.5,
+            0.5,
+            1.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Red",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Green",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Blue",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        },
+        {
+          "name": "Alpha",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        }
+      ]
+    },
+    {
+      "name": "Separate Color.001",
+      "label": "",
+      "type": "FunctionNodeSeparateColor",
+      "location": [
+        371.201416015625,
+        -136.13247680664062
+      ],
+      "inputs": [
+        {
+          "name": "Color",
+          "type": "NodeSocketColor",
+          "is_linked": true,
+          "default_value": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Red",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Green",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Blue",
+          "type": "NodeSocketFloat",
+          "is_linked": true
+        },
+        {
+          "name": "Alpha",
+          "type": "NodeSocketFloat",
+          "is_linked": false
+        }
+      ]
+    },
+    {
+      "name": "Combine Color.001",
+      "label": "",
+      "type": "FunctionNodeCombineColor",
+      "location": [
+        371.201416015625,
+        -136.13247680664062
+      ],
+      "inputs": [
+        {
+          "name": "Red",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Green",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Blue",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.0
+        },
+        {
+          "name": "Alpha",
+          "type": "NodeSocketFloatFactor",
+          "is_linked": true,
+          "default_value": 0.0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Color",
+          "type": "NodeSocketColor",
+          "is_linked": true
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "from_node": "Group Input",
+      "from_socket": "Geometry",
+      "to_node": "Transform Geometry",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Reverse Curve",
+      "from_socket": "Curve",
+      "to_node": "Curve to Points",
+      "to_socket": "Curve"
+    },
+    {
+      "from_node": "Capture Attribute",
+      "from_socket": "Geometry",
+      "to_node": "Instance on Points",
+      "to_socket": "Points"
+    },
+    {
+      "from_node": "Reroute.002",
+      "from_socket": "Output",
+      "to_node": "Euler to Rotation",
+      "to_socket": "Euler"
+    },
+    {
+      "from_node": "Curve to Points",
+      "from_socket": "Rotation",
+      "to_node": "Rotate Euler",
+      "to_socket": "Rotation"
+    },
+    {
+      "from_node": "Combine XYZ",
+      "from_socket": "Vector",
+      "to_node": "Rotate Euler",
+      "to_socket": "Rotate By"
+    },
+    {
+      "from_node": "Position.002",
+      "from_socket": "Position",
+      "to_node": "Gradient Texture.002",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Gradient Texture.002",
+      "from_socket": "Color",
+      "to_node": "Color Ramp.002",
+      "to_socket": "Factor"
+    },
+    {
+      "from_node": "Color Ramp.002",
+      "from_socket": "Color",
+      "to_node": "Math.002",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Transform Geometry.002",
+      "from_socket": "Geometry",
+      "to_node": "Set Position",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Position.003",
+      "from_socket": "Position",
+      "to_node": "Separate XYZ",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Combine XYZ.003",
+      "from_socket": "Vector",
+      "to_node": "Vector Rotate",
+      "to_socket": "Angle"
+    },
+    {
+      "from_node": "Position.003",
+      "from_socket": "Position",
+      "to_node": "Vector Rotate",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Separate XYZ",
+      "from_socket": "Y",
+      "to_node": "Math.003",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.003",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.003",
+      "to_socket": "Y"
+    },
+    {
+      "from_node": "Position.005",
+      "from_socket": "Position",
+      "to_node": "Separate XYZ.001",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Combine XYZ.004",
+      "from_socket": "Vector",
+      "to_node": "Vector Rotate.001",
+      "to_socket": "Angle"
+    },
+    {
+      "from_node": "Position.005",
+      "from_socket": "Position",
+      "to_node": "Vector Rotate.001",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Separate XYZ.001",
+      "from_socket": "X",
+      "to_node": "Math.004",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.004",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.004",
+      "to_socket": "X"
+    },
+    {
+      "from_node": "Vector Rotate.001",
+      "from_socket": "Vector",
+      "to_node": "Set Position",
+      "to_socket": "Offset"
+    },
+    {
+      "from_node": "Object Info",
+      "from_socket": "Geometry",
+      "to_node": "Set Position.001",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Vector Rotate",
+      "from_socket": "Vector",
+      "to_node": "Set Position.001",
+      "to_socket": "Offset"
+    },
+    {
+      "from_node": "Set Position.001",
+      "from_socket": "Geometry",
+      "to_node": "Transform Geometry.002",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Curve to Points",
+      "from_socket": "Points",
+      "to_node": "Delete Geometry",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Index.001",
+      "from_socket": "Index",
+      "to_node": "Math.005",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.005",
+      "from_socket": "Value",
+      "to_node": "Delete Geometry",
+      "to_socket": "Selection"
+    },
+    {
+      "from_node": "Delete Geometry",
+      "from_socket": "Geometry",
+      "to_node": "Capture Attribute",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Position.004",
+      "from_socket": "Position",
+      "to_node": "Vector Rotate.002",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Color Ramp.003",
+      "from_socket": "Color",
+      "to_node": "Capture Attribute",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Capture Attribute",
+      "from_socket": "Geometry",
+      "to_node": "Instance on Points.001",
+      "to_socket": "Points"
+    },
+    {
+      "from_node": "Realize Instances",
+      "from_socket": "Geometry",
+      "to_node": "Set Position.002",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Math.006",
+      "from_socket": "Value",
+      "to_node": "Mix",
+      "to_socket": "Factor"
+    },
+    {
+      "from_node": "Color Ramp.004",
+      "from_socket": "Color",
+      "to_node": "Math.006",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Reroute",
+      "from_socket": "Output",
+      "to_node": "Color Ramp.004",
+      "to_socket": "Factor"
+    },
+    {
+      "from_node": "Realize Instances.001",
+      "from_socket": "Geometry",
+      "to_node": "Sample Index",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Position.006",
+      "from_socket": "Position",
+      "to_node": "Sample Index",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Index.002",
+      "from_socket": "Index",
+      "to_node": "Sample Index",
+      "to_socket": "Index"
+    },
+    {
+      "from_node": "Sample Index",
+      "from_socket": "Value",
+      "to_node": "Mix",
+      "to_socket": "B"
+    },
+    {
+      "from_node": "Position.006",
+      "from_socket": "Position",
+      "to_node": "Mix",
+      "to_socket": "A"
+    },
+    {
+      "from_node": "Transform Geometry.003",
+      "from_socket": "Geometry",
+      "to_node": "Set Position.003",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Position.007",
+      "from_socket": "Position",
+      "to_node": "Separate XYZ.002",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Combine XYZ.005",
+      "from_socket": "Vector",
+      "to_node": "Vector Rotate.004",
+      "to_socket": "Angle"
+    },
+    {
+      "from_node": "Position.007",
+      "from_socket": "Position",
+      "to_node": "Vector Rotate.004",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Separate XYZ.002",
+      "from_socket": "Y",
+      "to_node": "Math.008",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.008",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.005",
+      "to_socket": "Y"
+    },
+    {
+      "from_node": "Position.008",
+      "from_socket": "Position",
+      "to_node": "Separate XYZ.003",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Combine XYZ.006",
+      "from_socket": "Vector",
+      "to_node": "Vector Rotate.003",
+      "to_socket": "Angle"
+    },
+    {
+      "from_node": "Position.008",
+      "from_socket": "Position",
+      "to_node": "Vector Rotate.003",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Separate XYZ.003",
+      "from_socket": "X",
+      "to_node": "Math.007",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.007",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.006",
+      "to_socket": "X"
+    },
+    {
+      "from_node": "Object Info.002",
+      "from_socket": "Geometry",
+      "to_node": "Set Position.004",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Vector Rotate.004",
+      "from_socket": "Vector",
+      "to_node": "Set Position.004",
+      "to_socket": "Offset"
+    },
+    {
+      "from_node": "Set Position.004",
+      "from_socket": "Geometry",
+      "to_node": "Transform Geometry.003",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Rotate Euler",
+      "from_socket": "Rotation",
+      "to_node": "Reroute.002",
+      "to_socket": "Input"
+    },
+    {
+      "from_node": "Rotate Instances.002",
+      "from_socket": "Instances",
+      "to_node": "Scale Instances",
+      "to_socket": "Instances"
+    },
+    {
+      "from_node": "Rotate Instances.001",
+      "from_socket": "Instances",
+      "to_node": "Scale Instances.001",
+      "to_socket": "Instances"
+    },
+    {
+      "from_node": "Math.002",
+      "from_socket": "Value",
+      "to_node": "Scale Instances.001",
+      "to_socket": "Scale"
+    },
+    {
+      "from_node": "Math.002",
+      "from_socket": "Value",
+      "to_node": "Scale Instances",
+      "to_socket": "Scale"
+    },
+    {
+      "from_node": "Transform Geometry",
+      "from_socket": "Geometry",
+      "to_node": "Reverse Curve",
+      "to_socket": "Curve"
+    },
+    {
+      "from_node": "Scale Instances.001",
+      "from_socket": "Instances",
+      "to_node": "Realize Instances",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Scale Instances.002",
+      "from_socket": "Instances",
+      "to_node": "Realize Instances.001",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Reroute.002",
+      "from_socket": "Output",
+      "to_node": "Euler to Rotation.001",
+      "to_socket": "Euler"
+    },
+    {
+      "from_node": "Instance on Points",
+      "from_socket": "Instances",
+      "to_node": "Rotate Instances.001",
+      "to_socket": "Instances"
+    },
+    {
+      "from_node": "Index.004",
+      "from_socket": "Index",
+      "to_node": "Math.001",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Map Range",
+      "from_socket": "Vector",
+      "to_node": "Rotate Instances.001",
+      "to_socket": "Rotation"
+    },
+    {
+      "from_node": "Index.004",
+      "from_socket": "Index",
+      "to_node": "Map Range",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Index.004",
+      "from_socket": "Index",
+      "to_node": "Map Range",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Combine XYZ.001",
+      "from_socket": "Vector",
+      "to_node": "Map Range",
+      "to_socket": "To Max"
+    },
+    {
+      "from_node": "Math.001",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.001",
+      "to_socket": "X"
+    },
+    {
+      "from_node": "Set Position",
+      "from_socket": "Geometry",
+      "to_node": "Transform Geometry.005",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Position.009",
+      "from_socket": "Position",
+      "to_node": "Separate XYZ.004",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Combine XYZ.007",
+      "from_socket": "Vector",
+      "to_node": "Vector Rotate.005",
+      "to_socket": "Angle"
+    },
+    {
+      "from_node": "Position.009",
+      "from_socket": "Position",
+      "to_node": "Vector Rotate.005",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Set Position.005",
+      "from_socket": "Geometry",
+      "to_node": "Transform Geometry.001",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Separate XYZ.004",
+      "from_socket": "X",
+      "to_node": "Math.009",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.009",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.007",
+      "to_socket": "X"
+    },
+    {
+      "from_node": "Instance on Points.001",
+      "from_socket": "Instances",
+      "to_node": "Rotate Instances",
+      "to_socket": "Instances"
+    },
+    {
+      "from_node": "Index.005",
+      "from_socket": "Index",
+      "to_node": "Math.010",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Index.005",
+      "from_socket": "Index",
+      "to_node": "Map Range.001",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Index.005",
+      "from_socket": "Index",
+      "to_node": "Map Range.001",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Combine XYZ.002",
+      "from_socket": "Vector",
+      "to_node": "Map Range.001",
+      "to_socket": "To Max"
+    },
+    {
+      "from_node": "Math.010",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.002",
+      "to_socket": "X"
+    },
+    {
+      "from_node": "Map Range.001",
+      "from_socket": "Vector",
+      "to_node": "Rotate Instances",
+      "to_socket": "Rotation"
+    },
+    {
+      "from_node": "Transform Geometry.005",
+      "from_socket": "Geometry",
+      "to_node": "Set Position.005",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Vector Rotate.005",
+      "from_socket": "Vector",
+      "to_node": "Set Position.005",
+      "to_socket": "Offset"
+    },
+    {
+      "from_node": "Set Position.010",
+      "from_socket": "Geometry",
+      "to_node": "Instance on Points.001",
+      "to_socket": "Instance"
+    },
+    {
+      "from_node": "Vector Rotate.003",
+      "from_socket": "Vector",
+      "to_node": "Set Position.003",
+      "to_socket": "Offset"
+    },
+    {
+      "from_node": "Scale Instances",
+      "from_socket": "Instances",
+      "to_node": "Scale Instances.002",
+      "to_socket": "Instances"
+    },
+    {
+      "from_node": "Combine XYZ.008",
+      "from_socket": "Vector",
+      "to_node": "Scale Instances.002",
+      "to_socket": "Scale"
+    },
+    {
+      "from_node": "Position.010",
+      "from_socket": "Position",
+      "to_node": "Gradient Texture.004",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Gradient Texture.004",
+      "from_socket": "Color",
+      "to_node": "Color Ramp.005",
+      "to_socket": "Factor"
+    },
+    {
+      "from_node": "Color Ramp.005",
+      "from_socket": "Color",
+      "to_node": "Math.011",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.011",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.008",
+      "to_socket": "Y"
+    },
+    {
+      "from_node": "Set Position.002",
+      "from_socket": "Geometry",
+      "to_node": "Set Position.006",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Separate XYZ.005",
+      "from_socket": "X",
+      "to_node": "Math.012",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.012",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.009",
+      "to_socket": "X"
+    },
+    {
+      "from_node": "Separate XYZ.005",
+      "from_socket": "Y",
+      "to_node": "Math.013",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.013",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.009",
+      "to_socket": "Y"
+    },
+    {
+      "from_node": "Separate XYZ.005",
+      "from_socket": "Z",
+      "to_node": "Math.014",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.014",
+      "from_socket": "Value",
+      "to_node": "Math.012",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.014",
+      "from_socket": "Value",
+      "to_node": "Math.013",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Separate XYZ.005",
+      "from_socket": "Z",
+      "to_node": "Combine XYZ.009",
+      "to_socket": "Z"
+    },
+    {
+      "from_node": "Position",
+      "from_socket": "Position",
+      "to_node": "Separate XYZ.005",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Combine XYZ.009",
+      "from_socket": "Vector",
+      "to_node": "Set Position.006",
+      "to_socket": "Position"
+    },
+    {
+      "from_node": "Separate XYZ.006",
+      "from_socket": "X",
+      "to_node": "Math.015",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.015",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.010",
+      "to_socket": "X"
+    },
+    {
+      "from_node": "Separate XYZ.006",
+      "from_socket": "Y",
+      "to_node": "Math.016",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.016",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.010",
+      "to_socket": "Y"
+    },
+    {
+      "from_node": "Separate XYZ.006",
+      "from_socket": "Z",
+      "to_node": "Math.017",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.017",
+      "from_socket": "Value",
+      "to_node": "Math.015",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.017",
+      "from_socket": "Value",
+      "to_node": "Math.016",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Separate XYZ.006",
+      "from_socket": "Z",
+      "to_node": "Combine XYZ.010",
+      "to_socket": "Z"
+    },
+    {
+      "from_node": "Position.001",
+      "from_socket": "Position",
+      "to_node": "Separate XYZ.006",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Combine XYZ.010",
+      "from_socket": "Vector",
+      "to_node": "Set Position.007",
+      "to_socket": "Position"
+    },
+    {
+      "from_node": "Set Position.006",
+      "from_socket": "Geometry",
+      "to_node": "Set Position.007",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Set Position.008",
+      "from_socket": "Geometry",
+      "to_node": "Instance on Points",
+      "to_socket": "Instance"
+    },
+    {
+      "from_node": "Set Position.003",
+      "from_socket": "Geometry",
+      "to_node": "Transform Geometry.004",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Position.011",
+      "from_socket": "Position",
+      "to_node": "Separate XYZ.007",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Combine XYZ.011",
+      "from_socket": "Vector",
+      "to_node": "Vector Rotate.006",
+      "to_socket": "Angle"
+    },
+    {
+      "from_node": "Position.011",
+      "from_socket": "Position",
+      "to_node": "Vector Rotate.006",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Vector Rotate.006",
+      "from_socket": "Vector",
+      "to_node": "Set Position.009",
+      "to_socket": "Offset"
+    },
+    {
+      "from_node": "Set Position.007",
+      "from_socket": "Geometry",
+      "to_node": "Set Position.009",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Set Position.009",
+      "from_socket": "Geometry",
+      "to_node": "Transform Geometry.006",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Math.018",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ.011",
+      "to_socket": "Z"
+    },
+    {
+      "from_node": "Separate XYZ.007",
+      "from_socket": "Z",
+      "to_node": "Math.018",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Index.003",
+      "from_socket": "Index",
+      "to_node": "Math.020",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.019",
+      "from_socket": "Value",
+      "to_node": "Math.020",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math.020",
+      "from_socket": "Value",
+      "to_node": "Combine XYZ",
+      "to_socket": "Z"
+    },
+    {
+      "from_node": "Capture Attribute",
+      "from_socket": "Value",
+      "to_node": "Reroute",
+      "to_socket": "Input"
+    },
+    {
+      "from_node": "Euler to Rotation",
+      "from_socket": "Rotation",
+      "to_node": "Instance on Points",
+      "to_socket": "Rotation"
+    },
+    {
+      "from_node": "Euler to Rotation.001",
+      "from_socket": "Rotation",
+      "to_node": "Instance on Points.001",
+      "to_socket": "Rotation"
+    },
+    {
+      "from_node": "Group Input",
+      "from_socket": "Amount of Petals",
+      "to_node": "Curve to Points",
+      "to_socket": "Count"
+    },
+    {
+      "from_node": "Group Input",
+      "from_socket": "Petal Rotate X",
+      "to_node": "Combine XYZ",
+      "to_socket": "X"
+    },
+    {
+      "from_node": "Group Input",
+      "from_socket": "Petal Rotate Y",
+      "to_node": "Combine XYZ",
+      "to_socket": "Y"
+    },
+    {
+      "from_node": "Group Input",
+      "from_socket": "Petal Rotate Z",
+      "to_node": "Math.019",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Group Input.001",
+      "from_socket": "Random Petal Scale",
+      "to_node": "Math.011",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Group Input",
+      "from_socket": "Petal Width",
+      "to_node": "Math.007",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Group Input",
+      "from_socket": "Petal Bend",
+      "to_node": "Math.008",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Transform Geometry.004",
+      "from_socket": "Geometry",
+      "to_node": "Set Position.008",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Transform Geometry.001",
+      "from_socket": "Geometry",
+      "to_node": "Set Position.010",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Transform Geometry.006",
+      "from_socket": "Geometry",
+      "to_node": "Group Output",
+      "to_socket": "Geometry"
+    },
+    {
+      "from_node": "Index.006",
+      "from_socket": "Index",
+      "to_node": "Math.021",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Math",
+      "from_socket": "Value",
+      "to_node": "Math.021",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Rotate Instances",
+      "from_socket": "Instances",
+      "to_node": "Rotate Instances.002",
+      "to_socket": "Instances"
+    },
+    {
+      "from_node": "Index.007",
+      "from_socket": "Index",
+      "to_node": "Map Range.002",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Map Range.002",
+      "from_socket": "Result",
+      "to_node": "Combine XYZ.012",
+      "to_socket": "X"
+    },
+    {
+      "from_node": "Combine XYZ.012",
+      "from_socket": "Vector",
+      "to_node": "Rotate Instances.002",
+      "to_socket": "Rotation"
+    },
+    {
+      "from_node": "Group Input",
+      "from_socket": "Rotation Fix for ^",
+      "to_node": "Math.001",
+      "to_socket": "Value"
+    },
+    {
+      "from_node": "Separate XYZ.008",
+      "from_socket": "X",
+      "to_node": "Combine Color",
+      "to_socket": "Red"
+    },
+    {
+      "from_node": "Separate XYZ.008",
+      "from_socket": "X",
+      "to_node": "Combine Color",
+      "to_socket": "Green"
+    },
+    {
+      "from_node": "Separate XYZ.008",
+      "from_socket": "X",
+      "to_node": "Combine Color",
+      "to_socket": "Blue"
+    },
+    {
+      "from_node": "Combine Color",
+      "from_socket": "Color",
+      "to_node": "Color Ramp.003",
+      "to_socket": "Factor"
+    },
+    {
+      "from_node": "Vector Rotate.002",
+      "from_socket": "Vector",
+      "to_node": "Separate XYZ.008",
+      "to_socket": "Vector"
+    },
+    {
+      "from_node": "Position.006",
+      "from_socket": "Position",
+      "to_node": "Separate Color",
+      "to_socket": "Color"
+    },
+    {
+      "from_node": "Mix",
+      "from_socket": "Result",
+      "to_node": "Separate Color.001",
+      "to_socket": "Color"
+    },
+    {
+      "from_node": "Separate Color.001",
+      "from_socket": "Red",
+      "to_node": "Combine Color.001",
+      "to_socket": "Red"
+    },
+    {
+      "from_node": "Separate Color.001",
+      "from_socket": "Green",
+      "to_node": "Combine Color.001",
+      "to_socket": "Green"
+    },
+    {
+      "from_node": "Separate Color.001",
+      "from_socket": "Blue",
+      "to_node": "Combine Color.001",
+      "to_socket": "Blue"
+    },
+    {
+      "from_node": "Separate Color",
+      "from_socket": "Alpha",
+      "to_node": "Combine Color.001",
+      "to_socket": "Alpha"
+    },
+    {
+      "from_node": "Combine Color.001",
+      "from_socket": "Color",
+      "to_node": "Set Position.002",
+      "to_socket": "Position"
+    }
+  ]
+}

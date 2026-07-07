@@ -5,7 +5,11 @@ import { FLOWER_DEFAULTS, FLOWER_MASK_PATH, FLOWER_VEIN_PATH } from './flowerDef
 export { FLOWER_MASK_PATH, FLOWER_VEIN_PATH };
 
 export function createFlowerControlsSchema(options = {}) {
-  const { petal, vein, stem, outline, grain } = FLOWER_DEFAULTS;
+  const petal = { ...FLOWER_DEFAULTS.petal, ...options.petal };
+  const vein = { ...FLOWER_DEFAULTS.vein, ...options.vein };
+  const stem = { ...FLOWER_DEFAULTS.stem, ...options.stem };
+  const outline = { ...FLOWER_DEFAULTS.outline, ...options.outline };
+  const grain = { ...FLOWER_DEFAULTS.grain, ...options.grain };
   const mask = { ...FLOWER_DEFAULTS.mask, ...options.mask };
 
   return {
