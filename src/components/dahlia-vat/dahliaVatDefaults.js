@@ -2,8 +2,8 @@ export const DAHLIA_VAT_META_PATH = '/Dahlia_Full/Dahlia_Full_meta.json';
 
 export const DAHLIA_VAT_DEFAULTS = {
   speed: 0.35,
-  frame: 0,
-  useTime: true,
+  frame: 0.35,
+  useTime: false,
   scale: 1,
   stemYMax: 0.05,
 };

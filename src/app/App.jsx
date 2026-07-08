@@ -54,7 +54,7 @@ export default function App() {
             <meshStandardMaterial color="#eeeeee" />
           </mesh> */}
           {/* <DahliaVAT /> */}
-          <DahliaGeoNodes position={[0, 1, 0]} />
+          <DahliaGeoNodes position={[0, 0, 0]} />
           {/* <Flower /> */}
           {/* <ProceduralSmoke position={[0, 0.1, 0]} /> */}
         </group>
