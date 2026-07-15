@@ -11,12 +11,15 @@ export function DirectionalLight() {
     const helperRef = useRef<THREE.DirectionalLightHelper | null>(null)
     const { scene } = useThree()
     
-    const { rotationSpeed, color, intensity, debug, shadowBias } = useControls('Directional Light', {
+    const { rotationSpeed, color, intensity, debug, shadowBias, shadowNormalBias } = useControls('Directional Light', {
         rotationSpeed: { value: 0, min: 0, max: 2, step: 0.1 },
         color: { value: '#ffffff' },
         intensity: { value: 2.0, min: 0, max: 3, step: 0.1 },
         debug: { value: false },
         shadowBias: { value: -0.0005, min: -0.01, max: 0.01, step: 0.0001 },
+        // Offsets the shadow lookup along the surface normal — the main fix for
+        // self-shadow acne on the thin, double-sided petals.
+        shadowNormalBias: { value: 0, min: 0, max: 0.2, step: 0.001 },
     }, { collapsed: true })
 
     const basePosition = useMemo(() => new THREE.Vector3(0, 3, 5), [])
@@ -90,6 +93,7 @@ export function DirectionalLight() {
             shadow-camera-top={SHADOW_RANGE}
             shadow-camera-bottom={-SHADOW_RANGE}
             shadow-bias={shadowBias}
+            shadow-normalBias={shadowNormalBias}
         />
     )
 }

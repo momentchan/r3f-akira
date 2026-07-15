@@ -12,9 +12,14 @@ const AXIS_Z = new THREE.Vector3(0, 0, 1);
 // Spawn" of the Blender graph). No petal bend/roll, no open/close morph.
 export function createDahliaGeoControlsSchema() {
   return {
-    amountOfPetals: { value: 10, min: 1, max: 400, step: 1, label: 'Amount of Petals' },
+    amountOfPetals: { value: 1, min: 1, max: 400, step: 1, label: 'Amount of Petals' },
     curveLength: { value: 0.4, min: 0.02, max: 3, step: 0.01, label: 'curve length' },
     petalScale: { value: 0.3, min: 0.02, max: 2, step: 0.01, label: 'petal scale' },
+    // Bend multiplier (Blender's Math node constant feeding the Vector Rotate
+    // angle = Y * bend). Export ≈ 0.295; tune to match your Blender file.
+    petalBend: { value: 0.295, min: -4, max: 4, step: 0.001, label: 'Petal Bend' },
+    // Blender's Vector Rotate "Center" Z in BLENDER local coords (Center X/Y = 0).
+    petalBendCenterZ: { value: 1, min: -15, max: 15, step: 0.01, label: 'Petal Bend Center Z (Blender)' },
     // Per-petal rotation (Blender's Combine XYZ -> Rotate Euler), remapped to
     // Three.js Y-up: Y is the up axis (Blender's Z) and carries the ×index golden
     // spin; X and Z are constant tilts.
@@ -97,9 +102,10 @@ export function createInstanceScratch() {
   };
 }
 
-// Bake the glb node transform, stand the petal up along +Y with its root at the
-// origin. No shaping — the petal stays straight (STEP 1).
-export function preparePetalGeometry(sourceMesh) {
+// Bake the glb node transform and stand the petal up along +Y with its root at
+// the origin. The BEND is done live in the vertex shader (see the material's
+// positionNode in DahliaGeoNodes), so the geometry itself stays straight.
+export function preparePetalGeometry(sourceMesh, { petalBend = 0 } = {}) {
   const geometry = sourceMesh.geometry.clone();
   sourceMesh.updateWorldMatrix(true, false);
   geometry.applyMatrix4(sourceMesh.matrixWorld);
@@ -107,13 +113,30 @@ export function preparePetalGeometry(sourceMesh) {
   // glb petal runs along Z with a ~180° Y node flip; +90° X stands it up along +Y.
   geometry.rotateX(Math.PI / 2);
 
-  geometry.computeBoundingBox();
-  const box = geometry.boundingBox;
-  const center = box.getCenter(new THREE.Vector3());
-  geometry.translate(-center.x, -box.min.y, -center.z);
+  // geometry.computeBoundingBox();
+  // const box = geometry.boundingBox;
+  // const center = box.getCenter(new THREE.Vector3());
+  // geometry.translate(-center.x, -box.min.y, -center.z);
 
-  geometry.computeVertexNormals();
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
+  // // Bend the petal on the CPU (rotate (y,z) about X by angle = y * Petal Bend).
+  // // Baking it into the geometry keeps shadows correct — the shadow passes use
+  // // the real bent geometry, unlike a vertex-shader deform whose bend does not
+  // // reliably reach the shadow-cast depth material in this WebGPU node setup.
+  // if (petalBend !== 0) {
+  //   const pos = geometry.attributes.position;
+  //   const v = new THREE.Vector3();
+  //   for (let i = 0; i < pos.count; i += 1) {
+  //     v.fromBufferAttribute(pos, i);
+  //     const angle = v.y * petalBend;
+  //     const c = Math.cos(angle);
+  //     const s = Math.sin(angle);
+  //     pos.setXYZ(i, v.x, v.y * c - v.z * s, v.y * s + v.z * c);
+  //   }
+  //   pos.needsUpdate = true;
+  // }
+
+  // geometry.computeVertexNormals();
+  // geometry.computeBoundingBox();
+  // geometry.computeBoundingSphere();
   return geometry;
 }
