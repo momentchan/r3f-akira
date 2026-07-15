@@ -47,9 +47,12 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
 
   // Live bend uniform (drive from a control now, animate it later).
   const bendUniform = useMemo(() => uniform(0), []);
-  // Blender's Vector Rotate "Center" Z, in BLENDER local coords (Center X/Y = 0),
-  // so the control matches the node's number 1:1.
-  const bendCenterZUniform = useMemo(() => uniform(-9.86), []);
+  // Bend Vector Rotate "Center" Z, BLENDER local coords (Center X/Y = 0). z=1 is
+  // the CLOSED petal (z=-9.86 is the open petal).
+  const bendCenterZUniform = useMemo(() => uniform(1), []);
+  // Bottom Taper: Vector Rotate about Z, angle = X * Petal Width, Center=(0,ty,0).
+  const petalWidthUniform = useMemo(() => uniform(-10.49), []);
+  const taperCenterYUniform = useMemo(() => uniform(0.18), []);
 
   // Clay-grey node material. The BEND runs in the vertex shader: rotate each
   // vertex (and its normal) about X by angle = positionGeometry.y * bend.
@@ -61,52 +64,65 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
       roughness: 0.85,
       side: THREE.DoubleSide,
     });
-    const k = bendUniform;      // bend multiplier (Blender's Math node constant)
-    const cz = bendCenterZUniform; // Blender Center.Z (Center X/Y = 0)
+    const k = bendUniform;         // bend multiplier (Blender's Math node constant)
+    const cz = bendCenterZUniform; // bend Center.Z (Center X/Y = 0)
+    const w = petalWidthUniform;   // taper angle multiplier (Petal Width)
+    const ty = taperCenterYUniform;// taper Center.Y (Center X/Z = 0)
     const x = positionGeometry.x;
     const y = positionGeometry.y;
     const z = positionGeometry.z;
 
-    // LITERAL port of the Blender bend: Set Position [Offset], where
-    //   Offset = VectorRotate(Position, Center, axis=X, angle = Y * bend)
-    //          = Center + Rx(angle)(Position - Center)   (Blender's node adds Center back)
-    //   new_position = Position + Offset
-    // Done in BLENDER local coords (our X = -Blender X, our Y = -Blender Y,
-    // our Z = Blender Z), so cz is Blender's Center.Z directly (Center X/Y = 0).
+    // LITERAL port of the Blender graph. Both the bend and the bottom taper are
+    //   Set Position [Offset], Offset = VectorRotate(P, Center, axis, angle)
+    //                                  = Center + R(angle)(P - Center)
+    //   new = P + Offset
+    // Worked in BLENDER local coords (our X = -Blender X, Y = -Blender Y, Z = Z),
+    // so the Center/angle controls match the node numbers 1:1.
     const xb = x.mul(-1);
     const yb = y.mul(-1);
     const zb = z;
-    const nxB = normalGeometry.x.mul(-1);
-    const nyB = normalGeometry.y.mul(-1);
-    const nzB = normalGeometry.z;
+    const nx0 = normalGeometry.x.mul(-1);
+    const ny0 = normalGeometry.y.mul(-1);
+    const nz0 = normalGeometry.z;
 
-    const angle = yb.mul(k);
-    const c = cos(angle);
-    const s = sin(angle);
-    const dY = yb;             // Center.Y = 0
-    const dZ = zb.sub(cz);
-    // Offset = Center + Rx(angle)(P - Center); new = P + Offset.
-    // X: rotation about X leaves x, Center.x = 0 → offset.x = xb → new.x = 2*xb.
-    const nxb = xb.add(xb);
-    const nyb = yb.add(dY.mul(c).sub(dZ.mul(s)));
-    const nzb = zb.add(cz).add(dY.mul(s).add(dZ.mul(c)));
-    // Back to our coords (undo the sign flips).
-    const bentPosition = vec3(nxb.mul(-1), nyb.mul(-1), nzb);
+    // === BEND: Vector Rotate about X, angle = Y * bend, Center = (0, 0, cz) ===
+    const aB = yb.mul(k);
+    const cB = cos(aB);
+    const sB = sin(aB);
+    const dYb = yb;            // Center.Y = 0
+    const dZb = zb.sub(cz);
+    const bxb = xb.add(xb);    // offset.x = xb → new.x = 2*xb
+    const byb = yb.add(dYb.mul(cB).sub(dZb.mul(sB)));
+    const bzb = zb.add(cz).add(dYb.mul(sB).add(dZb.mul(cB)));
+    // Bend normal via analytic Jacobian (J^-1)^T: x→nx/2, (y,z) via 2x2 inverse.
+    const A = cB.add(1).sub(k.mul(dYb.mul(sB).add(dZb.mul(cB))));
+    const Dn = sB.mul(-1);
+    const E = sB.add(k.mul(dYb.mul(cB).sub(dZb.mul(sB))));
+    const G = cB.add(1);
+    const detB = A.mul(G).sub(Dn.mul(E));
+    const bnx = nx0.mul(0.5);
+    const bny = G.mul(ny0).sub(E.mul(nz0)).div(detB);
+    const bnz = A.mul(nz0).sub(Dn.mul(ny0)).div(detB);
 
-    // Normal via the analytic Jacobian of the above map (Blender coords):
-    //   dnx/dx = 2
-    //   A = dny/dy = 1 + c - k(dY*s + dZ*c),  Dn = dny/dz = -s
-    //   E = dnz/dy = s + k(dY*c - dZ*s),      G = dnz/dz = 1 + c
-    // normal' = (J^-1)^T n: x -> nx/2, (y,z) -> (1/detM)[[G,-E],[-Dn,A]]·(ny,nz).
-    const A = c.add(1).sub(k.mul(dY.mul(s).add(dZ.mul(c))));
-    const Dn = s.mul(-1);
-    const E = s.add(k.mul(dY.mul(c).sub(dZ.mul(s))));
-    const G = c.add(1);
-    const detM = A.mul(G).sub(Dn.mul(E));
-    const NxB = nxB.mul(0.5);
-    const NyB = G.mul(nyB).sub(E.mul(nzB)).div(detM);
-    const NzB = A.mul(nzB).sub(Dn.mul(nyB)).div(detM);
-    const bentNormalLocal = vec3(NxB.mul(-1), NyB.mul(-1), NzB);
+    // === BOTTOM TAPER: Vector Rotate about Z, angle = X * width, Center=(0,ty,0),
+    // applied to the BENT position (Blender reads current position here). ===
+    const aT = bxb.mul(w);
+    const cT = cos(aT);
+    const sT = sin(aT);
+    const dXt = bxb;          // Center.X = 0
+    const dYt = byb.sub(ty);
+    const txb = bxb.add(dXt.mul(cT).sub(dYt.mul(sT)));
+    const tyb = byb.add(ty).add(dXt.mul(sT).add(dYt.mul(cT)));
+    const tzb = bzb.add(bzb); // offset.z = bzb → new.z = 2*bzb
+    // Taper normal — approximate: rotate the bend normal by Rz(aT). Ignores the
+    // taper's position-dependent shear (good enough while dialing in the shape).
+    const tnx = bnx.mul(cT).sub(bny.mul(sT));
+    const tny = bnx.mul(sT).add(bny.mul(cT));
+    const tnz = bnz;
+
+    // === back to our coords ===
+    const bentPosition = vec3(txb.mul(-1), tyb.mul(-1), tzb);
+    const bentNormalLocal = vec3(tnx.mul(-1), tny.mul(-1), tnz);
 
     // Write the bent position AND normal in local (pre-instance) space, then let
     // three's InstanceNode apply the per-instance rotation to BOTH and the model
@@ -120,7 +136,7 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
     m.positionNode = positionNode;
     m.castShadowPositionNode = bentPosition;
     return m;
-  }, [bendUniform, bendCenterZUniform]);
+  }, [bendUniform, bendCenterZUniform, petalWidthUniform, taperCenterYUniform]);
 
   useEffect(() => {
     bendUniform.value = controls.petalBend;
@@ -129,6 +145,14 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   useEffect(() => {
     bendCenterZUniform.value = controls.petalBendCenterZ;
   }, [bendCenterZUniform, controls.petalBendCenterZ]);
+
+  useEffect(() => {
+    petalWidthUniform.value = controls.petalWidth;
+  }, [petalWidthUniform, controls.petalWidth]);
+
+  useEffect(() => {
+    taperCenterYUniform.value = controls.taperCenterY;
+  }, [taperCenterYUniform, controls.taperCenterY]);
 
   // Debug overlay: the NURBS spawn curve (red line) + the sampled spawn points (blue dots).
   const debug = useMemo(() => {
