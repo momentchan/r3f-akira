@@ -27,6 +27,11 @@ export function createDahliaGeoControlsSchema() {
     // Bend Vector Rotate "Center" Z, BLENDER local coords (Center X/Y = 0).
     // z=1 = CLOSED petal, z=-9.86 = open petal.
     petalBendCenterZ: { value: 1, min: -15, max: 15, step: 0.01, label: 'Petal Bend Center Z (Blender)' },
+    // Open/close morph. openAmount is the ANIMATABLE blend (0 = closed, 1 = open);
+    // the open petal uses bend Center.Z = openBendCenterZ (-9.86).
+    openAmount: { value: 0, min: 0, max: 1, step: 0.01, label: 'Open Amount (anim)' },
+    openPetalBend: { value: 0.0, min: -2, max: 2, step: 0.001, label: 'Open Petal Bend' },
+    openBendCenterZ: { value: -9.86, min: -15, max: 15, step: 0.01, label: 'Open Bend Center Z (Blender)' },
     // Bottom Taper: Vector Rotate about Z, angle = X * Petal Width, applied after
     // the bend. Center = (0, taperCenterY, 0). Export Petal Width ≈ -10.49.
     petalWidth: { value: -0.78, min: -1, max: 1, step: 0.01, label: 'Petal Width (taper)' },

@@ -5,6 +5,7 @@ import * as THREE from 'three/webgpu';
 import {
   cos,
   Fn,
+  mix,
   normalGeometry,
   normalLocal,
   positionGeometry,
@@ -53,6 +54,11 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   // Bottom Taper: Vector Rotate about Z, angle = X * Petal Width, Center=(0,ty,0).
   const petalWidthUniform = useMemo(() => uniform(-10.49), []);
   const taperCenterYUniform = useMemo(() => uniform(0.18), []);
+  // Open/close morph: blend (0=closed, 1=open).
+  const openAmountUniform = useMemo(() => uniform(0), []);
+  // Open petal bend: own multiplier (0.295) and center Z (-9.86).
+  const openBendUniform = useMemo(() => uniform(0.295), []);
+  const openCenterZUniform = useMemo(() => uniform(-9.86), []);
 
   // Clay-grey node material. The BEND runs in the vertex shader: rotate each
   // vertex (and its normal) about X by angle = positionGeometry.y * bend.
@@ -64,8 +70,7 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
       roughness: 0.85,
       side: THREE.DoubleSide,
     });
-    const k = bendUniform;         // bend multiplier (Blender's Math node constant)
-    const cz = bendCenterZUniform; // bend Center.Z (Center X/Y = 0)
+    const k = bendUniform;         // closed petal bend multiplier
     const w = petalWidthUniform;   // taper angle multiplier (Petal Width)
     const ty = taperCenterYUniform;// taper Center.Y (Center X/Z = 0)
     const x = positionGeometry.x;
@@ -85,44 +90,79 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
     const ny0 = normalGeometry.y.mul(-1);
     const nz0 = normalGeometry.z;
 
-    // === BEND: Vector Rotate about X, angle = Y * bend, Center = (0, 0, cz) ===
-    const aB = yb.mul(k);
-    const cB = cos(aB);
-    const sB = sin(aB);
-    const dYb = yb;            // Center.Y = 0
-    const dZb = zb.sub(cz);
-    const bxb = xb.add(xb);    // offset.x = xb → new.x = 2*xb
-    const byb = yb.add(dYb.mul(cB).sub(dZb.mul(sB)));
-    const bzb = zb.add(cz).add(dYb.mul(sB).add(dZb.mul(cB)));
-    // Bend normal via analytic Jacobian (J^-1)^T: x→nx/2, (y,z) via 2x2 inverse.
-    const A = cB.add(1).sub(k.mul(dYb.mul(sB).add(dZb.mul(cB))));
-    const Dn = sB.mul(-1);
-    const E = sB.add(k.mul(dYb.mul(cB).sub(dZb.mul(sB))));
-    const G = cB.add(1);
-    const detB = A.mul(G).sub(Dn.mul(E));
-    const bnx = nx0.mul(0.5);
-    const bny = G.mul(ny0).sub(E.mul(nz0)).div(detB);
-    const bnz = A.mul(nz0).sub(Dn.mul(ny0)).div(detB);
+    // Bend (about X, angle = Y*bend, Center=(0,0,cz)) + Bottom Taper (about Z,
+    // angle = X*width, Center=(0,ty,0)). cz is the only closed/open difference.
+    // Returns { pos, nrm } already back in our coords.
+    const buildBendTaper = (cz) => {
+      const aB = yb.mul(k);
+      const cB = cos(aB);
+      const sB = sin(aB);
+      const dYb = yb;            // Center.Y = 0
+      const dZb = zb.sub(cz);
+      const bxb = xb.add(xb);    // offset.x = xb → new.x = 2*xb
+      const byb = yb.add(dYb.mul(cB).sub(dZb.mul(sB)));
+      const bzb = zb.add(cz).add(dYb.mul(sB).add(dZb.mul(cB)));
+      // Bend normal via analytic Jacobian (J^-1)^T: x→nx/2, (y,z) via 2x2 inverse.
+      const A = cB.add(1).sub(k.mul(dYb.mul(sB).add(dZb.mul(cB))));
+      const Dn = sB.mul(-1);
+      const E = sB.add(k.mul(dYb.mul(cB).sub(dZb.mul(sB))));
+      const G = cB.add(1);
+      const detB = A.mul(G).sub(Dn.mul(E));
+      const bnx = nx0.mul(0.5);
+      const bny = G.mul(ny0).sub(E.mul(nz0)).div(detB);
+      const bnz = A.mul(nz0).sub(Dn.mul(ny0)).div(detB);
 
-    // === BOTTOM TAPER: Vector Rotate about Z, angle = X * width, Center=(0,ty,0),
-    // applied to the BENT position (Blender reads current position here). ===
-    const aT = bxb.mul(w);
-    const cT = cos(aT);
-    const sT = sin(aT);
-    const dXt = bxb;          // Center.X = 0
-    const dYt = byb.sub(ty);
-    const txb = bxb.add(dXt.mul(cT).sub(dYt.mul(sT)));
-    const tyb = byb.add(ty).add(dXt.mul(sT).add(dYt.mul(cT)));
-    const tzb = bzb.add(bzb); // offset.z = bzb → new.z = 2*bzb
-    // Taper normal — approximate: rotate the bend normal by Rz(aT). Ignores the
-    // taper's position-dependent shear (good enough while dialing in the shape).
-    const tnx = bnx.mul(cT).sub(bny.mul(sT));
-    const tny = bnx.mul(sT).add(bny.mul(cT));
-    const tnz = bnz;
+      // Taper about Z on the bent position. Normal is rotation-approximated (Rz).
+      const aT = bxb.mul(w);
+      const cT = cos(aT);
+      const sT = sin(aT);
+      const dXt = bxb;          // Center.X = 0
+      const dYt = byb.sub(ty);
+      const txb = bxb.add(dXt.mul(cT).sub(dYt.mul(sT)));
+      const tyb = byb.add(ty).add(dXt.mul(sT).add(dYt.mul(cT)));
+      const tzb = bzb.add(bzb); // offset.z = bzb → new.z = 2*bzb
+      const tnx = bnx.mul(cT).sub(bny.mul(sT));
+      const tny = bnx.mul(sT).add(bny.mul(cT));
+      const tnz = bnz;
 
-    // === back to our coords ===
-    const bentPosition = vec3(txb.mul(-1), tyb.mul(-1), tzb);
-    const bentNormalLocal = vec3(tnx.mul(-1), tny.mul(-1), tnz);
+      return {
+        pos: vec3(txb.mul(-1), tyb.mul(-1), tzb),
+        nrm: vec3(tnx.mul(-1), tny.mul(-1), tnz),
+      };
+    };
+
+    // Open petal: own bend multiplier (0.295) + Scale(0.54,0.21,0.28).
+    // Curl + open-taper to be added later.
+    const buildOpenBend = () => {
+      const ko = openBendUniform;
+      const cz = openCenterZUniform;
+      const aB = yb.mul(ko);
+      const cB = cos(aB);
+      const sB = sin(aB);
+      const dYb = yb;
+      const dZb = zb.sub(cz);
+      const b_x = xb.add(xb);
+      const b_y = yb.add(dYb.mul(cB).sub(dZb.mul(sB)));
+      const b_z = zb.add(cz).add(dYb.mul(sB).add(dZb.mul(cB)));
+      const Ab = cB.add(1).sub(ko.mul(dYb.mul(sB).add(dZb.mul(cB))));
+      const Dnb = sB.mul(-1);
+      const Eb = sB.add(ko.mul(dYb.mul(cB).sub(dZb.mul(sB))));
+      const Gb = cB.add(1);
+      const detB = Ab.mul(Gb).sub(Dnb.mul(Eb));
+      const b_nx = nx0.mul(0.5);
+      const b_ny = Gb.mul(ny0).sub(Eb.mul(nz0)).div(detB);
+      const b_nz = Ab.mul(nz0).sub(Dnb.mul(ny0)).div(detB);
+      return {
+        pos: vec3(b_x.mul(-2), b_y.mul(-0.4), b_z.mul(0.54)),
+        nrm: vec3(b_nx.div(-2), b_ny.div(-0.4), b_nz.div(0.54)),
+      };
+    };
+
+    const closed = buildBendTaper(bendCenterZUniform);
+    const open = buildOpenBend();
+    const blend = openAmountUniform;
+    const bentPosition = mix(closed.pos, open.pos, blend);
+    const bentNormalLocal = mix(closed.nrm, open.nrm, blend).normalize();
 
     // Write the bent position AND normal in local (pre-instance) space, then let
     // three's InstanceNode apply the per-instance rotation to BOTH and the model
@@ -136,7 +176,7 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
     m.positionNode = positionNode;
     m.castShadowPositionNode = bentPosition;
     return m;
-  }, [bendUniform, bendCenterZUniform, petalWidthUniform, taperCenterYUniform]);
+  }, [bendUniform, bendCenterZUniform, petalWidthUniform, taperCenterYUniform, openAmountUniform, openBendUniform, openCenterZUniform]);
 
   useEffect(() => {
     bendUniform.value = controls.petalBend;
@@ -153,6 +193,18 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   useEffect(() => {
     taperCenterYUniform.value = controls.taperCenterY;
   }, [taperCenterYUniform, controls.taperCenterY]);
+
+  useEffect(() => {
+    openAmountUniform.value = controls.openAmount;
+  }, [openAmountUniform, controls.openAmount]);
+
+  useEffect(() => {
+    openBendUniform.value = controls.openPetalBend;
+  }, [openBendUniform, controls.openPetalBend]);
+
+  useEffect(() => {
+    openCenterZUniform.value = controls.openBendCenterZ;
+  }, [openCenterZUniform, controls.openBendCenterZ]);
 
   // Debug overlay: the NURBS spawn curve (red line) + the sampled spawn points (blue dots).
   const debug = useMemo(() => {
