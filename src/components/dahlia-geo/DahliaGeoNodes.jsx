@@ -5,6 +5,7 @@ import * as THREE from 'three/webgpu';
 import {
   cos,
   Fn,
+  instanceIndex,
   mix,
   normalGeometry,
   normalLocal,
@@ -51,14 +52,24 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   // Bend Vector Rotate "Center" Z, BLENDER local coords (Center X/Y = 0). z=1 is
   // the CLOSED petal (z=-9.86 is the open petal).
   const bendCenterZUniform = useMemo(() => uniform(1), []);
-  // Bottom Taper: Vector Rotate about Z, angle = X * Petal Width, Center=(0,ty,0).
-  const petalWidthUniform = useMemo(() => uniform(-10.49), []);
-  const taperCenterYUniform = useMemo(() => uniform(0.18), []);
-  // Open/close morph: blend (0=closed, 1=open).
-  const openAmountUniform = useMemo(() => uniform(0), []);
+  // Closed petal taper: angle = X * petalWidthUniform, center Y = taperCenterYUniform.
+  const petalWidthUniform = useMemo(() => uniform(0.5), []);
+  const taperCenterYUniform = useMemo(() => uniform(0.325), []);
+  // "Transfer Between Open and Close Petal":
+  // Color Ramp Factor = per-petal instanceIndex normalized by petal count.
+  // Color Ramp stop position (rampStop) and Add node value (addValue) are animated.
+  // Per-petal blend = clamp(clamp(iNorm / rampStop, 0, 1) + addValue, 0, 1).
+  const rampStopUniform = useMemo(() => uniform(0.038), []);
+  const addValueUniform = useMemo(() => uniform(-0.969), []);
+  const amountOfPetalsUniform = useMemo(() => uniform(12), []);
   // Open petal bend: own multiplier (0.295) and center Z (-9.86).
   const openBendUniform = useMemo(() => uniform(0.295), []);
   const openCenterZUniform = useMemo(() => uniform(-9.86), []);
+  // Open petal taper: angle = X * openTaperWidth, center Y = openTaperCenterY.
+  const openTaperWidthUniform = useMemo(() => uniform(1.29), []);
+  const openTaperCenterYUniform = useMemo(() => uniform(-4.11), []);
+  // Open petal curl: angle = Blender_X * curlK. Blender: Multiply value = -22.607.
+  const openCurlKUniform = useMemo(() => uniform(-22.607), []);
 
   // Clay-grey node material. The BEND runs in the vertex shader: rotate each
   // vertex (and its normal) about X by angle = positionGeometry.y * bend.
@@ -90,53 +101,12 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
     const ny0 = normalGeometry.y.mul(-1);
     const nz0 = normalGeometry.z;
 
-    // Bend (about X, angle = Y*bend, Center=(0,0,cz)) + Bottom Taper (about Z,
-    // angle = X*width, Center=(0,ty,0)). cz is the only closed/open difference.
-    // Returns { pos, nrm } already back in our coords.
-    const buildBendTaper = (cz) => {
-      const aB = yb.mul(k);
-      const cB = cos(aB);
-      const sB = sin(aB);
-      const dYb = yb;            // Center.Y = 0
-      const dZb = zb.sub(cz);
-      const bxb = xb.add(xb);    // offset.x = xb → new.x = 2*xb
-      const byb = yb.add(dYb.mul(cB).sub(dZb.mul(sB)));
-      const bzb = zb.add(cz).add(dYb.mul(sB).add(dZb.mul(cB)));
-      // Bend normal via analytic Jacobian (J^-1)^T: x→nx/2, (y,z) via 2x2 inverse.
-      const A = cB.add(1).sub(k.mul(dYb.mul(sB).add(dZb.mul(cB))));
-      const Dn = sB.mul(-1);
-      const E = sB.add(k.mul(dYb.mul(cB).sub(dZb.mul(sB))));
-      const G = cB.add(1);
-      const detB = A.mul(G).sub(Dn.mul(E));
-      const bnx = nx0.mul(0.5);
-      const bny = G.mul(ny0).sub(E.mul(nz0)).div(detB);
-      const bnz = A.mul(nz0).sub(Dn.mul(ny0)).div(detB);
-
-      // Taper about Z on the bent position. Normal is rotation-approximated (Rz).
-      const aT = bxb.mul(w);
-      const cT = cos(aT);
-      const sT = sin(aT);
-      const dXt = bxb;          // Center.X = 0
-      const dYt = byb.sub(ty);
-      const txb = bxb.add(dXt.mul(cT).sub(dYt.mul(sT)));
-      const tyb = byb.add(ty).add(dXt.mul(sT).add(dYt.mul(cT)));
-      const tzb = bzb.add(bzb); // offset.z = bzb → new.z = 2*bzb
-      const tnx = bnx.mul(cT).sub(bny.mul(sT));
-      const tny = bnx.mul(sT).add(bny.mul(cT));
-      const tnz = bnz;
-
-      return {
-        pos: vec3(txb.mul(-1), tyb.mul(-1), tzb),
-        nrm: vec3(tnx.mul(-1), tny.mul(-1), tnz),
-      };
-    };
-
-    // Open petal: own bend multiplier (0.295) + Scale(0.54,0.21,0.28).
-    // Curl + open-taper to be added later.
-    const buildOpenBend = () => {
-      const ko = openBendUniform;
-      const cz = openCenterZUniform;
-      const aB = yb.mul(ko);
+    // Shared bend + Transform Geometry (scale + translate X). All in Blender coords.
+    // k: bend multiplier (uniform); cz: center Z (uniform).
+    // sx/sy/sz: TG scale constants; tx: TG translate X constant.
+    // Returns { x, y, z, nx, ny, nz } in Blender coords — NOT yet coord-flipped.
+    const buildBend = (bk, cz, sx, sy, sz, tx) => {
+      const aB = yb.mul(bk);
       const cB = cos(aB);
       const sB = sin(aB);
       const dYb = yb;
@@ -144,23 +114,126 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
       const b_x = xb.add(xb);
       const b_y = yb.add(dYb.mul(cB).sub(dZb.mul(sB)));
       const b_z = zb.add(cz).add(dYb.mul(sB).add(dZb.mul(cB)));
-      const Ab = cB.add(1).sub(ko.mul(dYb.mul(sB).add(dZb.mul(cB))));
-      const Dnb = sB.mul(-1);
-      const Eb = sB.add(ko.mul(dYb.mul(cB).sub(dZb.mul(sB))));
-      const Gb = cB.add(1);
-      const detB = Ab.mul(Gb).sub(Dnb.mul(Eb));
+      const A = cB.add(1).sub(bk.mul(dYb.mul(sB).add(dZb.mul(cB))));
+      const Dn = sB.mul(-1);
+      const E = sB.add(bk.mul(dYb.mul(cB).sub(dZb.mul(sB))));
+      const G = cB.add(1);
+      const det = A.mul(G).sub(Dn.mul(E));
       const b_nx = nx0.mul(0.5);
-      const b_ny = Gb.mul(ny0).sub(Eb.mul(nz0)).div(detB);
-      const b_nz = Ab.mul(nz0).sub(Dnb.mul(ny0)).div(detB);
+      const b_ny = G.mul(ny0).sub(E.mul(nz0)).div(det);
+      const b_nz = A.mul(nz0).sub(Dn.mul(ny0)).div(det);
+      // TG: Scale(sx,sy,sz) then Translate(tx,0,0). Normal: S^-T·n = n/S.
       return {
-        pos: vec3(b_x.mul(-2), b_y.mul(-0.4), b_z.mul(0.54)),
-        nrm: vec3(b_nx.div(-2), b_ny.div(-0.4), b_nz.div(0.54)),
+        x: b_x.mul(sx).add(tx), y: b_y.mul(sy), z: b_z.mul(sz),
+        nx: b_nx.div(sx),       ny: b_ny.div(sy), nz: b_nz.div(sz),
       };
     };
 
-    const closed = buildBendTaper(bendCenterZUniform);
-    const open = buildOpenBend();
-    const blend = openAmountUniform;
+    // Shared taper (rotate about Z) + Transform Geometry. All in Blender coords.
+    // b: result from buildBend. taperWidth/centerY: TSL nodes (uniforms).
+    // tgSx/tgSy/tgSz: TG scale constants; tgRx: TG rotate X (JS radians); tgTx: TG translate X.
+    const applyTaper = (b, taperWidth, centerY, tgSx, tgSy, tgSz, tgRx, tgTx) => {
+      const aT = b.x.mul(taperWidth);
+      const cT = cos(aT); const sT = sin(aT);
+      const dXt = b.x; const dYt = b.y.sub(centerY);
+      const t_x = b.x.add(dXt.mul(cT).sub(dYt.mul(sT)));
+      const t_y = b.y.add(centerY).add(dXt.mul(sT).add(dYt.mul(cT)));
+      const t_z = b.z.add(b.z);
+      const t_nx = b.nx.mul(cT).sub(b.ny.mul(sT));
+      const t_ny = b.nx.mul(sT).add(b.ny.mul(cT));
+      const t_nz = b.nz;
+      // TG: Scale(sx,sy,sz) → Rotate X(rx) → Translate(tx,0,0). Normal: S^-T then R_X.
+      const cosRx = Math.cos(tgRx); const sinRx = Math.sin(tgRx);
+      const f_x = t_x.mul(tgSx).add(tgTx);
+      const f_y = t_y.mul(tgSy).mul(cosRx).sub(t_z.mul(tgSz).mul(sinRx));
+      const f_z = t_y.mul(tgSy).mul(sinRx).add(t_z.mul(tgSz).mul(cosRx));
+      const f_nx = t_nx.div(tgSx);
+      const f_ny = t_ny.div(tgSy).mul(cosRx).sub(t_nz.div(tgSz).mul(sinRx));
+      const f_nz = t_ny.div(tgSy).mul(sinRx).add(t_nz.div(tgSz).mul(cosRx));
+      return {
+        pos: vec3(f_x.mul(-1), f_y.mul(-1), f_z),
+        nrm: vec3(f_nx.mul(-1), f_ny.mul(-1), f_nz),
+      };
+    };
+
+    // Open petal Curl: Vector Rotate (Axis Angle) + TG. All in Blender coords.
+    // Center=(0,-1.09,0.07), Axis=(0,1,0.09) normalized, Angle = b.x * curlK.
+    // Set Position [Offset]: new_P = P + center + R(angle)*(P-center).
+    // Normal: approximate as same Rodrigues rotation R applied to normal.
+    // TG after: Translate(0,0,-0.13), Rotate X=-10.5°.
+    const buildCurl = (b, curlK) => {
+      const ctrY = -1.090, ctrZ = 0.070;
+      const axLen = Math.sqrt(1 + 0.09 * 0.09);
+      const aNy = 1 / axLen, aNz = 0.09 / axLen; // axis X = 0
+
+      const alpha = b.x.mul(curlK);
+      const cA = cos(alpha);
+      const sA = sin(alpha);
+      const omC = cA.mul(-1).add(1); // 1 - cos(alpha)
+
+      // Q = P - center (center X=0 so Qx = b.x)
+      const Qx = b.x;
+      const Qy = b.y.sub(ctrY);
+      const Qz = b.z.sub(ctrZ);
+
+      // Rodrigues: n=(0, aNy, aNz), nx=0
+      const nDotQ = Qy.mul(aNy).add(Qz.mul(aNz));
+      const nCQx = Qz.mul(aNy).sub(Qy.mul(aNz)); // (n×Q)_x
+      const nCQy = Qx.mul(aNz);                   // (n×Q)_y
+      const nCQz = Qx.mul(aNy).mul(-1);            // (n×Q)_z
+
+      const RQx = Qx.mul(cA).add(nCQx.mul(sA));
+      const RQy = Qy.mul(cA).add(nCQy.mul(sA)).add(nDotQ.mul(omC).mul(aNy));
+      const RQz = Qz.mul(cA).add(nCQz.mul(sA)).add(nDotQ.mul(omC).mul(aNz));
+
+      // Set Position: P' = P + center + R*Q
+      const curl_x = b.x.add(RQx);
+      const curl_y = b.y.add(ctrY).add(RQy);
+      const curl_z = b.z.add(ctrZ).add(RQz);
+
+      // Normal: same Rodrigues rotation
+      const nDotN = b.ny.mul(aNy).add(b.nz.mul(aNz));
+      const nCNx = b.nz.mul(aNy).sub(b.ny.mul(aNz));
+      const nCNy = b.nx.mul(aNz);
+      const nCNz = b.nx.mul(aNy).mul(-1);
+
+      const RNx = b.nx.mul(cA).add(nCNx.mul(sA));
+      const RNy = b.ny.mul(cA).add(nCNy.mul(sA)).add(nDotN.mul(omC).mul(aNy));
+      const RNz = b.nz.mul(cA).add(nCNz.mul(sA)).add(nDotN.mul(omC).mul(aNz));
+
+      // TG: Translate(0,0,-0.13), Rotate X=-10.5° (Blender X axis)
+      const cosTg = Math.cos(-10.5 * Math.PI / 180);
+      const sinTg = Math.sin(-10.5 * Math.PI / 180);
+      return {
+        x: curl_x,
+        y: curl_y.mul(cosTg).sub(curl_z.mul(sinTg)),
+        z: curl_y.mul(sinTg).add(curl_z.mul(cosTg)).sub(0.13),
+        nx: RNx,
+        ny: RNy.mul(cosTg).sub(RNz.mul(sinTg)),
+        nz: RNy.mul(sinTg).add(RNz.mul(cosTg)),
+      };
+    };
+
+    // CLOSED: bend(k, cz=1, scale=0.2/0.2/0.16) + taper(w, ty, TG scale=-0.46/0.5/0.5)
+    const buildClosed = () => {
+      const b = buildBend(k, bendCenterZUniform, 0.2, 0.2, 0.16, 0);
+      return applyTaper(b, w, ty, 0.46, 0.5, 0.5, 0, 0);
+    };
+
+    // OPEN: bend → curl → taper
+    const buildOpen = () => {
+      const b = buildBend(openBendUniform, openCenterZUniform, 0.54, 0.21, 0.28, 0);
+      const bc = buildCurl(b, openCurlKUniform);
+      return applyTaper(bc, openTaperWidthUniform, openTaperCenterYUniform, 0.5, 0.5, 0.5, 21.4 * Math.PI / 180, 0);
+    };
+
+    const closed = buildClosed();
+    const open = buildOpen();
+    // Per-petal blend: Color Ramp(iNorm, rampStop) + addValue, clamped [0,1].
+    const countMinus1 = amountOfPetalsUniform.toFloat().sub(1).max(1);
+    const iNorm = instanceIndex.toFloat().div(countMinus1).clamp(0, 1);
+    const rampOut = iNorm.div(rampStopUniform.max(0.001)).clamp(0, 1);
+    const blend = rampOut.add(addValueUniform).clamp(0, 1);
     const bentPosition = mix(closed.pos, open.pos, blend);
     const bentNormalLocal = mix(closed.nrm, open.nrm, blend).normalize();
 
@@ -176,7 +249,7 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
     m.positionNode = positionNode;
     m.castShadowPositionNode = bentPosition;
     return m;
-  }, [bendUniform, bendCenterZUniform, petalWidthUniform, taperCenterYUniform, openAmountUniform, openBendUniform, openCenterZUniform]);
+  }, [bendUniform, bendCenterZUniform, petalWidthUniform, taperCenterYUniform, rampStopUniform, addValueUniform, amountOfPetalsUniform, openBendUniform, openCenterZUniform, openCurlKUniform, openTaperWidthUniform, openTaperCenterYUniform]);
 
   useEffect(() => {
     bendUniform.value = controls.petalBend;
@@ -195,8 +268,16 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   }, [taperCenterYUniform, controls.taperCenterY]);
 
   useEffect(() => {
-    openAmountUniform.value = controls.openAmount;
-  }, [openAmountUniform, controls.openAmount]);
+    rampStopUniform.value = controls.rampStop;
+  }, [rampStopUniform, controls.rampStop]);
+
+  useEffect(() => {
+    addValueUniform.value = controls.addValue;
+  }, [addValueUniform, controls.addValue]);
+
+  useEffect(() => {
+    amountOfPetalsUniform.value = controls.amountOfPetals;
+  }, [amountOfPetalsUniform, controls.amountOfPetals]);
 
   useEffect(() => {
     openBendUniform.value = controls.openPetalBend;
@@ -205,6 +286,18 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   useEffect(() => {
     openCenterZUniform.value = controls.openBendCenterZ;
   }, [openCenterZUniform, controls.openBendCenterZ]);
+
+  useEffect(() => {
+    openCurlKUniform.value = controls.openCurlK;
+  }, [openCurlKUniform, controls.openCurlK]);
+
+  useEffect(() => {
+    openTaperWidthUniform.value = controls.openTaperWidth;
+  }, [openTaperWidthUniform, controls.openTaperWidth]);
+
+  useEffect(() => {
+    openTaperCenterYUniform.value = controls.openTaperCenterY;
+  }, [openTaperCenterYUniform, controls.openTaperCenterY]);
 
   // Debug overlay: the NURBS spawn curve (red line) + the sampled spawn points (blue dots).
   const debug = useMemo(() => {

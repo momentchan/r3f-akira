@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { NURBSCurve } from 'three/examples/jsm/curves/NURBSCurve.js';
+import { folder } from 'leva';
 
 export const PETAL_PATH = '/models/petal.glb';
 
@@ -13,36 +14,30 @@ const AXIS_Z = new THREE.Vector3(0, 0, 1);
 export function createDahliaGeoControlsSchema() {
   return {
     amountOfPetals: { value: 12, min: 1, max: 400, step: 1, label: 'Amount of Petals' },
-    curveLength: { value: 1, min: 0.02, max: 3, step: 0.01, label: 'curve length' },
-    petalScale: { value: 0.3, min: 0.02, max: 2, step: 0.01, label: 'petal scale' },
-    // "Scale Center Petals to be smaller": petals ramp from centerScale at the
-    // center to full size at distance scaleRampPos. scaleRampPos is the ANIMATABLE
-    // knob (== the Color Ramp position): larger = shrink reaches further out (bud),
-    // smaller = only the very center shrinks (bloom).
+    curveLength: { value: 0.1, min: 0.02, max: 3, step: 0.01, label: 'Curve Length' },
+    petalScale: { value: 0.3, min: 0.02, max: 2, step: 0.01, label: 'Petal Scale' },
     centerScale: { value: 0.8, min: 0, max: 2, step: 0.01, label: 'Center Petal Scale' },
     scaleRampPos: { value: 2, min: 0.01, max: 5, step: 0.01, label: 'Scale Ramp Pos (anim)' },
-    // Bend multiplier (Blender's Math node constant feeding the Vector Rotate
-    // angle = Y * bend). Export ≈ 0.295; tune to match your Blender file.
-    petalBend: { value: 0.43, min: -2, max: 2, step: 0.001, label: 'Petal Bend' },
-    // Bend Vector Rotate "Center" Z, BLENDER local coords (Center X/Y = 0).
-    // z=1 = CLOSED petal, z=-9.86 = open petal.
-    petalBendCenterZ: { value: 1, min: -15, max: 15, step: 0.01, label: 'Petal Bend Center Z (Blender)' },
-    // Open/close morph. openAmount is the ANIMATABLE blend (0 = closed, 1 = open);
-    // the open petal uses bend Center.Z = openBendCenterZ (-9.86).
-    openAmount: { value: 0, min: 0, max: 1, step: 0.01, label: 'Open Amount (anim)' },
-    openPetalBend: { value: 0.0, min: -2, max: 2, step: 0.001, label: 'Open Petal Bend' },
-    openBendCenterZ: { value: -9.86, min: -15, max: 15, step: 0.01, label: 'Open Bend Center Z (Blender)' },
-    // Bottom Taper: Vector Rotate about Z, angle = X * Petal Width, applied after
-    // the bend. Center = (0, taperCenterY, 0). Export Petal Width ≈ -10.49.
-    petalWidth: { value: -0.78, min: -1, max: 1, step: 0.01, label: 'Petal Width (taper)' },
-    taperCenterY: { value: 0.18, min: -5, max: 5, step: 0.01, label: 'Taper Center Y (Blender)' },
-    // Per-petal rotation (Blender's Combine XYZ -> Rotate Euler), remapped to
-    // Three.js Y-up: Y is the up axis (Blender's Z) and carries the ×index golden
-    // spin; X and Z are constant tilts.
-    petalRotateX: { value: -22, min: -180, max: 180, step: 1, label: 'Petal Rotate X°' },
-    petalRotateY: { value: 137.5, min: -180, max: 180, step: 0.5, label: 'Petal Rotate Y° (×index)' },
-    petalRotateZ: { value: 0, min: -180, max: 180, step: 1, label: 'Petal Rotate Z°' },
-    showCurve: { value: true, label: 'show curve (debug)' },
+    petalRotateX: { value: -22, min: -180, max: 180, step: 1, label: 'Rotate X°' },
+    petalRotateY: { value: 137.5, min: -180, max: 180, step: 0.5, label: 'Rotate Y° (×index)' },
+    petalRotateZ: { value: 0, min: -180, max: 180, step: 1, label: 'Rotate Z°' },
+    showCurve: { value: true, label: 'Show Curve (debug)' },
+    rampStop: { value: 0.038, min: 0, max: 1.5, step: 0.001, label: 'Ramp Stop (anim)' },
+    addValue: { value: -0.969, min: -2, max: 1, step: 0.001, label: 'Add Value (anim)' },
+    'Closed Petal': folder({
+      petalBend: { value: 0.43, min: -2, max: 2, step: 0.001, label: 'Bend' },
+      petalBendCenterZ: { value: 1, min: -15, max: 15, step: 0.01, label: 'Bend Center Z' },
+      petalWidth: { value: 0.5, min: -5, max: 5, step: 0.01, label: 'Taper Width' },
+      taperCenterY: { value: 0.325, min: -5, max: 5, step: 0.001, label: 'Taper Center Y' },
+    }, { collapsed: true }),
+    'Open Petal': folder({
+      openPetalBend: { value: 0.1, min: -2, max: 2, step: 0.001, label: 'Bend' },
+      openBendCenterZ: { value: -9.86, min: -15, max: 15, step: 0.01, label: 'Bend Center Z' },
+      openCurlK: { value: -6.38, min: -50, max: 50, step: 0.001, label: 'Curl K' },
+      openScaleFix: { value: 1.5, min: 0, max: 5, step: 0.001, label: 'Scale Fix Y' },
+      openTaperWidth: { value: 0.3, min: -5, max: 5, step: 0.01, label: 'Taper Width' },
+      openTaperCenterY: { value: -4.11, min: -10, max: 10, step: 0.001, label: 'Taper Center Y' },
+    }, { collapsed: true }),
   };
 }
 
@@ -65,7 +60,7 @@ export function buildSpawnCurve({ curveLength }) {
 // line and stack along it; the flat face points out toward +Z. No golden-angle
 // rotation yet.
 export function updateDahliaInstances(mesh, params, scratch) {
-  const { amountOfPetals, petalScale, petalRotateX, petalRotateY, petalRotateZ, centerScale, scaleRampPos } = params;
+  const { amountOfPetals, petalScale, petalRotateX, petalRotateY, petalRotateZ, centerScale, scaleRampPos, rampStop, addValue, openScaleFix } = params;
   const count = Math.max(1, Math.floor(amountOfPetals));
   const { matrix, basis, position, quaternion, qRot, scale, tangent, lenDir, xAxis, faceDir } = scratch;
 
@@ -93,11 +88,37 @@ export function updateDahliaInstances(mesh, params, scratch) {
     if (rotZ !== 0) { qRot.setFromAxisAngle(AXIS_Z, rotZ); quaternion.premultiply(qRot); }
     if (rotYPerIndex !== 0) { qRot.setFromAxisAngle(AXIS_Y, i * rotYPerIndex); quaternion.premultiply(qRot); }
 
+    // Per-petal blend factor: mirrors the GPU Color Ramp + Add computation.
+    const iNorm = count > 1 ? i / (count - 1) : 0;
+    const rampOut = rampStop > 0 ? Math.min(1, iNorm / rampStop) : 1;
+    const blendFactor = Math.max(0, Math.min(1, rampOut + addValue));
+
+    // Rotate Instances (open petal, Local Space): index mapped [1→120] → [0.860→-0.560] rad on X.
+    // Local space = post-multiply so it rotates in the petal's own frame.
+    if (blendFactor !== 0) {
+      const tOpen = Math.max(0, Math.min(1, (i - 1) / (120 - 1)));
+      const openRotX = (0.860 + tOpen * (-0.560 - 0.860)) * blendFactor;
+      qRot.setFromAxisAngle(AXIS_X, -openRotX);
+      quaternion.multiply(qRot);
+    }
+
     // "Scale center petals smaller": ramp from centerScale (center) to full size
     // at distance scaleRampPos (the animatable bloom knob).
     const t = Math.min(1, position.length() / Math.max(1e-4, scaleRampPos));
     const sizeMul = centerScale + (1 - centerScale) * t; // mix(centerScale, 1, t)
     scale.setScalar(petalScale * sizeMul);
+
+    // Scale Fix 2 (open petal, Local Space): Y-only scale.
+    // Position → Gradient Texture (Quadratic Sphere) → Color Ramp (Ease, stop@0.842=1)
+    //   → Multiply(openScaleFix) → Combine XYZ (1, Y, 1) → Scale Instances.
+    if (blendFactor !== 0) {
+      const dist = position.length();
+      const gradFactor = Math.max(0, 1 - dist * dist); // Quadratic Sphere: 1 at origin, 0 at dist=1
+      const tGrad = Math.min(1, gradFactor / 0.842);   // Color Ramp: [0, 0.842] → [0, 1]
+      const ramp = tGrad * tGrad * (3 - 2 * tGrad);   // Ease (smoothstep)
+      scale.y *= 1 + (ramp * openScaleFix - 1) * blendFactor;
+    }
+
     matrix.compose(position, quaternion, scale);
     mesh.setMatrixAt(i, matrix);
   }
