@@ -22,8 +22,10 @@ export function createDahliaGeoControlsSchema() {
     petalRotateY: { value: 137.5, min: -180, max: 180, step: 0.5, label: 'Rotate Y° (×index)' },
     petalRotateZ: { value: 0, min: -180, max: 180, step: 1, label: 'Rotate Z°' },
     showCurve: { value: true, label: 'Show Curve (debug)' },
-    rampStop: { value: 0.038, min: 0, max: 1.5, step: 0.001, label: 'Ramp Stop (anim)' },
-    addValue: { value: -0.969, min: -2, max: 1, step: 0.001, label: 'Add Value (anim)' },
+    animT: { value: 0, min: 0, max: 1, step: 0.01, label: 'Anim T' },
+    rampStopMax: { value: 0.392, min: 0.001, max: 1, step: 0.001, label: 'Ramp Stop Max' },
+    addValueMin: { value: -0.969, min: -3, max: 0, step: 0.001, label: 'Add Value Min' },
+    addValueMax: { value: 0, min: -1, max: 1, step: 0.001, label: 'Add Value Max' },
     'Closed Petal': folder({
       petalBend: { value: 0.43, min: -2, max: 2, step: 0.001, label: 'Bend' },
       petalBendCenterZ: { value: 1, min: -15, max: 15, step: 0.01, label: 'Bend Center Z' },
@@ -60,7 +62,7 @@ export function buildSpawnCurve({ curveLength }) {
 // line and stack along it; the flat face points out toward +Z. No golden-angle
 // rotation yet.
 export function updateDahliaInstances(mesh, params, scratch) {
-  const { amountOfPetals, petalScale, petalRotateX, petalRotateY, petalRotateZ, centerScale, scaleRampPos, rampStop, addValue, openScaleFix } = params;
+  const { amountOfPetals, petalScale, petalRotateX, petalRotateY, petalRotateZ, centerScale, scaleRampPos, animT, rampStopMax, addValueMin, addValueMax, openScaleFix } = params;
   const count = Math.max(1, Math.floor(amountOfPetals));
   const { matrix, basis, position, quaternion, qRot, scale, tangent, lenDir, xAxis, faceDir } = scratch;
 
@@ -68,6 +70,7 @@ export function updateDahliaInstances(mesh, params, scratch) {
   const rotZ = THREE.MathUtils.degToRad(petalRotateZ);
   const rotYPerIndex = THREE.MathUtils.degToRad(petalRotateY); // ×index golden spin about +Y
   const curve = buildSpawnCurve(params);
+  const spawnNormAttr = mesh.geometry.attributes.spawnNorm ?? null;
 
   for (let i = 0; i < count; i += 1) {
     const u = count > 1 ? i / (count - 1) : 0;
@@ -88,10 +91,13 @@ export function updateDahliaInstances(mesh, params, scratch) {
     if (rotZ !== 0) { qRot.setFromAxisAngle(AXIS_Z, rotZ); quaternion.premultiply(qRot); }
     if (rotYPerIndex !== 0) { qRot.setFromAxisAngle(AXIS_Y, i * rotYPerIndex); quaternion.premultiply(qRot); }
 
-    // Per-petal blend factor: mirrors the GPU Color Ramp + Add computation.
+    // Per-petal spawn-position factor (mirrors Blender's Capture Attribute: spawn Y normalized).
     const iNorm = count > 1 ? i / (count - 1) : 0;
-    const rampOut = rampStop > 0 ? Math.min(1, iNorm / rampStop) : 1;
-    const blendFactor = Math.max(0, Math.min(1, rampOut + addValue));
+    if (spawnNormAttr) spawnNormAttr.array[i] = iNorm;
+    const rampStopD = Math.max(0.001, animT * rampStopMax);
+    const addValueD = addValueMin + (addValueMax - addValueMin) * animT;
+    const rampOut = Math.min(1, iNorm / rampStopD);
+    const blendFactor = Math.max(0, Math.min(1, rampOut + addValueD));
 
     // Rotate Instances (open petal, Local Space): index mapped [1→120] → [0.860→-0.560] rad on X.
     // Local space = post-multiply so it rotates in the petal's own frame.
@@ -125,6 +131,7 @@ export function updateDahliaInstances(mesh, params, scratch) {
 
   mesh.count = count;
   mesh.instanceMatrix.needsUpdate = true;
+  if (spawnNormAttr) spawnNormAttr.needsUpdate = true;
   mesh.computeBoundingSphere();
 }
 

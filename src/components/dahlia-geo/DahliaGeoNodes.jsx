@@ -3,9 +3,9 @@ import { useGLTF } from '@react-three/drei';
 import { useControls } from 'leva';
 import * as THREE from 'three/webgpu';
 import {
+  attribute as tslAttribute,
   cos,
   Fn,
-  instanceIndex,
   mix,
   normalGeometry,
   normalLocal,
@@ -41,11 +41,19 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   const controls = useControls('Dahlia (Geo Nodes)', createDahliaGeoControlsSchema());
 
   const sourceMesh = useMemo(() => findFirstMesh(scene), [scene]);
+  // Per-instance spawn position factor (mirrors Blender's Capture Attribute).
+  // Declared before geometry so it can be embedded in the geo at creation time,
+  // ensuring the attribute exists before TSL compiles the shader.
+  const spawnNormArray = useMemo(() => new Float32Array(MAX_PETALS), []);
   // Straight petal geometry — the bend runs in the vertex shader (animatable).
-  const geometry = useMemo(
-    () => (sourceMesh ? preparePetalGeometry(sourceMesh) : null),
-    [sourceMesh],
-  );
+  // spawnNorm is added here (not in useLayoutEffect) so the attribute exists
+  // on the geometry before the TSL shader compiles.
+  const geometry = useMemo(() => {
+    if (!sourceMesh) return null;
+    const geo = preparePetalGeometry(sourceMesh);
+    geo.setAttribute('spawnNorm', new THREE.InstancedBufferAttribute(spawnNormArray, 1));
+    return geo;
+  }, [sourceMesh, spawnNormArray]);
 
   // Live bend uniform (drive from a control now, animate it later).
   const bendUniform = useMemo(() => uniform(0), []);
@@ -56,12 +64,14 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   const petalWidthUniform = useMemo(() => uniform(0.5), []);
   const taperCenterYUniform = useMemo(() => uniform(0.325), []);
   // "Transfer Between Open and Close Petal":
-  // Color Ramp Factor = per-petal instanceIndex normalized by petal count.
-  // Color Ramp stop position (rampStop) and Add node value (addValue) are animated.
-  // Per-petal blend = clamp(clamp(iNorm / rampStop, 0, 1) + addValue, 0, 1).
-  const rampStopUniform = useMemo(() => uniform(0.038), []);
-  const addValueUniform = useMemo(() => uniform(-0.969), []);
-  const amountOfPetalsUniform = useMemo(() => uniform(12), []);
+  // Single animT (0→1) drives all animated values:
+  //   rampStop  = max(0.001, animT * 1.05)   — wave front sweeps outer→inner
+  //   addValue  = lerp(-1, 1, animT)          — per-petal openness
+  //   tgTx_open = animT * 0.559              — Bottom Taper TG Translation X
+  const animTUniform = useMemo(() => uniform(0), []);
+  const rampStopMaxUniform = useMemo(() => uniform(0.038), []);
+  const addValueMinUniform = useMemo(() => uniform(-0.969), []);
+  const addValueMaxUniform = useMemo(() => uniform(0), []);
   // Open petal bend: own multiplier (0.295) and center Z (-9.86).
   const openBendUniform = useMemo(() => uniform(0.295), []);
   const openCenterZUniform = useMemo(() => uniform(-9.86), []);
@@ -220,20 +230,23 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
       return applyTaper(b, w, ty, 0.46, 0.5, 0.5, 0, 0);
     };
 
-    // OPEN: bend → curl → taper
+    // OPEN: bend → curl → taper (tgTx animated 0→0.559 via animT)
     const buildOpen = () => {
       const b = buildBend(openBendUniform, openCenterZUniform, 0.54, 0.21, 0.28, 0);
       const bc = buildCurl(b, openCurlKUniform);
-      return applyTaper(bc, openTaperWidthUniform, openTaperCenterYUniform, 0.5, 0.5, 0.5, 21.4 * Math.PI / 180, 0);
+      return applyTaper(bc, openTaperWidthUniform, openTaperCenterYUniform, 0.5, 0.5, 0.5, 21.4 * Math.PI / 180, animTUniform.mul(1.7));
     };
 
     const closed = buildClosed();
     const open = buildOpen();
-    // Per-petal blend: Color Ramp(iNorm, rampStop) + addValue, clamped [0,1].
-    const countMinus1 = amountOfPetalsUniform.toFloat().sub(1).max(1);
-    const iNorm = instanceIndex.toFloat().div(countMinus1).clamp(0, 1);
-    const rampOut = iNorm.div(rampStopUniform.max(0.001)).clamp(0, 1);
-    const blend = rampOut.add(addValueUniform).clamp(0, 1);
+    // Per-petal blend driven by animT.
+    // iNorm = Capture Attribute from spawn position (mirrors Blender screenshot 2):
+    //   spawn position Y (0→curveLength) normalized to [0,1] per instance.
+    const iNorm = tslAttribute('spawnNorm', 'float');
+    const rampStopD = animTUniform.mul(rampStopMaxUniform).max(0.001);
+    const addValueD = addValueMinUniform.add(addValueMaxUniform.sub(addValueMinUniform).mul(animTUniform));
+    const rampOut = iNorm.div(rampStopD).clamp(0, 1);
+    const blend = rampOut.add(addValueD).clamp(0, 1);
     const bentPosition = mix(closed.pos, open.pos, blend);
     const bentNormalLocal = mix(closed.nrm, open.nrm, blend).normalize();
 
@@ -249,7 +262,7 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
     m.positionNode = positionNode;
     m.castShadowPositionNode = bentPosition;
     return m;
-  }, [bendUniform, bendCenterZUniform, petalWidthUniform, taperCenterYUniform, rampStopUniform, addValueUniform, amountOfPetalsUniform, openBendUniform, openCenterZUniform, openCurlKUniform, openTaperWidthUniform, openTaperCenterYUniform]);
+  }, [bendUniform, bendCenterZUniform, petalWidthUniform, taperCenterYUniform, animTUniform, rampStopMaxUniform, addValueMinUniform, addValueMaxUniform, openBendUniform, openCenterZUniform, openCurlKUniform, openTaperWidthUniform, openTaperCenterYUniform]);
 
   useEffect(() => {
     bendUniform.value = controls.petalBend;
@@ -268,16 +281,20 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   }, [taperCenterYUniform, controls.taperCenterY]);
 
   useEffect(() => {
-    rampStopUniform.value = controls.rampStop;
-  }, [rampStopUniform, controls.rampStop]);
+    animTUniform.value = controls.animT;
+  }, [animTUniform, controls.animT]);
 
   useEffect(() => {
-    addValueUniform.value = controls.addValue;
-  }, [addValueUniform, controls.addValue]);
+    rampStopMaxUniform.value = controls.rampStopMax;
+  }, [rampStopMaxUniform, controls.rampStopMax]);
 
   useEffect(() => {
-    amountOfPetalsUniform.value = controls.amountOfPetals;
-  }, [amountOfPetalsUniform, controls.amountOfPetals]);
+    addValueMinUniform.value = controls.addValueMin;
+  }, [addValueMinUniform, controls.addValueMin]);
+
+  useEffect(() => {
+    addValueMaxUniform.value = controls.addValueMax;
+  }, [addValueMaxUniform, controls.addValueMax]);
 
   useEffect(() => {
     openBendUniform.value = controls.openPetalBend;
