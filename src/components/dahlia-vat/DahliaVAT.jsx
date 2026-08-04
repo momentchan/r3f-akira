@@ -33,6 +33,8 @@ import {
 export function DahliaVAT({
   metaUrl = DAHLIA_VAT_META_PATH,
   position = [0, 0, 0],
+  scaleMul = 1,
+  timeOffset = 0,
   visible = true,
 }) {
   const vatData = useVATPreloader(metaUrl);
@@ -131,7 +133,7 @@ export function DahliaVAT({
 
     materialBundle.frameUniform.value = calculateVATFrame(
       vatControls.useTime ? undefined : vatControls.frame,
-      clock.elapsedTime,
+      clock.elapsedTime + timeOffset,
       vatData.meta,
       vatControls.speed,
     );
@@ -163,7 +165,7 @@ export function DahliaVAT({
   }
 
   return (
-    <group position={position} scale={vatControls.scale} visible={visible}>
+    <group position={position} scale={vatControls.scale * scaleMul} visible={visible}>
       {meshParts.map(({ name, geometry }) => (
         <mesh
           key={name}
