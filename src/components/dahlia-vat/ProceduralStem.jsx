@@ -69,12 +69,13 @@ export function ProceduralStem({
   position = [0, 0, 0],
   scaleMul = 1,
   timeOffset = 0,
+  seedOverride = null,
 }) {
   const {
     stemLength, stemRadius, stemSegments, radialSegs,
     radiusAttenuation, baseFlare,
     leanAngle, bendDegree,
-    growthSpeed, bloomAt, seed,
+    growthSpeed, bloomAt, seed: levaSeed,
   } = useControls('Stem', {
     stemLength:        { value: 0.55,  min: 0.05, max: 2,    step: 0.01 },
     stemRadius:        { value: 0.012, min: 0.002, max: 0.06, step: 0.001 },
@@ -88,6 +89,8 @@ export function ProceduralStem({
     bloomAt:           { value: 0.85, min: 0,    max: 1,    step: 0.01, label: 'bloom at' },
     seed:              { value: 42,   min: 0,    max: 999,  step: 1 },
   }, { collapsed: true });
+
+  const seed = seedOverride ?? levaSeed;
 
   const flowerControlsSchema = useMemo(
     () => createFlowerControlsSchema({ mask: { edgeWidth: 0.001 } }),

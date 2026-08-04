@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useId, useMemo, useRef } from 'react';
 import { useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useControls } from 'leva';
@@ -45,6 +45,8 @@ export function DahliaVAT({
   const directionalLightRef = useRef(null);
   const lightWorldPosition = useRef(new THREE.Vector3());
   const lightTargetPosition = useRef(new THREE.Vector3());
+
+  const instanceId = useId();
 
   const vatControls = useControls(
     'Dahlia VAT',
@@ -178,7 +180,7 @@ export function DahliaVAT({
   }
 
   return (
-    <AsyncCompile id={metaUrl}>
+    <AsyncCompile id={`${metaUrl}-${instanceId}`}>
       <group position={position} scale={vatControls.scale * scaleMul} visible={visible}>
         {meshParts.map(({ name, geometry }) => (
           <mesh

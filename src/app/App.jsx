@@ -6,7 +6,7 @@ import { useControls } from "leva";
 import * as THREE from "three/webgpu";
 import { DirectionalLight } from "../components/DirectionalLight";
 import Effects from "../components/Effects";
-import { ProceduralStem } from "../components/dahlia-vat/ProceduralStem";
+import { StemArrangement } from "../components/dahlia-vat/StemArrangement";
 import { Flower } from "../components/Flower";
 import { ProceduralSmoke } from "../components/ProceduralSmoke";
 import { Character } from "../components/character/Character";
@@ -52,7 +52,7 @@ export default function App() {
             <planeGeometry args={[2, 2]} />
             <meshStandardMaterial color="#eeeeee" />
           </mesh> */}
-          <ProceduralStem />
+          <StemArrangement />
           {/* <Flower /> */}
           {/* <ProceduralSmoke position={[0, 0.1, 0]} /> */}
         </group>
