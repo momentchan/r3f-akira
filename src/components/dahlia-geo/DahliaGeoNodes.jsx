@@ -6,13 +6,16 @@ import {
   attribute as tslAttribute,
   cos,
   Fn,
+  mat4,
   mix,
   normalGeometry,
   normalLocal,
   positionGeometry,
   sin,
+  transformNormal,
   uniform,
   vec3,
+  vec4,
 } from 'three/tsl';
 import {
   buildSpawnCurve,
@@ -45,6 +48,14 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   // Declared before geometry so it can be embedded in the geo at creation time,
   // ensuring the attribute exists before TSL compiles the shader.
   const spawnNormArray = useMemo(() => new Float32Array(MAX_PETALS), []);
+  // Per-instance placement matrix M (flower placement), uploaded as 4 vec4
+  // columns. We apply M ourselves in the shader so the Taper/Twist can run in
+  // FLOWER space (post-placement, like Blender's Realize Instances); three's own
+  // instanceMatrix is set to identity so it does not double-transform.
+  const instMatArrays = useMemo(
+    () => [0, 1, 2, 3].map(() => new Float32Array(MAX_PETALS * 4)),
+    [],
+  );
   // Straight petal geometry — the bend runs in the vertex shader (animatable).
   // spawnNorm is added here (not in useLayoutEffect) so the attribute exists
   // on the geometry before the TSL shader compiles.
@@ -52,8 +63,11 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
     if (!sourceMesh) return null;
     const geo = preparePetalGeometry(sourceMesh);
     geo.setAttribute('spawnNorm', new THREE.InstancedBufferAttribute(spawnNormArray, 1));
+    instMatArrays.forEach((arr, i) => {
+      geo.setAttribute(`instMat${i}`, new THREE.InstancedBufferAttribute(arr, 4));
+    });
     return geo;
-  }, [sourceMesh, spawnNormArray]);
+  }, [sourceMesh, spawnNormArray, instMatArrays]);
 
   // Live bend uniform (drive from a control now, animate it later).
   const bendUniform = useMemo(() => uniform(0), []);
@@ -72,6 +86,17 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   const rampStopMaxUniform = useMemo(() => uniform(0.038), []);
   const addValueMinUniform = useMemo(() => uniform(-0.969), []);
   const addValueMaxUniform = useMemo(() => uniform(0), []);
+  // Taper Adjustment (after blend): Set Position = (X*f, Y*f, Z),
+  // f = Multiply Add on Z = Z * mul + add. Chained: #2 runs on #1's output.
+  const taperAdjMulUniform = useMemo(() => uniform(0.145), []);
+  const taperAdjAddUniform = useMemo(() => uniform(0.276), []);
+  const taperAdjEnableUniform = useMemo(() => uniform(1), []);
+  const taperAdj2MulUniform = useMemo(() => uniform(-0.978), []);
+  const taperAdj2AddUniform = useMemo(() => uniform(2.312), []);
+  const taperAdj2EnableUniform = useMemo(() => uniform(1), []);
+  // Twist: Vector Rotate around +Z, angle = pos.z * K.
+  const twistKUniform = useMemo(() => uniform(3.235), []);
+  const twistEnableUniform = useMemo(() => uniform(1), []);
   // Open petal bend: own multiplier (0.295) and center Z (-9.86).
   const openBendUniform = useMemo(() => uniform(0.295), []);
   const openCenterZUniform = useMemo(() => uniform(-9.86), []);
@@ -247,14 +272,66 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
     const addValueD = addValueMinUniform.add(addValueMaxUniform.sub(addValueMinUniform).mul(animTUniform));
     const rampOut = iNorm.div(rampStopD).clamp(0, 1);
     const blend = rampOut.add(addValueD).clamp(0, 1);
-    const bentPosition = mix(closed.pos, open.pos, blend);
-    const bentNormalLocal = mix(closed.nrm, open.nrm, blend).normalize();
+    const blendedPos = mix(closed.pos, open.pos, blend);
+    const blendedNrm = mix(closed.nrm, open.nrm, blend).normalize();
 
-    // Write the bent position AND normal in local (pre-instance) space, then let
-    // three's InstanceNode apply the per-instance rotation to BOTH and the model
-    // normal matrix to the normal. Overriding normalNode directly would use only
-    // the mesh's world matrix and SKIP each petal's instance spin/tilt — the
-    // cause of the wrong per-petal shading.
+    // Lift the LOCAL petal shape into FLOWER space via its placement matrix M,
+    // so Taper/Twist run post-placement (like Blender's Realize Instances). M is
+    // uploaded as 4 vec4 columns; three's own instanceMatrix is identity.
+    const M = mat4(
+      tslAttribute('instMat0', 'vec4'),
+      tslAttribute('instMat1', 'vec4'),
+      tslAttribute('instMat2', 'vec4'),
+      tslAttribute('instMat3', 'vec4'),
+    );
+    const flowerPos = M.mul(vec4(blendedPos, 1.0)).xyz;
+    const flowerNrm = transformNormal(blendedNrm, M).normalize();
+
+    // Taper Adjustment (flower space). The flower's pole is +Y here (Blender's
+    // Z-up), so the driver axis is Y and the two scaled axes are X and Z:
+    //   f = pos.y * mul + add;  P' = (x·f, y, z·f)   (Y passes through)
+    //   normal ∝ (nx, f·ny − mul·(x·nx + z·nz), nz); then normalize.
+    // enU (0/1) mixes input↔output so the stage can be toggled without recompile.
+    const applyTaperAdj = (pos, nrm, mulU, addU, enU) => {
+      const f = pos.y.mul(mulU).add(addU);
+      const ny = f.mul(nrm.y).sub(mulU.mul(pos.x.mul(nrm.x).add(pos.z.mul(nrm.z))));
+      const outPos = vec3(pos.x.mul(f), pos.y, pos.z.mul(f));
+      const outNrm = vec3(nrm.x, ny, nrm.z).normalize();
+      return {
+        pos: mix(pos, outPos, enU),
+        nrm: mix(nrm, outNrm, enU).normalize(),
+      };
+    };
+    // Two chained taper adjustments; #2 runs on the output of #1.
+    const t1 = applyTaperAdj(flowerPos, flowerNrm, taperAdjMulUniform, taperAdjAddUniform, taperAdjEnableUniform);
+    const t2 = applyTaperAdj(t1.pos, t1.nrm, taperAdj2MulUniform, taperAdj2AddUniform, taperAdj2EnableUniform);
+
+    // Twist (FINAL, flower space): Vector Rotate around +Y by angle = pos.y * K.
+    // Angle varies with y, so the Jacobian carries a y-shear: with x',z' the
+    // rotated position and mx,mz the rotated normal xz,
+    //   n'y = ny + K·(x'·mz − z'·mx).
+    const applyTwist = (pos, nrm, kU, enU) => {
+      const a = pos.y.mul(kU);
+      const ca = cos(a);
+      const sa = sin(a);
+      const px = pos.x.mul(ca).add(pos.z.mul(sa));
+      const pz = pos.z.mul(ca).sub(pos.x.mul(sa));
+      const mx = nrm.x.mul(ca).add(nrm.z.mul(sa));
+      const mz = nrm.z.mul(ca).sub(nrm.x.mul(sa));
+      const ny = nrm.y.add(kU.mul(px.mul(mz).sub(pz.mul(mx))));
+      const outPos = vec3(px, pos.y, pz);
+      const outNrm = vec3(mx, ny, mz).normalize();
+      return {
+        pos: mix(pos, outPos, enU),
+        nrm: mix(nrm, outNrm, enU).normalize(),
+      };
+    };
+    const tw = applyTwist(t2.pos, t2.nrm, twistKUniform, twistEnableUniform);
+    const bentPosition = tw.pos;
+    const bentNormalLocal = tw.nrm;
+
+    // bentPosition/bentNormalLocal are already in FLOWER space (we applied M),
+    // and three's instanceMatrix is identity, so its InstanceNode is a no-op.
     const positionNode = Fn(() => {
       normalLocal.assign(bentNormalLocal);
       return bentPosition;
@@ -262,7 +339,7 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
     m.positionNode = positionNode;
     m.castShadowPositionNode = bentPosition;
     return m;
-  }, [bendUniform, bendCenterZUniform, petalWidthUniform, taperCenterYUniform, animTUniform, rampStopMaxUniform, addValueMinUniform, addValueMaxUniform, openBendUniform, openCenterZUniform, openCurlKUniform, openTaperWidthUniform, openTaperCenterYUniform]);
+  }, [bendUniform, bendCenterZUniform, petalWidthUniform, taperCenterYUniform, animTUniform, rampStopMaxUniform, addValueMinUniform, addValueMaxUniform, taperAdjMulUniform, taperAdjAddUniform, taperAdjEnableUniform, taperAdj2MulUniform, taperAdj2AddUniform, taperAdj2EnableUniform, twistKUniform, twistEnableUniform, openBendUniform, openCenterZUniform, openCurlKUniform, openTaperWidthUniform, openTaperCenterYUniform]);
 
   useEffect(() => {
     bendUniform.value = controls.petalBend;
@@ -295,6 +372,38 @@ export function DahliaGeoNodes({ position = [0, 0, 0], visible = true }) {
   useEffect(() => {
     addValueMaxUniform.value = controls.addValueMax;
   }, [addValueMaxUniform, controls.addValueMax]);
+
+  useEffect(() => {
+    taperAdjMulUniform.value = controls.taperAdjMul;
+  }, [taperAdjMulUniform, controls.taperAdjMul]);
+
+  useEffect(() => {
+    taperAdjAddUniform.value = controls.taperAdjAdd;
+  }, [taperAdjAddUniform, controls.taperAdjAdd]);
+
+  useEffect(() => {
+    taperAdjEnableUniform.value = controls.taperAdjEnable ? 1 : 0;
+  }, [taperAdjEnableUniform, controls.taperAdjEnable]);
+
+  useEffect(() => {
+    taperAdj2MulUniform.value = controls.taperAdj2Mul;
+  }, [taperAdj2MulUniform, controls.taperAdj2Mul]);
+
+  useEffect(() => {
+    taperAdj2AddUniform.value = controls.taperAdj2Add;
+  }, [taperAdj2AddUniform, controls.taperAdj2Add]);
+
+  useEffect(() => {
+    taperAdj2EnableUniform.value = controls.taperAdj2Enable ? 1 : 0;
+  }, [taperAdj2EnableUniform, controls.taperAdj2Enable]);
+
+  useEffect(() => {
+    twistKUniform.value = controls.twistK;
+  }, [twistKUniform, controls.twistK]);
+
+  useEffect(() => {
+    twistEnableUniform.value = controls.twistEnable ? 1 : 0;
+  }, [twistEnableUniform, controls.twistEnable]);
 
   useEffect(() => {
     openBendUniform.value = controls.openPetalBend;

@@ -7,6 +7,10 @@ export const PETAL_PATH = '/models/petal.glb';
 const AXIS_X = new THREE.Vector3(1, 0, 0);
 const AXIS_Y = new THREE.Vector3(0, 1, 0);
 const AXIS_Z = new THREE.Vector3(0, 0, 1);
+// three's built-in instanceMatrix is kept identity; the real placement matrix M
+// is uploaded to the instMat0..3 attributes and applied in the shader so the
+// flower-space Taper/Twist can run post-placement.
+const IDENTITY_MATRIX = new THREE.Matrix4();
 
 // STEP 1 — minimal spawn only:
 // Spawn N straight petals along a flat NURBS spiral curve (the "Point/Petal
@@ -31,6 +35,20 @@ export function createDahliaGeoControlsSchema() {
       petalBendCenterZ: { value: 1, min: -15, max: 15, step: 0.01, label: 'Bend Center Z' },
       petalWidth: { value: 0.5, min: -5, max: 5, step: 0.01, label: 'Taper Width' },
       taperCenterY: { value: 0.325, min: -5, max: 5, step: 0.001, label: 'Taper Center Y' },
+    }, { collapsed: true }),
+    'Taper Adjustment': folder({
+      taperAdjEnable: { value: true, label: 'Enable' },
+      taperAdjMul: { value: 0.56, min: -2, max: 2, step: 0.001, label: 'Z Multiplier' },
+      taperAdjAdd: { value: 0.21, min: -2, max: 2, step: 0.001, label: 'Z Addend' },
+    }, { collapsed: true }),
+    'Taper Adjustment 2': folder({
+      taperAdj2Enable: { value: true, label: 'Enable' },
+      taperAdj2Mul: { value: -1.17, min: -3, max: 3, step: 0.001, label: 'Z Multiplier' },
+      taperAdj2Add: { value: 1.57, min: -3, max: 3, step: 0.001, label: 'Z Addend' },
+    }, { collapsed: true }),
+    'Twist': folder({
+      twistEnable: { value: true, label: 'Enable' },
+      twistK: { value: 0.3, min: -1, max: 1, step: 0.001, label: 'Twist (×Z)' },
     }, { collapsed: true }),
     'Open Petal': folder({
       openPetalBend: { value: 0.1, min: -2, max: 2, step: 0.001, label: 'Bend' },
@@ -71,6 +89,7 @@ export function updateDahliaInstances(mesh, params, scratch) {
   const rotYPerIndex = THREE.MathUtils.degToRad(petalRotateY); // ×index golden spin about +Y
   const curve = buildSpawnCurve(params);
   const spawnNormAttr = mesh.geometry.attributes.spawnNorm ?? null;
+  const instMatAttrs = [0, 1, 2, 3].map((k) => mesh.geometry.attributes[`instMat${k}`] ?? null);
 
   for (let i = 0; i < count; i += 1) {
     const u = count > 1 ? i / (count - 1) : 0;
@@ -126,12 +145,25 @@ export function updateDahliaInstances(mesh, params, scratch) {
     }
 
     matrix.compose(position, quaternion, scale);
-    mesh.setMatrixAt(i, matrix);
+    // Upload the real placement matrix M (column-major) to instMat0..3 and keep
+    // three's instanceMatrix identity (M is applied in the shader instead).
+    if (instMatAttrs[0]) {
+      const e = matrix.elements;
+      for (let c = 0; c < 4; c += 1) {
+        const a = instMatAttrs[c].array;
+        a[i * 4] = e[c * 4];
+        a[i * 4 + 1] = e[c * 4 + 1];
+        a[i * 4 + 2] = e[c * 4 + 2];
+        a[i * 4 + 3] = e[c * 4 + 3];
+      }
+    }
+    mesh.setMatrixAt(i, IDENTITY_MATRIX);
   }
 
   mesh.count = count;
   mesh.instanceMatrix.needsUpdate = true;
   if (spawnNormAttr) spawnNormAttr.needsUpdate = true;
+  instMatAttrs.forEach((attr) => { if (attr) attr.needsUpdate = true; });
   mesh.computeBoundingSphere();
 }
 
