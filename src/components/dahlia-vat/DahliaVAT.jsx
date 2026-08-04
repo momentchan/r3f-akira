@@ -9,6 +9,7 @@ import {
   preloadVATAssets,
   useVATPreloader,
 } from '@core/vat';
+import { AsyncCompile } from '@core';
 import {
   createFlowerMaskUniforms,
   createFlowerOutlineUniforms,
@@ -36,6 +37,7 @@ export function DahliaVAT({
   scaleMul = 1,
   timeOffset = 0,
   visible = true,
+  overrideTime = null, // { current: number } ref — when provided, used instead of clock.elapsedTime
 }) {
   const vatData = useVATPreloader(metaUrl);
   const maskTexture = useTexture(FLOWER_MASK_PATH);
@@ -131,8 +133,19 @@ export function DahliaVAT({
       return;
     }
 
+    // When overrideTime is provided, compute a one-shot frame ratio (no loop):
+    // calculateVATFrame returns frameRatio directly when it's not undefined,
+    // bypassing the internal `% duration` that causes looping.
+    let frameArg;
+    if (overrideTime != null) {
+      const fps = vatData.meta.fps || 24;
+      const duration = vatData.meta.frameCount / fps;
+      frameArg = Math.min((overrideTime.current * vatControls.speed) / duration, 1);
+    } else {
+      frameArg = vatControls.useTime ? undefined : vatControls.frame;
+    }
     materialBundle.frameUniform.value = calculateVATFrame(
-      vatControls.useTime ? undefined : vatControls.frame,
+      frameArg,
       clock.elapsedTime + timeOffset,
       vatData.meta,
       vatControls.speed,
@@ -165,18 +178,20 @@ export function DahliaVAT({
   }
 
   return (
-    <group position={position} scale={vatControls.scale * scaleMul} visible={visible}>
-      {meshParts.map(({ name, geometry }) => (
-        <mesh
-          key={name}
-          geometry={geometry}
-          material={materialBundle.material}
-          frustumCulled={false}
-          castShadow
-          receiveShadow
-        />
-      ))}
-    </group>
+    <AsyncCompile id={metaUrl}>
+      <group position={position} scale={vatControls.scale * scaleMul} visible={visible}>
+        {meshParts.map(({ name, geometry }) => (
+          <mesh
+            key={name}
+            geometry={geometry}
+            material={materialBundle.material}
+            frustumCulled={false}
+            castShadow
+            receiveShadow
+          />
+        ))}
+      </group>
+    </AsyncCompile>
   );
 }
 

@@ -12,8 +12,19 @@ import {
   createFlowerControlsSchema,
   syncFlowerControls,
 } from '../flower/flowerControls';
+import { preloadVATAssets } from '@core/vat';
+import { DahliaVAT } from './DahliaVAT';
 
 const _up = new THREE.Vector3(0, 1, 0);
+const FLOWER_META = '/Dahlia_Flower/Dahlia_Flower_meta.json';
+preloadVATAssets(FLOWER_META);
+
+// Scale 0→1 with a slight overshoot "pop" at the end
+function easeOutBack(t) {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
 
 // Minimal LCG so the same seed always produces the same stem shape
 function seededRng(seed) {
@@ -63,7 +74,7 @@ export function ProceduralStem({
     stemLength, stemRadius, stemSegments, radialSegs,
     radiusAttenuation, baseFlare,
     leanAngle, bendDegree,
-    growthSpeed, seed,
+    growthSpeed, bloomAt, seed,
   } = useControls('Stem', {
     stemLength:        { value: 0.55,  min: 0.05, max: 2,    step: 0.01 },
     stemRadius:        { value: 0.012, min: 0.002, max: 0.06, step: 0.001 },
@@ -74,6 +85,7 @@ export function ProceduralStem({
     leanAngle:         { value: 5,    min: 0,    max: 45,   step: 0.5,  label: 'lean °' },
     bendDegree:        { value: 0.12, min: 0,    max: 0.35, step: 0.005 },
     growthSpeed:       { value: 0.6,  min: 0.05, max: 4,    step: 0.05 },
+    bloomAt:           { value: 0.85, min: 0,    max: 1,    step: 0.01, label: 'bloom at' },
     seed:              { value: 42,   min: 0,    max: 999,  step: 1 },
   }, { collapsed: true });
 
@@ -161,7 +173,13 @@ export function ProceduralStem({
 
   // Reset growth when geometry is rebuilt so growth always starts from 0
   const startTimeRef = useRef(null);
-  useEffect(() => { startTimeRef.current = null; }, [geometry]);
+  const bloomStartTimeRef = useRef(null); // clock time when bloom began
+  const vatTimeRef = useRef(0);           // virtual time fed to DahliaVAT (starts at 0 on bloom)
+  useEffect(() => {
+    startTimeRef.current = null;
+    bloomStartTimeRef.current = null;
+    vatTimeRef.current = 0;
+  }, [geometry]);
 
   const directionalLightRef = useRef(null);
   const lightWorldPosition = useRef(new THREE.Vector3());
@@ -204,9 +222,24 @@ export function ProceduralStem({
       tipQuat.current.setFromUnitVectors(_up, curve.getTangentAt(t));
     }
 
+    // Bloom: flower scales in with easeOutBack once stem reaches bloomAt threshold
+    const bloomT = Math.max(0, Math.min(1, (progress - bloomAt) / (1 - bloomAt)));
+    const flowerScale = bloomT < 0.001 ? 0 : Math.max(0, easeOutBack(bloomT));
+
+    // VAT virtual time: starts accumulating from 0 at the moment bloom begins,
+    // so the flower animation always starts from its first frame on appearance
+    if (bloomT > 0 && bloomStartTimeRef.current === null) {
+      bloomStartTimeRef.current = clock.elapsedTime;
+    }
+    if (bloomStartTimeRef.current !== null) {
+      vatTimeRef.current = clock.elapsedTime - bloomStartTimeRef.current;
+    }
+
     if (tipGroupRef.current) {
       tipGroupRef.current.position.copy(tipPos.current);
       tipGroupRef.current.quaternion.copy(tipQuat.current);
+      tipGroupRef.current.scale.setScalar(flowerScale);
+      tipGroupRef.current.visible = flowerScale > 0.001;
     }
   }, 1);
 
@@ -215,10 +248,7 @@ export function ProceduralStem({
       <mesh ref={meshRef} geometry={geometry} material={stemMaterial}
             frustumCulled={false} castShadow />
       <group ref={tipGroupRef}>
-        <mesh>
-          <boxGeometry args={[0.05, 0.05, 0.05]} />
-          <meshBasicMaterial color="hotpink" />
-        </mesh>
+        <DahliaVAT metaUrl={FLOWER_META} scaleMul={0.05} overrideTime={vatTimeRef} />
       </group>
     </group>
   );
