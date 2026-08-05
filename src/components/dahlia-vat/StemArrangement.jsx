@@ -48,7 +48,7 @@ export function StemArrangement({ position = [0, 0, 0] }) {
     [],
   );
 
-  const { count, spreadRadius, stagger, arrangementSeed } =
+  const { count, spreadRadius, phaseSpread, arrangementSeed } =
     useControls('Arrangement', arrangementSchema, { collapsed: true });
 
   // One 'Stem' panel — Ranges (vec2 windows) + Structure (single values)
@@ -96,7 +96,6 @@ export function StemArrangement({ position = [0, 0, 0] }) {
       ) % FLOWER_TYPES.length;
       return {
         position:     [Math.cos(angle) * r, 0, Math.sin(angle) * r],
-        timeOffset:   i * stagger,
         seed:         i * 13 + 1,
         flowerMeta:   FLOWER_TYPES[typeIdx],
         colorOverride: {
@@ -110,17 +109,17 @@ export function StemArrangement({ position = [0, 0, 0] }) {
         ),
       };
     });
-  }, [count, spreadRadius, stagger, arrangementSeed, hueRange, lightRange,
+  }, [count, spreadRadius, arrangementSeed, hueRange, lightRange,
       lenMin, lenMax, radMin, radMax, leanMin, leanMax,
       bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
 
   return (
     <group position={position}>
-      {stems.map(({ position: pos, timeOffset, seed, flowerMeta, colorOverride, params }, i) => (
+      {stems.map(({ position: pos, seed, flowerMeta, colorOverride, params }, i) => (
         <ProceduralStem
           key={i}
           position={pos}
-          timeOffset={timeOffset}
+          phaseSpread={phaseSpread}
           seed={seed}
           flowerMeta={flowerMeta}
           colorOverride={colorOverride}

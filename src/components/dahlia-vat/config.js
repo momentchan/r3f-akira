@@ -36,12 +36,14 @@ export const DEFAULT_LIFECYCLE_RANGES = {
 
 // ── Leva schema builders (plain objects; no folders) ────────────────
 
-// Field layout: how many stems, how far they spread, spawn stagger, field seed.
+// Field layout: how many stems, how far they spread, phase spread, field seed.
 export function createArrangementSchema() {
   return {
     count:           { value: 7,   min: 1,   max: 30,  step: 1 },
     spreadRadius:    { value: 0.3, min: 0,   max: 1.5, step: 0.01 },
-    stagger:         { value: 0.3, min: 0,   max: 2,   step: 0.05, label: 'stagger (s)' },
+    // 1 = each stem starts at a random point in its cycle (continuous spawning);
+    // 0 = all stems start together (synchronized wave).
+    phaseSpread:     { value: 1,   min: 0,   max: 1,   step: 0.01, label: 'phase spread' },
     arrangementSeed: { value: 0,   min: 0,   max: 999, step: 1,    label: 'seed' },
   };
 }

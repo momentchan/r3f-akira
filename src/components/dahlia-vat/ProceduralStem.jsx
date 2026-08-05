@@ -15,6 +15,9 @@ import { DahliaVAT } from './DahliaVAT';
 import { DEFAULT_LIFECYCLE_RANGES, FLOWER_META, STEM_Y_MAX } from './config';
 
 const _up = new THREE.Vector3(0, 1, 0);
+// How thin the sprout starts (fraction of full size), shared by the stem radius
+// (shader) and the flower size (CPU group scale) so they grow in proportion.
+const GROWTH_START_SCALE = 0.1;
 
 // Minimal LCG so the same seed always produces the same stem shape
 function seededRng(seed) {
@@ -61,7 +64,7 @@ function applyTubeRadiusTaper(geometry, curve, tubularSegments, radialSegments, 
 // synced from the passed `flowerControls` with an optional per-flower colour.
 export function ProceduralStem({
   position = [0, 0, 0],
-  timeOffset = 0,
+  phaseSpread = 1,
   seed = 0,
   flowerMeta = FLOWER_META,
   colorOverride = null,
@@ -94,6 +97,13 @@ export function ProceduralStem({
     [seed, lifecycleRanges],
   );
 
+  // Seeded starting phase [0,1) so each plant begins at a different point in its
+  // cycle — the field is always a mix of sprout/bloom/wilt (continuous spawning).
+  const phaseFrac = useMemo(() => {
+    const s = Math.sin((seed + 1) * 12.9898) * 43758.5453;
+    return s - Math.floor(s);
+  }, [seed]);
+
   // One shader-uniform set per plant, shared by the tube + VAT flower materials.
   const flowerUniforms = useMemo(() => createFlowerUniforms(), []);
   const maskUniforms = useMemo(() => createFlowerMaskUniforms(), []);
@@ -115,15 +125,16 @@ export function ProceduralStem({
   // Per-plant wind sway uniform (world XZ), set on CPU each frame; the shader
   // distributes it up the stem via a height mask (see createFlowerStemMaterial).
   const windSway = useMemo(() => uniform(new THREE.Vector2()), []);
-  // Radius growth factor (0→1), set each frame from stemGrow so the tube thickens.
-  const radiusScale = useMemo(() => uniform(1), []);
+  // Raw growth progress (0→1), set each frame from stemGrow; the shader turns it
+  // into the radius scale, so the whole life-based scaling runs on the GPU.
+  const stemGrowU = useMemo(() => uniform(0), []);
 
   const stemMaterial = useMemo(
     () => createFlowerStemMaterial(flowerUniforms, {
       wind: { sway: windSway, maskPow: WIND_MASK_POW },
-      radius: { scale: radiusScale },
+      radius: { grow: stemGrowU, startScale: GROWTH_START_SCALE },
     }),
-    [flowerUniforms, windSway, radiusScale],
+    [flowerUniforms, windSway, stemGrowU],
   );
   useEffect(() => () => stemMaterial.dispose(), [stemMaterial]);
 
@@ -206,13 +217,15 @@ export function ProceduralStem({
   const tipQuat = useRef(new THREE.Quaternion());
 
   // Lifecycle clock: age accumulates seconds and loops within [0, lifetime).
-  // Starts at -timeOffset so stems stagger in on first load, then cycle.
-  const ageRef = useRef(-timeOffset);
+  // Starts NEGATIVE (a seeded hidden delay) so every stem grows from zero — the
+  // spread just staggers when each first sprouts, giving continuous spawning.
+  const ageRef = useRef(0);
   const flowerFrameRef = useRef(0); // VAT frame ratio (0→1→0), fed to DahliaVAT
   useEffect(() => {
-    ageRef.current = -timeOffset;
+    const lifetime = durations.delay + durations.grow + durations.keep + durations.die;
+    ageRef.current = -phaseFrac * lifetime * phaseSpread;
     flowerFrameRef.current = 0;
-  }, [geometry, timeOffset]);
+  }, [geometry, durations, phaseFrac, phaseSpread]);
 
   const directionalLightRef = useRef(null);
   const lightWorldPosition = useRef(new THREE.Vector3());
@@ -254,10 +267,10 @@ export function ProceduralStem({
       bloomStart,
     );
 
-    // Whole plant enlarges as it grows: thin sprout (0.1) → full (1) at maturity.
-    // The same factor drives the stem radius and the flower size.
-    const growthSize = 0.1 + 0.9 * stemGrow;
-    radiusScale.value = growthSize;
+    // Whole plant enlarges as it grows: thin sprout → full at maturity.
+    // Stem radius: GPU (shader reads this raw progress). Flower: CPU group scale.
+    stemGrowU.value = stemGrow;
+    const growthSize = GROWTH_START_SCALE + (1 - GROWTH_START_SCALE) * stemGrow;
 
     const geo = meshRef.current?.geometry;
     if (geo) {

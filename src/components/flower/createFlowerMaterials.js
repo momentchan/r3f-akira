@@ -457,11 +457,14 @@ export function createFlowerStemMaterial(flowerUniforms, options = {}) {
 
   let posNode = null;
 
-  // Growth radius: scale each vertex's offset from its baked centerline point,
-  // so the tube thickens as the stem grows (thin sprout → full stem).
+  // Growth radius (computed on the GPU): scale each vertex's offset from its
+  // baked centerline point by a life-based factor — thin sprout (startScale) →
+  // full radius (1) as the stem grows. `grow` is the raw 0→1 growth progress.
   if (radius) {
     const center = attribute('center', 'vec3');
-    posNode = center.add(positionLocal.sub(center).mul(radius.scale));
+    const s0 = radius.startScale;
+    const rScale = float(s0).add(radius.grow.mul(1 - s0));
+    posNode = center.add(positionLocal.sub(center).mul(rScale));
   }
 
   // Height-masked wind sway: TubeGeometry's uv.x is the along-length parameter
