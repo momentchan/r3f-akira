@@ -71,8 +71,7 @@ export default function Effects() {
         const pp = new THREE.PostProcessing(renderer);
 
         // @ts-ignore
-        const scenePass = pass(scene, camera).toStatsGL('Test', stats);
-        scenePass.getLinearDepthNode().toStatsGL('Depth', stats);
+        const scenePass = pass(scene, camera)
 
         pp.outputNode = createSilkWeaveNode(scenePass, silkUniforms);
         postProcessingRef.current = pp;

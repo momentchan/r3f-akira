@@ -17,6 +17,16 @@ import { DahliaVAT } from './DahliaVAT';
 
 const _up = new THREE.Vector3(0, 1, 0);
 const FLOWER_META = '/Dahlia_Flower/Dahlia_Flower_meta.json';
+
+export const STEM_RANDOMIZABLE_RANGES = {
+  stemLength:        { min: 0.05, max: 2 },
+  stemRadius:        { min: 0.002, max: 0.06 },
+  leanAngle:         { min: 0,    max: 45 },
+  bendDegree:        { min: 0,    max: 0.35 },
+  radiusAttenuation: { min: 0,    max: 1 },
+  baseFlare:         { min: 0,    max: 1 },
+  growthSpeed:       { min: 0.05, max: 4 },
+};
 preloadVATAssets(FLOWER_META);
 
 // Scale 0→1 with a slight overshoot "pop" at the end
@@ -70,13 +80,9 @@ export function ProceduralStem({
   scaleMul = 1,
   timeOffset = 0,
   seedOverride = null,
+  paramsOverride = null,
 }) {
-  const {
-    stemLength, stemRadius, stemSegments, radialSegs,
-    radiusAttenuation, baseFlare,
-    leanAngle, bendDegree,
-    growthSpeed, bloomAt, seed: levaSeed,
-  } = useControls('Stem', {
+  const levaParams = useControls('Stem', {
     stemLength:        { value: 0.55,  min: 0.05, max: 2,    step: 0.01 },
     stemRadius:        { value: 0.012, min: 0.002, max: 0.06, step: 0.001 },
     stemSegments:      { value: 32,   min: 4,    max: 128,  step: 1 },
@@ -87,8 +93,16 @@ export function ProceduralStem({
     bendDegree:        { value: 0.12, min: 0,    max: 0.35, step: 0.005 },
     growthSpeed:       { value: 0.6,  min: 0.05, max: 4,    step: 0.05 },
     bloomAt:           { value: 0.85, min: 0,    max: 1,    step: 0.01, label: 'bloom at' },
+    flowerSize:        { value: 4.2,  min: 0,    max: 20,   step: 0.1,  label: 'flower / radius' },
     seed:              { value: 42,   min: 0,    max: 999,  step: 1 },
   }, { collapsed: true });
+
+  const {
+    stemLength, stemRadius, stemSegments, radialSegs,
+    radiusAttenuation, baseFlare,
+    leanAngle, bendDegree,
+    growthSpeed, bloomAt, flowerSize, seed: levaSeed,
+  } = paramsOverride ? { ...levaParams, ...paramsOverride } : levaParams;
 
   const seed = seedOverride ?? levaSeed;
 
@@ -251,7 +265,7 @@ export function ProceduralStem({
       <mesh ref={meshRef} geometry={geometry} material={stemMaterial}
             frustumCulled={false} castShadow />
       <group ref={tipGroupRef}>
-        <DahliaVAT metaUrl={FLOWER_META} scaleMul={0.05} overrideTime={vatTimeRef} />
+        <DahliaVAT metaUrl={FLOWER_META} scaleMul={stemRadius * flowerSize} overrideTime={vatTimeRef} />
       </group>
     </group>
   );
