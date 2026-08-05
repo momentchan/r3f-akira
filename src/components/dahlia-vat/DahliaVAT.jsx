@@ -37,7 +37,8 @@ export function DahliaVAT({
   scaleMul = 1,
   timeOffset = 0,
   visible = true,
-  overrideTime = null, // { current: number } ref — when provided, used instead of clock.elapsedTime
+  frameRatio = null, // { current: number } ref in [0,1] — when provided, drives the VAT frame directly (supports reverse)
+  colorOverride = null, // { hueShift, lightShift } — per-instance petal color tweak
 }) {
   const vatData = useVATPreloader(metaUrl);
   const maskTexture = useTexture(FLOWER_MASK_PATH);
@@ -128,24 +129,28 @@ export function DahliaVAT({
       outlineUniforms,
       { fillMaterial: materialBundle.material },
     );
-  }, [flowerControls, flowerUniforms, maskUniforms, outlineUniforms, materialBundle]);
+
+    // Per-instance flower tint: nudge the petal gradient colors in HSL so each
+    // bloom reads slightly different. Applied after sync so it layers on top.
+    if (colorOverride) {
+      const { hueShift = 0, lightShift = 0 } = colorOverride;
+      flowerUniforms.petal.baseColor.value.offsetHSL(hueShift, 0, lightShift);
+      flowerUniforms.petal.midColor.value.offsetHSL(hueShift, 0, lightShift);
+      flowerUniforms.petal.tipColor.value.offsetHSL(hueShift, 0, lightShift);
+    }
+  }, [flowerControls, flowerUniforms, maskUniforms, outlineUniforms, materialBundle, colorOverride]);
 
   useFrame(({ clock, scene }) => {
     if (!materialBundle || !vatData.meta) {
       return;
     }
 
-    // When overrideTime is provided, compute a one-shot frame ratio (no loop):
-    // calculateVATFrame returns frameRatio directly when it's not undefined,
-    // bypassing the internal `% duration` that causes looping.
-    let frameArg;
-    if (overrideTime != null) {
-      const fps = vatData.meta.fps || 24;
-      const duration = vatData.meta.frameCount / fps;
-      frameArg = Math.min((overrideTime.current * vatControls.speed) / duration, 1);
-    } else {
-      frameArg = vatControls.useTime ? undefined : vatControls.frame;
-    }
+    // When frameRatio is provided, drive the VAT frame directly from that [0,1]
+    // ratio (calculateVATFrame returns it clamped, bypassing the `% duration`
+    // loop). A decreasing ratio plays the clip in reverse — no shader change.
+    const frameArg = frameRatio != null
+      ? frameRatio.current
+      : (vatControls.useTime ? undefined : vatControls.frame);
     materialBundle.frameUniform.value = calculateVATFrame(
       frameArg,
       clock.elapsedTime + timeOffset,
