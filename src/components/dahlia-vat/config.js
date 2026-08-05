@@ -89,3 +89,13 @@ export function createFlowerVariationSchema() {
     lightRange: { value: 0.05, min: 0, max: 0.3, step: 0.005, label: 'light ±' },
   };
 }
+
+// Global wind: downwind gusts that bend the stem (shader) and carry the flower.
+export function createWindSchema() {
+  return {
+    windStrength: { value: 0.05, min: 0,   max: 0.15, step: 0.001, label: 'strength' },
+    windAngle:    { value: 30,   min: 0,   max: 360,  step: 1,     label: 'angle °' },
+    windScale:    { value: 1.5,  min: 0.1, max: 6,    step: 0.1,   label: 'gust scale' },
+    windSpeed:    { value: 0.6,  min: 0,   max: 4,    step: 0.05,  label: 'gust speed' },
+  };
+}

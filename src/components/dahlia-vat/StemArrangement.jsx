@@ -9,6 +9,7 @@ import {
   createFlowerVariationSchema,
   createLifecycleSchema,
   createStemSchema,
+  createWindSchema,
   FLOWER_TYPES,
 } from './config';
 
@@ -41,6 +42,7 @@ export function StemArrangement({ position = [0, 0, 0] }) {
   const stemSchema = useMemo(() => createStemSchema(), []);
   const lifecycleSchema = useMemo(() => createLifecycleSchema(), []);
   const variationSchema = useMemo(() => createFlowerVariationSchema(), []);
+  const windSchema = useMemo(() => createWindSchema(), []);
   const flowerSchema = useMemo(
     () => createFlowerControlsSchema({ mask: { edgeWidth: 0.001 } }),
     [],
@@ -69,6 +71,9 @@ export function StemArrangement({ position = [0, 0, 0] }) {
 
   const { hueRange, lightRange } =
     useControls('Flower Variation', variationSchema, { collapsed: true });
+
+  const { windStrength, windAngle, windScale, windSpeed } =
+    useControls('Wind', windSchema, { collapsed: true });
 
   // Shared shader look — registered ONCE, passed to every plant
   const flowerControls = useControls('Flower', flowerSchema, { collapsed: true });
@@ -128,6 +133,10 @@ export function StemArrangement({ position = [0, 0, 0] }) {
           bloomFrac={bloomFrac}
           lifecycleRanges={lifecycleRanges}
           flowerControls={flowerControls}
+          windAngle={windAngle}
+          windStrength={windStrength}
+          windScale={windScale}
+          windSpeed={windSpeed}
         />
       ))}
     </group>

@@ -441,7 +441,7 @@ export function createFlowerVertexColorMaterial(
 }
 
 export function createFlowerStemMaterial(flowerUniforms, options = {}) {
-  const { normalSource = normalLocal } = options;
+  const { normalSource = normalLocal, wind = null, radius = null } = options;
   const stem = flowerUniforms.stem;
   const material = new THREE.MeshBasicNodeMaterial({
     toneMapped: false,
@@ -454,6 +454,27 @@ export function createFlowerStemMaterial(flowerUniforms, options = {}) {
     const color = buildStemColor(stem, flowerUniforms.grain, normalSource);
     return vec4(clamp(color, 0.0, 1.0), 1.0);
   })();
+
+  let posNode = null;
+
+  // Growth radius: scale each vertex's offset from its baked centerline point,
+  // so the tube thickens as the stem grows (thin sprout → full stem).
+  if (radius) {
+    const center = attribute('center', 'vec3');
+    posNode = center.add(positionLocal.sub(center).mul(radius.scale));
+  }
+
+  // Height-masked wind sway: TubeGeometry's uv.x is the along-length parameter
+  // (0 at the base → 1 at the tip), so the base stays planted and the tip bends.
+  if (wind) {
+    const base = posNode || positionLocal;
+    const mask = pow(uv().x, float(wind.maskPow));
+    posNode = base.add(vec3(wind.sway.x, 0.0, wind.sway.y).mul(mask));
+  }
+
+  if (posNode) {
+    material.positionNode = posNode;
+  }
 
   return material;
 }

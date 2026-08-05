@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
+import { uniform } from 'three/tsl';
 import {
   createFlowerMaskUniforms,
   createFlowerOutlineUniforms,
@@ -9,6 +10,7 @@ import {
 } from '../flower/createFlowerMaterials';
 import { syncFlowerControls } from '../flower/flowerControls';
 import { computeDurations, computeLifecycle } from './flowerLifecycle';
+import { computeWindSway, windMask, WIND_MASK_POW } from './wind';
 import { DahliaVAT } from './DahliaVAT';
 import { DEFAULT_LIFECYCLE_RANGES, FLOWER_META, STEM_Y_MAX } from './config';
 
@@ -72,6 +74,10 @@ export function ProceduralStem({
   bloomFrac = 0.3,
   lifecycleRanges = DEFAULT_LIFECYCLE_RANGES,
   flowerControls = null,
+  windAngle = 30,
+  windStrength = 0.02,
+  windScale = 1.5,
+  windSpeed = 0.6,
 }) {
   const {
     stemLength = 0.55,
@@ -106,9 +112,18 @@ export function ProceduralStem({
     }
   }, [flowerControls, flowerUniforms, maskUniforms, outlineUniforms, colorOverride]);
 
+  // Per-plant wind sway uniform (world XZ), set on CPU each frame; the shader
+  // distributes it up the stem via a height mask (see createFlowerStemMaterial).
+  const windSway = useMemo(() => uniform(new THREE.Vector2()), []);
+  // Radius growth factor (0→1), set each frame from stemGrow so the tube thickens.
+  const radiusScale = useMemo(() => uniform(1), []);
+
   const stemMaterial = useMemo(
-    () => createFlowerStemMaterial(flowerUniforms),
-    [flowerUniforms],
+    () => createFlowerStemMaterial(flowerUniforms, {
+      wind: { sway: windSway, maskPow: WIND_MASK_POW },
+      radius: { scale: radiusScale },
+    }),
+    [flowerUniforms, windSway, radiusScale],
   );
   useEffect(() => () => stemMaterial.dispose(), [stemMaterial]);
 
@@ -162,6 +177,22 @@ export function ProceduralStem({
       return linearTaper + flare;
     });
 
+    // Bake each vertex's centerline point so the shader can grow the radius
+    // (scale the radial offset by stemGrow) — see createFlowerStemMaterial.
+    const vertsPerRing = radialSegs + 1;
+    const centers = new Float32Array(geo.attributes.position.count * 3);
+    const rc = new THREE.Vector3();
+    for (let i = 0; i <= stemSegments; i++) {
+      c.getPointAt(i / stemSegments, rc);
+      for (let j = 0; j <= radialSegs; j++) {
+        const k = (i * vertsPerRing + j) * 3;
+        centers[k] = rc.x;
+        centers[k + 1] = rc.y;
+        centers[k + 2] = rc.z;
+      }
+    }
+    geo.setAttribute('center', new THREE.BufferAttribute(centers, 3));
+
     geo.setDrawRange(0, 0); // start invisible — avoids 1-frame flash on mount
     return geo;
   }, [stemLength, leanAngle, bendDegree, seed,
@@ -187,7 +218,13 @@ export function ProceduralStem({
   const lightWorldPosition = useRef(new THREE.Vector3());
   const lightTargetPosition = useRef(new THREE.Vector3());
 
-  useFrame(({ scene }, delta) => {
+  useFrame(({ scene, clock }, delta) => {
+    // Wind gust for this plant → shader uniform (drives the stem bend)
+    const [swayX, swayZ] = computeWindSway(position[0], position[2], clock.elapsedTime, {
+      windAngle, windStrength, windScale, windSpeed,
+    });
+    windSway.value.set(swayX, swayZ);
+
     // Light direction → this plant's shared lightDir (tube + flower both read it)
     if (!directionalLightRef.current) {
       scene.traverse((object) => {
@@ -217,6 +254,11 @@ export function ProceduralStem({
       bloomStart,
     );
 
+    // Whole plant enlarges as it grows: thin sprout (0.1) → full (1) at maturity.
+    // The same factor drives the stem radius and the flower size.
+    const growthSize = 0.1 + 0.9 * stemGrow;
+    radiusScale.value = growthSize;
+
     const geo = meshRef.current?.geometry;
     if (geo) {
       // draw-range grows the tube during grow, retracts it during die
@@ -236,9 +278,16 @@ export function ProceduralStem({
     flowerFrameRef.current = flowerFrame; // reverse-capable ratio → DahliaVAT
 
     if (tipGroupRef.current) {
-      tipGroupRef.current.position.copy(tipPos.current);
+      // Follow the shader-bent tip: same sway × the mask at the current growth
+      // front, so the flower stays welded to the swaying stem tip.
+      const m = windMask(stemGrow);
+      tipGroupRef.current.position.set(
+        tipPos.current.x + swayX * m,
+        tipPos.current.y,
+        tipPos.current.z + swayZ * m,
+      );
       tipGroupRef.current.quaternion.copy(tipQuat.current);
-      tipGroupRef.current.scale.setScalar(flowerScale);
+      tipGroupRef.current.scale.setScalar(flowerScale * growthSize);
       tipGroupRef.current.visible = flowerScale > 0.001;
     }
   }, 1);
