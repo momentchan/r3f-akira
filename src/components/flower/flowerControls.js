@@ -98,7 +98,7 @@ export function syncFlowerControls(
   materials = {},
 ) {
   const { petal, stem, vein } = flowerUniforms;
-  const { fillMaterial, outlineMaterial } = materials;
+  const { fillMaterial } = materials;
 
   petal.colorLevels.value = controls.colorLevels;
   petal.gradientLevels.value = controls.gradientLevels;
@@ -139,9 +139,6 @@ export function syncFlowerControls(
 
   if (fillMaterial) {
     fillMaterial.alphaTest = controls.threshold;
-  }
-  if (outlineMaterial) {
-    outlineMaterial.alphaTest = controls.threshold;
   }
 
   outlineUniforms.outlineWidth.value = controls.outlineWidth;

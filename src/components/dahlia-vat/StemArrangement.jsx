@@ -2,13 +2,18 @@ import { useMemo } from 'react';
 import { useControls } from 'leva';
 import { stableRandomRange } from '@core';
 import { preloadVATAssets } from '@core/vat';
-import { ProceduralStem, STEM_RANDOMIZABLE_RANGES } from './ProceduralStem';
+import { createFlowerControlsSchema } from '../flower/flowerControls';
+import { ProceduralStem } from './ProceduralStem';
+import {
+  createArrangementSchema,
+  createFlowerVariationSchema,
+  createLifecycleSchema,
+  createStemSchema,
+  FLOWER_TYPES,
+} from './config';
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
-// VAT flower types spawned in the field. Add a meta path here and each new type
-// is intermixed automatically (seeded per-stem pick below).
-const FLOWER_TYPES = ['/Dahlia_Flower/Dahlia_Flower_meta.json'];
 FLOWER_TYPES.forEach(preloadVATAssets);
 
 // Salt per attribute — keeps each random stream independent
@@ -28,51 +33,45 @@ function randomParams(i, seed, lenMin, lenMax, radMin, radMax, leanMin, leanMax,
   };
 }
 
+// The single settings surface: every Leva panel for the field lives here (schemas
+// from config.js). Builds per-stem params and hands ProceduralStem everything as
+// props, including the shared 'Flower' shader controls.
 export function StemArrangement({ position = [0, 0, 0] }) {
-  const R = STEM_RANDOMIZABLE_RANGES;
+  const arrangementSchema = useMemo(() => createArrangementSchema(), []);
+  const stemSchema = useMemo(() => createStemSchema(), []);
+  const lifecycleSchema = useMemo(() => createLifecycleSchema(), []);
+  const variationSchema = useMemo(() => createFlowerVariationSchema(), []);
+  const flowerSchema = useMemo(
+    () => createFlowerControlsSchema({ mask: { edgeWidth: 0.001 } }),
+    [],
+  );
 
-  const { count, spreadRadius, stagger, arrangementSeed } = useControls('Arrangement', {
-    count:           { value: 7,   min: 1,   max: 30,  step: 1 },
-    spreadRadius:    { value: 0.3, min: 0,   max: 1.5, step: 0.01 },
-    stagger:         { value: 0.3, min: 0,   max: 2,   step: 0.05, label: 'stagger (s)' },
-    arrangementSeed: { value: 0,   min: 0,   max: 999, step: 1,    label: 'seed' },
-  }, { collapsed: true });
+  const { count, spreadRadius, stagger, arrangementSeed } =
+    useControls('Arrangement', arrangementSchema, { collapsed: true });
 
-  // vec2 [min, max] ranges — control the sampling window for each randomized param
+  // One 'Stem' panel — Ranges (vec2 windows) + Structure (single values)
   const {
+    stemSegments, radialSegs, bloomStart, bloomFrac, flowerSize, stemYMax,
     stemLength:        [lenMin,   lenMax],
     stemRadius:        [radMin,   radMax],
     leanAngle:         [leanMin,  leanMax],
     bendDegree:        [bendMin,  bendMax],
     radiusAttenuation: [taperMin, taperMax],
     baseFlare:         [flareMin, flareMax],
-  } = useControls('Stem Ranges', {
-    stemLength:        { value: [0.3,   1.32], min: R.stemLength.min,        max: R.stemLength.max,        step: 0.01,  label: 'length' },
-    stemRadius:        { value: [0.006, 0.02], min: R.stemRadius.min,        max: R.stemRadius.max,        step: 0.001, label: 'radius' },
-    leanAngle:         { value: [2,     25],   min: R.leanAngle.min,         max: R.leanAngle.max,         step: 0.5,   label: 'lean °' },
-    bendDegree:        { value: [0.05,  0.25], min: R.bendDegree.min,        max: R.bendDegree.max,        step: 0.005, label: 'bend' },
-    radiusAttenuation: { value: [0.3,   0.7],  min: R.radiusAttenuation.min, max: R.radiusAttenuation.max, step: 0.01,  label: 'taper' },
-    baseFlare:         { value: [0.1,   0.4],  min: R.baseFlare.min,         max: R.baseFlare.max,         step: 0.01,  label: 'flare' },
-  }, { collapsed: true });
+  } = useControls('Stem', stemSchema, { collapsed: true });
 
-  // Per-phase duration windows (seconds); each stem seeds its own from these
   const {
     delay: [delayMin, delayMax],
     grow:  [growMin,  growMax],
     keep:  [keepMin,  keepMax],
     die:   [dieMin,   dieMax],
-  } = useControls('Lifecycle', {
-    delay: { value: [0,   1.5], min: 0,   max: 10, step: 0.1, label: 'delay (s)' },
-    grow:  { value: [5, 10], min: 0.1, max: 10, step: 0.1, label: 'grow (s)' },
-    keep:  { value: [10,   20],   min: 0,   max: 20, step: 0.1, label: 'keep (s)' },
-    die:   { value: [1.5, 3],   min: 0.1, max: 10, step: 0.1, label: 'die (s)' },
-  }, { collapsed: true });
+  } = useControls('Lifecycle', lifecycleSchema, { collapsed: true });
 
-  // Slight per-flower color spread (HSL offsets)
-  const { hueRange, lightRange } = useControls('Flower Variation', {
-    hueRange:   { value: 0.04, min: 0, max: 0.5, step: 0.005, label: 'hue ±' },
-    lightRange: { value: 0.05, min: 0, max: 0.3, step: 0.005, label: 'light ±' },
-  }, { collapsed: true });
+  const { hueRange, lightRange } =
+    useControls('Flower Variation', variationSchema, { collapsed: true });
+
+  // Shared shader look — registered ONCE, passed to every plant
+  const flowerControls = useControls('Flower', flowerSchema, { collapsed: true });
 
   // Shared, stable object of lifecycle windows passed to every stem
   const lifecycleRanges = useMemo(() => ({
@@ -82,7 +81,7 @@ export function StemArrangement({ position = [0, 0, 0] }) {
     die:   [dieMin,   dieMax],
   }), [delayMin, delayMax, growMin, growMax, keepMin, keepMax, dieMin, dieMax]);
 
-  // Primitive number deps — stable across re-renders, only recompute when values actually change
+  // Primitive number deps — stable across re-renders, only recompute when values change
   const stems = useMemo(() => {
     return Array.from({ length: count }, (_, i) => {
       const angle = i * GOLDEN_ANGLE;
@@ -91,15 +90,15 @@ export function StemArrangement({ position = [0, 0, 0] }) {
         stableRandomRange(i, S_TYPE, arrangementSeed, 0, FLOWER_TYPES.length),
       ) % FLOWER_TYPES.length;
       return {
-        position:       [Math.cos(angle) * r, 0, Math.sin(angle) * r],
-        timeOffset:     i * stagger,
-        seedOverride:   i * 13 + 1,
-        flowerMeta:     FLOWER_TYPES[typeIdx],
+        position:     [Math.cos(angle) * r, 0, Math.sin(angle) * r],
+        timeOffset:   i * stagger,
+        seed:         i * 13 + 1,
+        flowerMeta:   FLOWER_TYPES[typeIdx],
         colorOverride: {
           hueShift:   stableRandomRange(i, S_HUE,   arrangementSeed, -hueRange,   hueRange),
           lightShift: stableRandomRange(i, S_LIGHT, arrangementSeed, -lightRange, lightRange),
         },
-        paramsOverride: randomParams(
+        params: randomParams(
           i, arrangementSeed,
           lenMin, lenMax, radMin, radMax, leanMin, leanMax,
           bendMin, bendMax, taperMin, taperMax, flareMin, flareMax,
@@ -112,16 +111,23 @@ export function StemArrangement({ position = [0, 0, 0] }) {
 
   return (
     <group position={position}>
-      {stems.map(({ position: pos, timeOffset, seedOverride, flowerMeta, colorOverride, paramsOverride }, i) => (
+      {stems.map(({ position: pos, timeOffset, seed, flowerMeta, colorOverride, params }, i) => (
         <ProceduralStem
           key={i}
           position={pos}
           timeOffset={timeOffset}
-          seedOverride={seedOverride}
+          seed={seed}
           flowerMeta={flowerMeta}
           colorOverride={colorOverride}
-          paramsOverride={paramsOverride}
+          params={params}
+          stemSegments={stemSegments}
+          radialSegs={radialSegs}
+          flowerSize={flowerSize}
+          stemYMax={stemYMax}
+          bloomStart={bloomStart}
+          bloomFrac={bloomFrac}
           lifecycleRanges={lifecycleRanges}
+          flowerControls={flowerControls}
         />
       ))}
     </group>

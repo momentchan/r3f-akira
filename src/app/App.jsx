@@ -7,7 +7,6 @@ import * as THREE from "three/webgpu";
 import { DirectionalLight } from "../components/DirectionalLight";
 import Effects from "../components/Effects";
 import { StemArrangement } from "../components/dahlia-vat/StemArrangement";
-import { Flower } from "../components/Flower";
 import { ProceduralSmoke } from "../components/ProceduralSmoke";
 import { Character } from "../components/character/Character";
 import { Environment } from "@react-three/drei";
@@ -53,7 +52,6 @@ export default function App() {
             <meshStandardMaterial color="#eeeeee" />
           </mesh> */}
           <StemArrangement />
-          {/* <Flower /> */}
           {/* <ProceduralSmoke position={[0, 0.1, 0]} /> */}
         </group>
 

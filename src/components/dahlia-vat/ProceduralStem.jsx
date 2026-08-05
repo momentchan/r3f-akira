@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useControls } from 'leva';
 import * as THREE from 'three/webgpu';
 import {
   createFlowerMaskUniforms,
@@ -8,34 +7,12 @@ import {
   createFlowerStemMaterial,
   createFlowerUniforms,
 } from '../flower/createFlowerMaterials';
-import {
-  createFlowerControlsSchema,
-  syncFlowerControls,
-} from '../flower/flowerControls';
-import { preloadVATAssets } from '@core/vat';
+import { syncFlowerControls } from '../flower/flowerControls';
 import { computeDurations, computeLifecycle } from './flowerLifecycle';
 import { DahliaVAT } from './DahliaVAT';
+import { DEFAULT_LIFECYCLE_RANGES, FLOWER_META, STEM_Y_MAX } from './config';
 
 const _up = new THREE.Vector3(0, 1, 0);
-const FLOWER_META = '/Dahlia_Flower/Dahlia_Flower_meta.json';
-
-export const STEM_RANDOMIZABLE_RANGES = {
-  stemLength:        { min: 0.05, max: 2 },
-  stemRadius:        { min: 0.002, max: 0.06 },
-  leanAngle:         { min: 0,    max: 45 },
-  bendDegree:        { min: 0,    max: 0.35 },
-  radiusAttenuation: { min: 0,    max: 1 },
-  baseFlare:         { min: 0,    max: 1 },
-};
-
-// Per-phase duration windows (seconds) — each stem seeds its own durations here.
-export const DEFAULT_LIFECYCLE_RANGES = {
-  delay: [0, 1.5],
-  grow:  [1.5, 3.5],
-  keep:  [2, 5],
-  die:   [1.5, 3],
-};
-preloadVATAssets(FLOWER_META);
 
 // Minimal LCG so the same seed always produces the same stem shape
 function seededRng(seed) {
@@ -76,39 +53,34 @@ function applyTubeRadiusTaper(geometry, curve, tubularSegments, radialSegments, 
   geometry.computeVertexNormals();
 }
 
+// One plant: procedural stem tube + a VAT flower at the tip. Pure render — all
+// settings come from props (StemArrangement owns the Leva panels). Owns ONE
+// flower-uniform set per plant (shared by the tube material and the VAT flower),
+// synced from the passed `flowerControls` with an optional per-flower colour.
 export function ProceduralStem({
   position = [0, 0, 0],
-  scaleMul = 1,
   timeOffset = 0,
-  seedOverride = null,
-  paramsOverride = null,
+  seed = 0,
   flowerMeta = FLOWER_META,
   colorOverride = null,
+  params = {}, // per-stem randomized geometry
+  stemSegments = 32,
+  radialSegs = 8,
+  flowerSize = 4.2,
+  stemYMax = STEM_Y_MAX,
+  bloomStart = 0.23,
+  bloomFrac = 0.3,
   lifecycleRanges = DEFAULT_LIFECYCLE_RANGES,
+  flowerControls = null,
 }) {
-  const levaParams = useControls('Stem', {
-    stemLength:        { value: 0.55,  min: 0.05, max: 2,    step: 0.01 },
-    stemRadius:        { value: 0.012, min: 0.002, max: 0.06, step: 0.001 },
-    stemSegments:      { value: 32,   min: 4,    max: 128,  step: 1 },
-    radialSegs:        { value: 8,    min: 3,    max: 16,   step: 1 },
-    radiusAttenuation: { value: 0.4,  min: 0,    max: 1,    step: 0.01, label: 'taper' },
-    baseFlare:         { value: 0.25, min: 0,    max: 1,    step: 0.01 },
-    leanAngle:         { value: 5,    min: 0,    max: 45,   step: 0.5,  label: 'lean °' },
-    bendDegree:        { value: 0.12, min: 0,    max: 0.35, step: 0.005 },
-    bloomStart:        { value: 0.23,  min: 0,    max: 1,    step: 0.01, label: 'bloom start' },
-    bloomFrac:         { value: 0.3,  min: 0,    max: 0.5,  step: 0.01, label: 'bloom frac' },
-    flowerSize:        { value: 4.2,  min: 0,    max: 20,   step: 0.1,  label: 'flower / radius' },
-    seed:              { value: 42,   min: 0,    max: 999,  step: 1 },
-  }, { collapsed: true });
-
   const {
-    stemLength, stemRadius, stemSegments, radialSegs,
-    radiusAttenuation, baseFlare,
-    leanAngle, bendDegree,
-    bloomStart, bloomFrac, flowerSize, seed: levaSeed,
-  } = paramsOverride ? { ...levaParams, ...paramsOverride } : levaParams;
-
-  const seed = seedOverride ?? levaSeed;
+    stemLength = 0.55,
+    stemRadius = 0.012,
+    leanAngle = 5,
+    bendDegree = 0.12,
+    radiusAttenuation = 0.4,
+    baseFlare = 0.25,
+  } = params;
 
   // Per-stem phase durations, seeded so each plant cycles on its own schedule
   const durations = useMemo(
@@ -116,19 +88,23 @@ export function ProceduralStem({
     [seed, lifecycleRanges],
   );
 
-  const flowerControlsSchema = useMemo(
-    () => createFlowerControlsSchema({ mask: { edgeWidth: 0.001 } }),
-    [],
-  );
-  const flowerControls = useControls('Flower', flowerControlsSchema, { collapsed: true });
-
+  // One shader-uniform set per plant, shared by the tube + VAT flower materials.
   const flowerUniforms = useMemo(() => createFlowerUniforms(), []);
   const maskUniforms = useMemo(() => createFlowerMaskUniforms(), []);
   const outlineUniforms = useMemo(() => createFlowerOutlineUniforms(), []);
 
+  // Sync the shared 'Flower' controls into this plant's uniforms, then layer the
+  // per-flower colour on top (sync resets petal colours first, so it can't compound).
   useEffect(() => {
+    if (!flowerControls) return;
     syncFlowerControls(flowerControls, flowerUniforms, maskUniforms, outlineUniforms);
-  }, [flowerControls, flowerUniforms, maskUniforms, outlineUniforms]);
+    if (colorOverride) {
+      const { hueShift = 0, lightShift = 0 } = colorOverride;
+      flowerUniforms.petal.baseColor.value.offsetHSL(hueShift, 0, lightShift);
+      flowerUniforms.petal.midColor.value.offsetHSL(hueShift, 0, lightShift);
+      flowerUniforms.petal.tipColor.value.offsetHSL(hueShift, 0, lightShift);
+    }
+  }, [flowerControls, flowerUniforms, maskUniforms, outlineUniforms, colorOverride]);
 
   const stemMaterial = useMemo(
     () => createFlowerStemMaterial(flowerUniforms),
@@ -140,7 +116,7 @@ export function ProceduralStem({
 
   const geometry = useMemo(() => {
     const rng = seededRng(seed);
-    const length = stemLength * scaleMul;
+    const length = stemLength;
 
     // — Overall lean direction (seed-controlled azimuth) —
     const leanAzimuth = rng() * Math.PI * 2;
@@ -188,7 +164,7 @@ export function ProceduralStem({
 
     geo.setDrawRange(0, 0); // start invisible — avoids 1-frame flash on mount
     return geo;
-  }, [stemLength, scaleMul, leanAngle, bendDegree, seed,
+  }, [stemLength, leanAngle, bendDegree, seed,
       stemSegments, stemRadius, radialSegs, radiusAttenuation, baseFlare]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -212,6 +188,7 @@ export function ProceduralStem({
   const lightTargetPosition = useRef(new THREE.Vector3());
 
   useFrame(({ scene }, delta) => {
+    // Light direction → this plant's shared lightDir (tube + flower both read it)
     if (!directionalLightRef.current) {
       scene.traverse((object) => {
         if (object.isDirectionalLight) directionalLightRef.current = object;
@@ -275,7 +252,10 @@ export function ProceduralStem({
           metaUrl={flowerMeta}
           scaleMul={stemRadius * flowerSize}
           frameRatio={flowerFrameRef}
-          colorOverride={colorOverride}
+          stemYMax={stemYMax}
+          flowerUniforms={flowerUniforms}
+          maskUniforms={maskUniforms}
+          outlineUniforms={outlineUniforms}
         />
       </group>
     </group>
