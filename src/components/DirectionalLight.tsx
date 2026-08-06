@@ -4,22 +4,26 @@ import { useControls } from 'leva'
 import * as THREE from 'three'
 
 
-const SHADOW_RANGE = 1;
+const SHADOW_RANGE = 3;
 
 export function DirectionalLight() {
     const directionalLightRef = useRef<THREE.DirectionalLight>(null)
     const helperRef = useRef<THREE.DirectionalLightHelper | null>(null)
     const { scene } = useThree()
     
-    const { rotationSpeed, color, intensity, debug, shadowBias } = useControls('Directional Light', {
+    const { rotationSpeed, color, intensity, debug, shadowBias, shadowRadius } = useControls('Directional Light', {
         rotationSpeed: { value: 0, min: 0, max: 2, step: 0.1 },
         color: { value: '#ffffff' },
         intensity: { value: 2.0, min: 0, max: 3, step: 0.1 },
         debug: { value: false },
         shadowBias: { value: -0.0005, min: -0.01, max: 0.01, step: 0.0001 },
+        shadowRadius: { value: 6, min: 0, max: 25, step: 0.5, label: 'shadow softness' },
     }, { collapsed: true })
 
-    const basePosition = useMemo(() => new THREE.Vector3(0, 3, 2), [])
+    // Angled (not straight overhead) so shadows fall to the side and the flowers
+    // get directional form instead of flat top light. Off the Y axis also lets
+    // rotationSpeed actually orbit the light.
+    const basePosition = useMemo(() => new THREE.Vector3(0, 3.5, 3), [])
     const positionRef = useRef(new THREE.Vector3())
     const rotationMatrixRef = useRef(new THREE.Matrix4())
 
@@ -90,6 +94,7 @@ export function DirectionalLight() {
             shadow-camera-top={SHADOW_RANGE}
             shadow-camera-bottom={-SHADOW_RANGE}
             shadow-bias={shadowBias}
+            shadow-radius={shadowRadius}
         />
     )
 }

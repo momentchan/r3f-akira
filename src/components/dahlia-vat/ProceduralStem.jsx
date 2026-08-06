@@ -18,6 +18,9 @@ const _up = new THREE.Vector3(0, 1, 0);
 // How thin the sprout starts (fraction of full size), shared by the stem radius
 // (shader) and the flower size (CPU group scale) so they grow in proportion.
 const GROWTH_START_SCALE = 0.1;
+// Sink the stem base this far below the ground so the open tube end is hidden by
+// the (invisible) ground occluder and the stem reads as emerging from the surface.
+const BASE_BURY = 0.06;
 
 // Minimal LCG so the same seed always produces the same stem shape
 function seededRng(seed) {
@@ -169,7 +172,10 @@ export function ProceduralStem({
       Math.cos(bendAzimuth) * bendMag,
     );
 
-    const from = new THREE.Vector3(0, 0, 0);
+    // Natural leaning curve (unchanged shape). The base is sunk BASE_BURY below
+    // the ground so the open tube end is hidden by the ground occluder and the
+    // stem reads as emerging from the surface rather than floating.
+    const from = new THREE.Vector3(0, -BASE_BURY, 0);
     const c = new THREE.CatmullRomCurve3(
       [
         from.clone(),
