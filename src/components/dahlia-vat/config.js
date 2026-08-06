@@ -93,6 +93,16 @@ export function createFlowerVariationSchema() {
   };
 }
 
+// Leaves scattered along each stem (instanced, GPU wind bend).
+export function createLeafSchema() {
+  return {
+    leafCount:    { value: 4,    min: 0,    max: 12,  step: 1,    label: 'count' },
+    leafScale:    { value: 0.35, min: 0.05, max: 1.2, step: 0.01, label: 'size / stem len' },
+    droop:        { value: 0.5,  min: -1.2, max: 1.2, step: 0.01, label: 'droop (rad)' },
+    bendStrength: { value: 3,    min: 0,    max: 12,  step: 0.1,  label: 'wind flex' },
+  };
+}
+
 // Global wind: downwind gusts that bend the stem (shader) and carry the flower.
 export function createWindSchema() {
   return {

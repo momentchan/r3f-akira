@@ -22,14 +22,20 @@ function gust01(u, v) {
   return (n / 1.75) * 0.5 + 0.5;
 }
 
+// Unit downwind direction on the ground plane (XZ) for a given wind angle. The
+// gust only scales this vector, so the wind direction is CONSTANT — leaves bake
+// their per-vertex wind response from this and drive it with the gust scalar.
+export function windDirection(windAngle) {
+  const a = windAngle * (Math.PI / 180);
+  return { dirX: Math.cos(a), dirZ: Math.sin(a) };
+}
+
 // Horizontal sway vector [x, z] for a plant based at (baseX, baseZ). Wind always
 // pushes downwind (like the reference), gusting between 0 and windStrength. The
 // plant's base position offsets the noise phase, so plants gust out of sync.
 export function computeWindSway(baseX, baseZ, time, params) {
   const { windAngle, windStrength, windScale, windSpeed } = params;
-  const a = windAngle * (Math.PI / 180);
-  const dirX = Math.cos(a);
-  const dirZ = Math.sin(a);
+  const { dirX, dirZ } = windDirection(windAngle);
   const u = baseX * windScale + dirX * time * windSpeed;
   const v = baseZ * windScale + dirZ * time * windSpeed;
   const g = gust01(u, v) * windStrength;

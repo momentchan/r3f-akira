@@ -8,6 +8,7 @@ import { ProceduralStem } from './ProceduralStem';
 import {
   createArrangementSchema,
   createFlowerVariationSchema,
+  createLeafSchema,
   createLifecycleSchema,
   createStemSchema,
   createWindSchema,
@@ -52,6 +53,7 @@ export function StemArrangement({ position = [0, 0, 0] }) {
   const lifecycleSchema = useMemo(() => createLifecycleSchema(), []);
   const variationSchema = useMemo(() => createFlowerVariationSchema(), []);
   const windSchema = useMemo(() => createWindSchema(), []);
+  const leafSchema = useMemo(() => createLeafSchema(), []);
   const flowerSchema = useMemo(
     () => createFlowerControlsSchema({ mask: { edgeWidth: 0.001 } }),
     [],
@@ -83,6 +85,9 @@ export function StemArrangement({ position = [0, 0, 0] }) {
 
   const { windStrength, windAngle, windScale, windSpeed } =
     useControls('Wind', windSchema, { collapsed: true });
+
+  const { leafCount, leafScale, droop, bendStrength } =
+    useControls('Leaves', leafSchema, { collapsed: true });
 
   // Shared shader look — registered ONCE, passed to every plant
   const flowerControls = useControls('Flower', flowerSchema, { collapsed: true });
@@ -145,6 +150,10 @@ export function StemArrangement({ position = [0, 0, 0] }) {
           windStrength={windStrength}
           windScale={windScale}
           windSpeed={windSpeed}
+          leafCount={leafCount}
+          leafScale={leafScale}
+          droop={droop}
+          bendStrength={bendStrength}
         />
       ))}
     </group>

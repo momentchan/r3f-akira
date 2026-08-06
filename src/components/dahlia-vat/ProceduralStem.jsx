@@ -12,6 +12,7 @@ import { syncFlowerControls } from '../flower/flowerControls';
 import { computeDurations, computeLifecycle } from './flowerLifecycle';
 import { computeWindSway, windMask, WIND_MASK_POW } from './wind';
 import { DahliaVAT } from './DahliaVAT';
+import { StemLeaves } from './StemLeaves';
 import { DEFAULT_LIFECYCLE_RANGES, FLOWER_META, STEM_Y_MAX } from './config';
 
 const _up = new THREE.Vector3(0, 1, 0);
@@ -84,6 +85,10 @@ export function ProceduralStem({
   windStrength = 0.02,
   windScale = 1.5,
   windSpeed = 0.6,
+  leafCount = 4,
+  leafScale = 0.35,
+  droop = 0.5,
+  bendStrength = 3,
 }) {
   const {
     stemLength = 0.55,
@@ -287,10 +292,14 @@ export function ProceduralStem({
     stemGrowU.value = stemGrow;
     const growthSize = GROWTH_START_SCALE + (1 - GROWTH_START_SCALE) * stemGrow;
 
-    const geo = meshRef.current?.geometry;
-    if (geo) {
-      // draw-range grows the tube during grow, retracts it during die
-      geo.setDrawRange(0, Math.ceil(stemGrow * stemSegments) * radialSegs * 6);
+    if (meshRef.current) {
+      // draw-range grows the tube during grow, retracts it during die. When there
+      // is nothing to draw (delay / just-born / fully-wilted) hide the mesh: a
+      // 0-index draw on a castShadow mesh throws "No pipeline set" in the shadow
+      // pass and drops the stem from the shadow map, so its cast shadow vanishes.
+      const drawCount = Math.ceil(stemGrow * stemSegments) * radialSegs * 6;
+      meshRef.current.geometry.setDrawRange(0, drawCount);
+      meshRef.current.visible = drawCount > 0;
     }
 
     const curve = curveRef.current;
@@ -325,7 +334,24 @@ export function ProceduralStem({
       {/* Camera + shadow pipelines are precompiled once at startup by
           StemArrangement (gl.compileAsync), so the first birth doesn't stall. */}
       <mesh ref={meshRef} geometry={geometry} material={stemMaterial}
-            frustumCulled={false} castShadow />
+            frustumCulled={false} castShadow visible={false} />
+      <StemLeaves
+        curveRef={curveRef}
+        windSway={windSway}
+        stemGrowU={stemGrowU}
+        flowerUniforms={flowerUniforms}
+        seed={effSeed}
+        leafCount={leafCount}
+        leafScale={leafScale}
+        droop={droop}
+        bendStrength={bendStrength}
+        stemLength={stemLength}
+        leanAngle={leanAngle}
+        bendDegree={bendDegree}
+        stemRadius={stemRadius}
+        radiusAttenuation={radiusAttenuation}
+        baseFlare={baseFlare}
+      />
       <group ref={tipGroupRef}>
         <DahliaVAT
           metaUrl={flowerMeta}
