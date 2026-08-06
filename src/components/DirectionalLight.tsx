@@ -19,7 +19,7 @@ export function DirectionalLight() {
         shadowBias: { value: -0.0005, min: -0.01, max: 0.01, step: 0.0001 },
     }, { collapsed: true })
 
-    const basePosition = useMemo(() => new THREE.Vector3(0, 3, 5), [])
+    const basePosition = useMemo(() => new THREE.Vector3(0, 3, 2), [])
     const positionRef = useRef(new THREE.Vector3())
     const rotationMatrixRef = useRef(new THREE.Matrix4())
 

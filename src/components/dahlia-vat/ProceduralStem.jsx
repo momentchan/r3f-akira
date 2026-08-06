@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
@@ -91,10 +91,16 @@ export function ProceduralStem({
     baseFlare = 0.25,
   } = params;
 
+  // Each completed cycle regrows a fresh flower: bumping the generation reseeds
+  // the stem's lean/bend direction and timing so a plot doesn't replay the
+  // identical stem when it dies and respawns.
+  const [generation, setGeneration] = useState(0);
+  const effSeed = seed + generation * 131;
+
   // Per-stem phase durations, seeded so each plant cycles on its own schedule
   const durations = useMemo(
-    () => computeDurations(seed, lifecycleRanges),
-    [seed, lifecycleRanges],
+    () => computeDurations(effSeed, lifecycleRanges),
+    [effSeed, lifecycleRanges],
   );
 
   // Seeded starting phase [0,1) so each plant begins at a different point in its
@@ -141,7 +147,7 @@ export function ProceduralStem({
   const curveRef = useRef(null);
 
   const geometry = useMemo(() => {
-    const rng = seededRng(seed);
+    const rng = seededRng(effSeed);
     const length = stemLength;
 
     // — Overall lean direction (seed-controlled azimuth) —
@@ -206,7 +212,7 @@ export function ProceduralStem({
 
     geo.setDrawRange(0, 0); // start invisible — avoids 1-frame flash on mount
     return geo;
-  }, [stemLength, leanAngle, bendDegree, seed,
+  }, [stemLength, leanAngle, bendDegree, effSeed,
       stemSegments, stemRadius, radialSegs, radiusAttenuation, baseFlare]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -217,15 +223,15 @@ export function ProceduralStem({
   const tipQuat = useRef(new THREE.Quaternion());
 
   // Lifecycle clock: age accumulates seconds and loops within [0, lifetime).
-  // Starts NEGATIVE (a seeded hidden delay) so every stem grows from zero — the
-  // spread just staggers when each first sprouts, giving continuous spawning.
-  const ageRef = useRef(0);
+  // Initialised ONCE to a negative (seeded, hidden) staggered delay so the field
+  // spawns continuously and every stem grows from zero. Regrowth just wraps back
+  // to ~0 and runs the next cycle's delay as the rest — it must NOT re-stagger.
+  const ageRef = useRef(null);
   const flowerFrameRef = useRef(0); // VAT frame ratio (0→1→0), fed to DahliaVAT
-  useEffect(() => {
+  if (ageRef.current === null) {
     const lifetime = durations.delay + durations.grow + durations.keep + durations.die;
     ageRef.current = -phaseFrac * lifetime * phaseSpread;
-    flowerFrameRef.current = 0;
-  }, [geometry, durations, phaseFrac, phaseSpread]);
+  }
 
   const directionalLightRef = useRef(null);
   const lightWorldPosition = useRef(new THREE.Vector3());
@@ -258,7 +264,10 @@ export function ProceduralStem({
     // Advance the lifecycle clock (clamp dt so a tab refocus can't skip a cycle)
     const lifetime = durations.delay + durations.grow + durations.keep + durations.die;
     ageRef.current += Math.min(delta, 0.1);
-    if (ageRef.current >= lifetime) ageRef.current -= lifetime;
+    if (ageRef.current >= lifetime) {
+      ageRef.current -= lifetime;
+      setGeneration((g) => g + 1); // regrow a fresh flower (new direction + timing)
+    }
 
     const { stemGrow, flowerFrame, flowerScale } = computeLifecycle(
       ageRef.current,
@@ -307,6 +316,8 @@ export function ProceduralStem({
 
   return (
     <group position={position}>
+      {/* Camera + shadow pipelines are precompiled once at startup by
+          StemArrangement (gl.compileAsync), so the first birth doesn't stall. */}
       <mesh ref={meshRef} geometry={geometry} material={stemMaterial}
             frustumCulled={false} castShadow />
       <group ref={tipGroupRef}>

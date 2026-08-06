@@ -27,8 +27,9 @@ export const STEM_Y_MAX = 0.05;
 
 // Per-phase duration windows (seconds) — the field default + the standalone
 // fallback for ProceduralStem. The 'Lifecycle' panel is seeded from this.
+// `delay` doubles as the empty rest between a death and the next regrowth.
 export const DEFAULT_LIFECYCLE_RANGES = {
-  delay: [0, 1.5],
+  delay: [1.5, 4],
   grow:  [5, 10],
   keep:  [10, 20],
   die:   [1.5, 3],
@@ -55,7 +56,7 @@ export function createStemSchema() {
   const R = STEM_RANGES;
   return {
     Ranges: folder({
-      stemLength:        { value: [0.3,   1.32], min: R.stemLength.min,        max: R.stemLength.max,        step: 0.01,  label: 'length' },
+      stemLength:        { value: [0.7,   1.32], min: R.stemLength.min,        max: R.stemLength.max,        step: 0.01,  label: 'length' },
       stemRadius:        { value: [0.006, 0.02], min: R.stemRadius.min,        max: R.stemRadius.max,        step: 0.001, label: 'radius' },
       leanAngle:         { value: [2,     25],   min: R.leanAngle.min,         max: R.leanAngle.max,         step: 0.5,   label: 'lean °' },
       bendDegree:        { value: [0.05,  0.25], min: R.bendDegree.min,        max: R.bendDegree.max,        step: 0.005, label: 'bend' },

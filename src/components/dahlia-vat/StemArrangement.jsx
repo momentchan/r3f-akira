@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useThree } from '@react-three/fiber';
 import { useControls } from 'leva';
 import { stableRandomRange } from '@core';
 import { preloadVATAssets } from '@core/vat';
@@ -38,6 +39,14 @@ function randomParams(i, seed, lenMin, lenMax, radMin, radMax, leanMin, leanMax,
 // from config.js). Builds per-stem params and hands ProceduralStem everything as
 // props, including the shared 'Flower' shader controls.
 export function StemArrangement({ position = [0, 0, 0] }) {
+  // Precompile camera + shadow-map pipelines once at startup so the first stem
+  // birth (and its first shadow render) doesn't stall on a synchronous compile.
+  const { gl, scene, camera } = useThree();
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => gl.compileAsync?.(scene, camera));
+    return () => cancelAnimationFrame(raf);
+  }, [gl, scene, camera]);
+
   const arrangementSchema = useMemo(() => createArrangementSchema(), []);
   const stemSchema = useMemo(() => createStemSchema(), []);
   const lifecycleSchema = useMemo(() => createLifecycleSchema(), []);
