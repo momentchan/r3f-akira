@@ -1,3 +1,4 @@
+import './suppressWebGPUWarmupWarning' // must run before the renderer starts
 import './style.css'
 import { createRoot } from 'react-dom/client'
 import App from './app/App'

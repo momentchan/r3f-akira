@@ -4,7 +4,7 @@ export const FLOWER_VEIN_PATH = '/textures/tujlip-veins.png';
 export const FLOWER_DEFAULTS = {
   petal: {
     colorLevels: 2,
-    gradientLevels: 5,
+    gradientLevels: 3,
     gradientBandStrength: 0.1,
     rimStrength: 0,
     rimThreshold: 0.74,

@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three/webgpu';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
-  clamp, cos, faceDirection, instanceIndex, mix, normalGeometry, positionGeometry,
-  pow, sin, smoothstep, uniform, uniformArray, vec3,
+  attribute, clamp, cos, faceDirection, mix, normalGeometry, positionGeometry,
+  pow, sin, smoothstep, uniform, vec3,
 } from 'three/tsl';
 import { createFlowerStemMaterial } from '../flower/createFlowerMaterials';
 import { WIND_MASK_POW } from './wind';
@@ -57,12 +56,13 @@ function useLeafGeometry() {
   }, [gltf]);
 }
 
-// Scatters `leafCount` leaves along the stem curve as one InstancedMesh. Everything
-// runs on the GPU from per-instance uniforms (indexed by instanceIndex): the leaf is
-// placed, oriented, BENT (Blender-style curl), grown and wind-swayed in the vertex
-// shader. We work from the raw `positionGeometry`/`normalGeometry` (instance-matrix-
-// independent) and build the full transform ourselves, so the built-in instanceMatrix
-// is left identity. All motion is driven by the stem's existing windSway/stemGrowU.
+// Scatters `leafCount` leaves along the stem curve as one InstancedMesh. The whole
+// leaf transform (place, orient, BENT/curl, grow, wind) runs in the vertex shader
+// from per-instance data. That data lives in INSTANCED VERTEX ATTRIBUTES on a per-
+// stem cloned geometry (not uniforms) so it binds in BOTH the color and the shadow
+// passes — this is why the leaf can cast a shadow like the stem/flower. The built-in
+// instanceMatrix stays identity (the shader builds the full transform from
+// positionGeometry). Driven by the stem's existing windSway / stemGrowU uniforms.
 export function StemLeaves({
   curveRef,
   windSway, // uniform(Vector2) world XZ sway (constant dir, gusting magnitude)
@@ -93,7 +93,6 @@ export function StemLeaves({
 }) {
   const leafGeometry = useLeafGeometry();
   const meshRef = useRef(null);
-  const { gl, scene, camera } = useThree();
 
   // Live-tunable without recompiling the shader.
   const bendStrengthU = useMemo(() => uniform(bendStrength), []);
@@ -110,30 +109,37 @@ export function StemLeaves({
     [curlPower, curlPowerU]);
   const scaleU = useMemo(() => uniform(1), []); // leaf scale (per stem), set on placement
 
-  // Built once per leafCount: per-instance uniform arrays + the TSL material. `packArr`
-  // holds [attach.xyz (stem-local), attach t]; `basisArr` holds each leaf's orientation
-  // (rotation incl. droop). Both re-upload every render, so we mutate them in place on
-  // regrow (below) rather than rebuilding the material.
-  const { material, packArr, basisArr, varArr } = useMemo(() => {
-    // Keep ≥1 element so the uniform arrays can infer layout even with 0 leaves drawn.
+  // Built per leafCount: a per-stem cloned geometry carrying the per-instance data as
+  // INSTANCED ATTRIBUTES (aPack = attach.xyz + curve t; aBx/aBy/aBz = orientation
+  // basis columns incl. droop; aVar = [size mul, curl mul]) + the TSL material that
+  // reads them via attribute(). We mutate the attribute arrays in place on regrow.
+  const { geometry, material, aPack, aBx, aBy, aBz, aVar } = useMemo(() => {
     const n = Math.max(leafCount, 1);
-    const packArr = Array.from({ length: n }, () => new THREE.Vector4());
-    const basisArr = Array.from({ length: n }, () => new THREE.Matrix3());
-    const varArr = Array.from({ length: n }, () => new THREE.Vector2(1, 1));
-    const packU = uniformArray(packArr, 'vec4');
-    const basisU = uniformArray(basisArr, 'mat3');
-    const varU = uniformArray(varArr, 'vec2'); // per-leaf [size mul, wind-flex mul]
+    const geometry = leafGeometry.clone();
+    const aPack = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4);
+    const aBx = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+    const aBy = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+    const aBz = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+    const aVar = new THREE.InstancedBufferAttribute(new Float32Array(n * 2), 2);
+    geometry.setAttribute('aPack', aPack);
+    geometry.setAttribute('aBx', aBx);
+    geometry.setAttribute('aBy', aBy);
+    geometry.setAttribute('aBz', aBz);
+    geometry.setAttribute('aVar', aVar);
 
     const bb = leafGeometry.boundingBox;
     const zMin = bb.min.z;
     const zSpan = Math.max(bb.max.z - bb.min.z, 1e-4);
 
-    const pack = packU.element(instanceIndex);
+    const p = positionGeometry;
+    const pack = attribute('aPack', 'vec4');
     const attach = pack.xyz; // leaf root on the tube surface (stem-local)
     const attachT = pack.w; // curve param at the attach point
-    const basis = basisU.element(instanceIndex); // leaf-local → stem-local rotation
-    const vary = varU.element(instanceIndex); // [size mul, curl mul]
-    const p = positionGeometry;
+    const bx = attribute('aBx', 'vec3');
+    const by = attribute('aBy', 'vec3');
+    const bz = attribute('aBz', 'vec3');
+    const vary = attribute('aVar', 'vec2'); // [size mul, curl mul]
+    const applyBasis = (v) => bx.mul(v.x).add(by.mul(v.y)).add(bz.mul(v.z)); // mat3·v
 
     // Grow progress for this leaf: 0 when the stem grow front reaches its attach point,
     // eased up to 1 over GROW_WINDOW of stem-grow progress for a slow, natural reveal.
@@ -142,9 +148,8 @@ export function StemLeaves({
     const hmask = clamp(p.z.sub(zMin).div(zSpan), 0, 1);
 
     // Blender bend: curl about the leaf's X axis. The unfurl animates start→end over
-    // the grow, from TWO vectors: `curlStrength` = curl magnitude (× leafBend) and
-    // `curlPower` = how the curl distributes along the length (pow on hmask: <1 curls
-    // toward the base → tighter overall coil, >1 concentrates at the tip). × per-leaf
+    // the grow, from TWO vectors: curlStrength = curl magnitude (× leafBend) and
+    // curlPower = how the curl distributes along the length (pow on hmask). × per-leaf
     // curl variance (vary.y). Born curled (start), relaxing to the target (end).
     const strength = mix(curlStrengthU.x, curlStrengthU.y, growFrac);
     const power = mix(curlPowerU.x, curlPowerU.y, growFrac);
@@ -155,7 +160,7 @@ export function StemLeaves({
     // Orient + scale the bent leaf, then grow it. Per-leaf size variance rides the
     // SAME grow multiply (varies the max size each leaf grows toward) — scaling about
     // the attach point, so the root stays welded at any size.
-    const leafPos = basis.mul(bentP.mul(scaleU));
+    const leafPos = applyBasis(bentP.mul(scaleU));
     const placed = attach.add(leafPos.mul(growFrac.mul(vary.x)));
 
     // Wind in world XZ, exactly like the stem: rigid follow (pow(t,POW), welds the
@@ -165,7 +170,7 @@ export function StemLeaves({
     const disp = windVec.mul(followMask.add(hmask.mul(bendStrengthU)));
 
     // Normal follows the same bend + orientation so the curl shades correctly.
-    const worldN = basis.mul(rotateX(normalGeometry, theta));
+    const worldN = applyBasis(rotateX(normalGeometry, theta));
 
     // Reuse the stem's toon look, but override two things for leaves (the stem itself
     // is untouched — shared uniforms stay Leva-synced):
@@ -187,26 +192,16 @@ export function StemLeaves({
     });
     material.positionNode = placed.add(disp.mul(growFrac));
 
-    return { material, packArr, basisArr, varArr };
+    return { geometry, material, aPack, aBx, aBy, aBz, aVar };
   }, [leafGeometry, leafCount, windSway, stemGrowU, flowerUniforms,
       bendStrengthU, colorLevelsU, leafBendU, curlStrengthU, curlPowerU, scaleU]);
 
-  useEffect(() => () => material.dispose(), [material]);
-
-  // Warm the leaf pipelines once the material is ready. useGLTF suspends this
-  // component until leaf.glb loads, so the mesh mounts AFTER StemArrangement's
-  // startup precompile — without this, the first draw logs "No pipeline set"
-  // until the pipeline finishes compiling async.
-  useEffect(() => {
-    if (typeof gl.compileAsync !== 'function') return;
-    const raf = requestAnimationFrame(() => { gl.compileAsync(scene, camera).catch(() => {}); });
-    return () => cancelAnimationFrame(raf);
-  }, [gl, scene, camera, material]);
+  useEffect(() => () => { material.dispose(); geometry.dispose(); }, [material, geometry]);
 
   // Bake placement whenever the stem curve is regenerated (seed / geometry params).
   // curveRef.current is refreshed during the parent's render, before this runs. We
-  // fill the uniform arrays (attach point + orientation) that the shader reads; the
-  // instanceMatrix is left identity since the shader builds the full transform.
+  // fill the instanced attributes the shader reads; the instanceMatrix stays identity
+  // (the shader builds the full transform from positionGeometry).
   useEffect(() => {
     const mesh = meshRef.current;
     const curve = curveRef.current;
@@ -233,6 +228,7 @@ export function StemLeaves({
     const q = new THREE.Quaternion();
     const droopQ = new THREE.Quaternion().setFromAxisAngle(altX, droop);
     const pos = new THREE.Vector3();
+    const col = new THREE.Vector3();
     const identity = new THREE.Matrix4();
 
     const [spanLo, spanHi] = leafSpan; // fraction of stem length leaves spawn between
@@ -257,7 +253,8 @@ export function StemLeaves({
       // Per-leaf random size + curl (bend) multipliers (±variance around 1).
       const scaleMul = Math.max(1 + (rng() - 0.5) * 2 * scaleVariance, 0.1);
       const bendMul = Math.max(1 + (rng() - 0.5) * 2 * bendVariance, 0);
-      varArr[i].set(scaleMul, bendMul);
+      aVar.array[i * 2] = scaleMul;
+      aVar.array[i * 2 + 1] = bendMul;
 
       // Right-angle basis: leaf +Z=outward, +Y=tangent, +X=Y×Z; then droop the tip.
       zAxis.copy(outward);
@@ -267,26 +264,40 @@ export function StemLeaves({
       basis.makeBasis(xAxis, yAxis, zAxis);
       q.setFromRotationMatrix(basis).multiply(droopQ);
       basis.makeRotationFromQuaternion(q);
-      basisArr[i].setFromMatrix4(basis); // orientation (incl. droop) → shader
+      // Rotation columns → the three basis attributes (leaf-local → stem-local).
+      col.setFromMatrixColumn(basis, 0); aBx.array[i * 3] = col.x; aBx.array[i * 3 + 1] = col.y; aBx.array[i * 3 + 2] = col.z;
+      col.setFromMatrixColumn(basis, 1); aBy.array[i * 3] = col.x; aBy.array[i * 3 + 1] = col.y; aBy.array[i * 3 + 2] = col.z;
+      col.setFromMatrixColumn(basis, 2); aBz.array[i * 3] = col.x; aBz.array[i * 3 + 1] = col.y; aBz.array[i * 3 + 2] = col.z;
 
       // Root sits on the tapered tube surface at t.
       const surf = ((1 - (1 - radiusAttenuation) * t) + baseFlare * Math.pow(1 - t, 3)) * stemRadius;
       pos.copy(P).addScaledVector(outward, surf);
-      packArr[i].set(pos.x, pos.y, pos.z, t); // attach point + curve param
-      mesh.setMatrixAt(i, identity); // shader does the transform; keep matrix identity
+      aPack.array[i * 4] = pos.x;
+      aPack.array[i * 4 + 1] = pos.y;
+      aPack.array[i * 4 + 2] = pos.z;
+      aPack.array[i * 4 + 3] = t;
+
+      mesh.setMatrixAt(i, identity); // shader builds the transform; matrix stays identity
     }
 
     mesh.count = leafCount;
     mesh.instanceMatrix.needsUpdate = true;
+    aPack.needsUpdate = true;
+    aBx.needsUpdate = true;
+    aBy.needsUpdate = true;
+    aBz.needsUpdate = true;
+    aVar.needsUpdate = true;
   }, [curveRef, seed, leafCount, leafSpan, stemLength, leanAngle, bendDegree, stemRadius,
       radiusAttenuation, baseFlare, leafGeometry, leafScale, droop,
-      scaleVariance, bendVariance, packArr, basisArr, varArr, scaleU]);
+      scaleVariance, bendVariance, aPack, aBx, aBy, aBz, aVar, scaleU]);
 
   return (
     <instancedMesh
       ref={meshRef}
-      args={[leafGeometry, material, leafCount]}
+      args={[geometry, material, leafCount]}
       frustumCulled={false}
+      castShadow
+      receiveShadow
     />
   );
 }
