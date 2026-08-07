@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($p = \"c:\\\\Users\\\\ming.jyun.hung\\\\OneDrive - Accenture\\\\Projects\\\\r3f-akira\\\\node_modules\\\\three\\\\package.json\"; if \\(Test-Path $p\\) { \\(Get-Content $p | ConvertFrom-Json\\).version } else { \"three not found at expected path\" })",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)",
+      "PowerShell($f = \"node_modules\\\\three\\\\build\\\\three.webgpu.js\"; Write-Output \"== ShadowNodeMaterial ==\"; \\(Select-String -Path $f -Pattern \"ShadowNodeMaterial\" -AllMatches | Measure-Object\\).Count; Write-Output \"== class ShadowNodeMaterial ==\"; Select-String -Path $f -Pattern \"class ShadowNodeMaterial\" | ForEach-Object { $_.LineNumber }; Write-Output \"== ShadowMaterial in export block ==\"; Select-String -Path $f -Pattern \"ShadowNodeMaterial as ShadowMaterial|ShadowMaterial,\" | Select-Object -First 3 | ForEach-Object { $_.Line.Substring\\(0,[Math]::Min\\(200,$_.Line.Length\\)\\) })"
+    ]
+  }
+}
