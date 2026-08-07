@@ -40,8 +40,14 @@ export const DEFAULT_LIFECYCLE_RANGES = {
 // Field layout: how many stems, how far they spread, phase spread, field seed.
 export function createArrangementSchema() {
   return {
-    count:           { value: 7,   min: 1,   max: 30,  step: 1 },
-    spreadRadius:    { value: 0.3, min: 0,   max: 1.5, step: 0.01 },
+    count:           { value: 16,   min: 1,   max: 30,  step: 1 },
+    spreadRadius:    { value: 0.09, min: 0,   max: 1.5, step: 0.01 },
+    // Field radius auto-grows with count to keep at least this gap between bases
+    // (size-aware spacing): effectiveSpread = max(spreadRadius, minGap·√count).
+    minGap:          { value: 0.07, min: 0,  max: 1,   step: 0.01, label: 'min gap' },
+    // Bias each stem's lean AWAY from the field centre so canopies fan apart
+    // (0 = fully random lean, 1 = straight outward).
+    leanOut:         { value: 0.3, min: 0,   max: 1,   step: 0.05, label: 'lean outward' },
     // 1 = each stem starts at a random point in its cycle (continuous spawning);
     // 0 = all stems start together (synchronized wave).
     phaseSpread:     { value: 1,   min: 0,   max: 1,   step: 0.01, label: 'phase spread' },

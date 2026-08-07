@@ -68,6 +68,8 @@ function applyTubeRadiusTaper(geometry, curve, tubularSegments, radialSegments, 
 // synced from the passed `flowerControls` with an optional per-flower colour.
 export function ProceduralStem({
   position = [0, 0, 0],
+  leanOutwardAngle = null, // azimuth to lean toward (field-outward); null = pure random
+  leanOut = 0, // 0 = random lean direction, 1 = straight along leanOutwardAngle
   phaseSpread = 1,
   seed = 0,
   flowerMeta = FLOWER_META,
@@ -165,8 +167,13 @@ export function ProceduralStem({
     const rng = seededRng(effSeed);
     const length = stemLength;
 
-    // — Overall lean direction (seed-controlled azimuth) —
-    const leanAzimuth = rng() * Math.PI * 2;
+    // — Overall lean direction — random azimuth, optionally biased to lean away from
+    //   the field centre (leanOutwardAngle) by `leanOut` so canopies fan apart. az0 is
+    //   always consumed so the rest of the seeded stream is unchanged by the bias.
+    const az0 = rng() * Math.PI * 2;
+    const leanAzimuth = leanOutwardAngle === null
+      ? az0
+      : leanOutwardAngle + (az0 - Math.PI) * (1 - leanOut);
     const leanRad = leanAngle * (Math.PI / 180);
     const to = new THREE.Vector3(
       Math.sin(leanAzimuth) * Math.sin(leanRad) * length,
@@ -230,7 +237,7 @@ export function ProceduralStem({
 
     geo.setDrawRange(0, 0); // start invisible — avoids 1-frame flash on mount
     return geo;
-  }, [stemLength, leanAngle, bendDegree, effSeed,
+  }, [stemLength, leanAngle, bendDegree, effSeed, leanOutwardAngle, leanOut,
       stemSegments, stemRadius, radialSegs, radiusAttenuation, baseFlare]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);

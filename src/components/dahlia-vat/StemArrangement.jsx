@@ -59,7 +59,7 @@ export function StemArrangement({ position = [0, 0, 0] }) {
     [],
   );
 
-  const { count, spreadRadius, phaseSpread, arrangementSeed } =
+  const { count, spreadRadius, minGap, leanOut, phaseSpread, arrangementSeed } =
     useControls('Arrangement', arrangementSchema, { collapsed: true });
 
   // One 'Stem' panel — Ranges (vec2 windows) + Structure (single values)
@@ -111,16 +111,26 @@ export function StemArrangement({ position = [0, 0, 0] }) {
     die:   [dieMin,   dieMax],
   }), [delayMin, delayMax, growMin, growMax, keepMin, keepMax, dieMin, dieMax]);
 
+  // Size-aware spacing: grow the field radius with count so bases keep ≥ minGap apart
+  // (the golden-angle spiral is already evenly spaced, so scaling the radius scales the
+  // gap). spreadRadius acts as a floor.
+  const effectiveSpread = Math.max(spreadRadius, minGap * Math.sqrt(count));
+
   // Primitive number deps — stable across re-renders, only recompute when values change
   const stems = useMemo(() => {
     return Array.from({ length: count }, (_, i) => {
       const angle = i * GOLDEN_ANGLE;
-      const r = i === 0 ? 0 : spreadRadius * Math.sqrt(i / (count - 1));
+      const r = i === 0 ? 0 : effectiveSpread * Math.sqrt(i / (count - 1));
+      const posX = Math.cos(angle) * r;
+      const posZ = Math.sin(angle) * r;
       const typeIdx = Math.floor(
         stableRandomRange(i, S_TYPE, arrangementSeed, 0, FLOWER_TYPES.length),
       ) % FLOWER_TYPES.length;
       return {
-        position:     [Math.cos(angle) * r, 0, Math.sin(angle) * r],
+        position:     [posX, 0, posZ],
+        // Azimuth pointing away from the field centre (in ProceduralStem's lean
+        // convention x=sin, z=cos) — the stem leans outward by `leanOut`.
+        leanOutwardAngle: Math.atan2(posX, posZ),
         seed:         i * 13 + 1,
         flowerMeta:   FLOWER_TYPES[typeIdx],
         colorOverride: {
@@ -134,16 +144,18 @@ export function StemArrangement({ position = [0, 0, 0] }) {
         ),
       };
     });
-  }, [count, spreadRadius, arrangementSeed, hueRange, lightRange,
+  }, [count, effectiveSpread, arrangementSeed, hueRange, lightRange,
       lenMin, lenMax, radMin, radMax, leanMin, leanMax,
       bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
 
   return (
     <group position={position}>
-      {stems.map(({ position: pos, seed, flowerMeta, colorOverride, params }, i) => (
+      {stems.map(({ position: pos, leanOutwardAngle, seed, flowerMeta, colorOverride, params }, i) => (
         <ProceduralStem
           key={i}
           position={pos}
+          leanOutwardAngle={leanOutwardAngle}
+          leanOut={leanOut}
           phaseSpread={phaseSpread}
           seed={seed}
           flowerMeta={flowerMeta}
