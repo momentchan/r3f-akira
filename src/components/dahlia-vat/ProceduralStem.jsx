@@ -86,9 +86,16 @@ export function ProceduralStem({
   windScale = 1.5,
   windSpeed = 0.6,
   leafCount = 4,
+  leafSpan = [0.2, 0.8],
   leafScale = 0.35,
+  scaleVariance = 0.3,
   droop = 0.5,
+  leafBend = 0.6,
+  curlStrength = [3, 1],
+  curlPower = [1, 1],
   bendStrength = 3,
+  bendVariance = 0.3,
+  colorLevels = 6,
 }) {
   const {
     stemLength = 0.55,
@@ -342,9 +349,16 @@ export function ProceduralStem({
         flowerUniforms={flowerUniforms}
         seed={effSeed}
         leafCount={leafCount}
+        leafSpan={leafSpan}
         leafScale={leafScale}
+        scaleVariance={scaleVariance}
         droop={droop}
+        leafBend={leafBend}
+        curlStrength={curlStrength}
+        curlPower={curlPower}
         bendStrength={bendStrength}
+        bendVariance={bendVariance}
+        colorLevels={colorLevels}
         stemLength={stemLength}
         leanAngle={leanAngle}
         bendDegree={bendDegree}

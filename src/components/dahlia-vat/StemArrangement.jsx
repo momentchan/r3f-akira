@@ -86,8 +86,19 @@ export function StemArrangement({ position = [0, 0, 0] }) {
   const { windStrength, windAngle, windScale, windSpeed } =
     useControls('Wind', windSchema, { collapsed: true });
 
-  const { leafCount, leafScale, droop, bendStrength } =
-    useControls('Leaves', leafSchema, { collapsed: true });
+  const {
+    leafCount, leafSpan, leafScale, scaleVariance, droop, leafBend,
+    curlStrengthStart, curlStrengthEnd, curlPowerStart, curlPowerEnd,
+    bendStrength, bendVariance, colorLevels,
+  } = useControls('Leaves', leafSchema, { collapsed: true });
+
+  // Assemble the [start, end] curl vectors (stable refs) from the scalar sliders.
+  const curlStrength = useMemo(
+    () => [curlStrengthStart, curlStrengthEnd], [curlStrengthStart, curlStrengthEnd],
+  );
+  const curlPower = useMemo(
+    () => [curlPowerStart, curlPowerEnd], [curlPowerStart, curlPowerEnd],
+  );
 
   // Shared shader look — registered ONCE, passed to every plant
   const flowerControls = useControls('Flower', flowerSchema, { collapsed: true });
@@ -151,9 +162,16 @@ export function StemArrangement({ position = [0, 0, 0] }) {
           windScale={windScale}
           windSpeed={windSpeed}
           leafCount={leafCount}
+          leafSpan={leafSpan}
           leafScale={leafScale}
+          scaleVariance={scaleVariance}
           droop={droop}
+          leafBend={leafBend}
+          curlStrength={curlStrength}
+          curlPower={curlPower}
           bendStrength={bendStrength}
+          bendVariance={bendVariance}
+          colorLevels={colorLevels}
         />
       ))}
     </group>

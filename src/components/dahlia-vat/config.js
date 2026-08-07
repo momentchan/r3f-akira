@@ -96,10 +96,19 @@ export function createFlowerVariationSchema() {
 // Leaves scattered along each stem (instanced, GPU wind bend).
 export function createLeafSchema() {
   return {
-    leafCount:    { value: 4,    min: 0,    max: 12,  step: 1,    label: 'count' },
-    leafScale:    { value: 0.35, min: 0.05, max: 1.2, step: 0.01, label: 'size / stem len' },
-    droop:        { value: 0.5,  min: -1.2, max: 1.2, step: 0.01, label: 'droop (rad)' },
-    bendStrength: { value: 3,    min: 0,    max: 12,  step: 0.1,  label: 'wind flex' },
+    leafCount:     { value: 4,    min: 0,    max: 12,  step: 1,    label: 'count' },
+    leafSpan:      { value: [0.3, 0.8], min: 0, max: 1, step: 0.01, label: 'spawn range' },
+    leafScale:     { value: 0.2,  min: 0.05, max: 1.2, step: 0.01, label: 'size / stem len' },
+    scaleVariance: { value: 0.3,  min: 0,    max: 1,   step: 0.05, label: 'size variance' },
+    droop:         { value: 0,    min: -1.2, max: 1.2, step: 0.01, label: 'droop (rad)' },
+    leafBend:      { value: 0.5,  min: -2,   max: 2,   step: 0.05, label: 'bend (curl)' },
+    curlStrengthStart: { value: 4, min: 0,   max: 8, step: 0.1,  label: 'curl str: start' },
+    curlStrengthEnd:   { value: 1, min: 0,   max: 8, step: 0.1,  label: 'curl str: end' },
+    curlPowerStart:    { value: 6, min: 0.2, max: 8, step: 0.05, label: 'curl pow: start' },
+    curlPowerEnd:      { value: 1, min: 0.2, max: 8, step: 0.05, label: 'curl pow: end' },
+    bendStrength:  { value: 3,    min: 0,    max: 12,  step: 0.1,  label: 'wind flex' },
+    bendVariance:  { value: 0.3,  min: 0,    max: 1,   step: 0.05, label: 'curl variance' },
+    colorLevels:   { value: 3,    min: 1,    max: 16,  step: 1,    label: 'toon smoothness' },
   };
 }
 
