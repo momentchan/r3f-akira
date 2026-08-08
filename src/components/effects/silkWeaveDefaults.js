@@ -1,7 +1,7 @@
 export const SILK_WEAVE_DEFAULTS = {
   enabled: true,
   // Number of thread rows across the screen height.
-  threadCount: 320,
+  threadCount: 815,
   // How dark the grooves between threads get.
   strength: 0.35,
   // <1 = wide soft threads, >1 = thin sharp threads.

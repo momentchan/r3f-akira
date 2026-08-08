@@ -3,14 +3,14 @@ import { folder } from 'leva';
 // Single source of truth for the procedural stem + VAT flower field.
 // All tunable numbers, path constants, and Leva schema builders live here so the
 // settings aren't scattered across the components. StemArrangement is the only
-// place that registers these panels; ProceduralStem/DahliaVAT are props-driven.
+// place that registers these panels; ProceduralStem / VatFlower wrappers are props-driven.
 
 // ── Paths ──────────────────────────────────────────────────────────
 export const FLOWER_META = '/Dahlia_Flower/Dahlia_Flower_meta.json';
+export const ROSE_META = '/Rose/Rose_meta.json';
 
-// VAT flower types spawned in the field. Add a meta path here and it is
-// intermixed automatically (seeded per-stem pick in StemArrangement).
-export const FLOWER_TYPES = [FLOWER_META];
+// Flower-type registry (Component + material defaults) lives in flowerTypes.js
+// so config stays free of React imports / circular deps with VAT wrappers.
 
 // ── Hard bounds for the randomized stem geometry (Leva slider limits) ──
 export const STEM_RANGES = {

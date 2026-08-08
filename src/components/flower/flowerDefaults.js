@@ -66,3 +66,19 @@ export const FLOWER_DEFAULTS = {
     strength: 0.11,
   },
 };
+
+// Deep-merge a partial override onto FLOWER_DEFAULTS (or another full tree).
+// Top-level keys (petal/vein/stem/…) are shallow-merged so a flower type can
+// override only the knobs it cares about.
+export function mergeFlowerDefaults(overrides = {}, base = FLOWER_DEFAULTS) {
+  const merged = { ...base };
+  for (const key of Object.keys(overrides)) {
+    const value = overrides[key];
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      merged[key] = { ...(base[key] ?? {}), ...value };
+    } else {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}

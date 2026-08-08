@@ -11,9 +11,9 @@ import {
 import { syncFlowerControls } from '../flower/flowerControls';
 import { computeDurations, computeLifecycle } from './flowerLifecycle';
 import { computeWindSway, windMask, WIND_MASK_POW } from './wind';
-import { DahliaVAT } from './DahliaVAT';
 import { StemLeaves } from './StemLeaves';
-import { DEFAULT_LIFECYCLE_RANGES, FLOWER_META, STEM_Y_MAX } from './config';
+import { DEFAULT_LIFECYCLE_RANGES, STEM_Y_MAX } from './config';
+import { FLOWER_TYPES } from './flowerTypes';
 
 const _up = new THREE.Vector3(0, 1, 0);
 // How thin the sprout starts (fraction of full size), shared by the stem radius
@@ -72,7 +72,7 @@ export function ProceduralStem({
   leanOut = 0, // 0 = random lean direction, 1 = straight along leanOutwardAngle
   phaseSpread = 1,
   seed = 0,
-  flowerMeta = FLOWER_META,
+  flowerType = FLOWER_TYPES[0], // { id, Component, metaUrl, … } from flowerTypes.js
   colorOverride = null,
   params = {}, // per-stem randomized geometry
   stemSegments = 32,
@@ -82,7 +82,7 @@ export function ProceduralStem({
   bloomStart = 0.23,
   bloomFrac = 0.3,
   lifecycleRanges = DEFAULT_LIFECYCLE_RANGES,
-  flowerControls = null,
+  flowerControls = null, // Leva values for THIS stem's species (Dahlia / Rose / …)
   windAngle = 30,
   windStrength = 0.02,
   windScale = 1.5,
@@ -99,6 +99,7 @@ export function ProceduralStem({
   bendVariance = 0.3,
   colorLevels = 6,
 }) {
+  const FlowerVAT = flowerType.Component;
   const {
     stemLength = 0.55,
     stemRadius = 0.012,
@@ -252,7 +253,7 @@ export function ProceduralStem({
   // spawns continuously and every stem grows from zero. Regrowth just wraps back
   // to ~0 and runs the next cycle's delay as the rest — it must NOT re-stagger.
   const ageRef = useRef(null);
-  const flowerFrameRef = useRef(0); // VAT frame ratio (0→1→0), fed to DahliaVAT
+  const flowerFrameRef = useRef(0); // VAT frame ratio (0→1→0), fed to FlowerVAT
   if (ageRef.current === null) {
     const lifetime = durations.delay + durations.grow + durations.keep + durations.die;
     ageRef.current = -phaseFrac * lifetime * phaseSpread;
@@ -326,7 +327,7 @@ export function ProceduralStem({
       tipQuat.current.setFromUnitVectors(_up, curve.getTangentAt(t));
     }
 
-    flowerFrameRef.current = flowerFrame; // reverse-capable ratio → DahliaVAT
+    flowerFrameRef.current = flowerFrame; // reverse-capable ratio → FlowerVAT
 
     if (tipGroupRef.current) {
       // Follow the shader-bent tip: same sway × the mask at the current growth
@@ -374,8 +375,7 @@ export function ProceduralStem({
         baseFlare={baseFlare}
       />
       <group ref={tipGroupRef}>
-        <DahliaVAT
-          metaUrl={flowerMeta}
+        <FlowerVAT
           scaleMul={stemRadius * flowerSize}
           frameRatio={flowerFrameRef}
           stemYMax={stemYMax}

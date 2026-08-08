@@ -1,12 +1,18 @@
 import { folder } from 'leva';
 import * as THREE from 'three/webgpu';
-import { FLOWER_DEFAULTS, FLOWER_MASK_PATH, FLOWER_VEIN_PATH } from './flowerDefaults';
+import {
+  FLOWER_MASK_PATH,
+  FLOWER_VEIN_PATH,
+  mergeFlowerDefaults,
+} from './flowerDefaults';
 
 export { FLOWER_MASK_PATH, FLOWER_VEIN_PATH };
 
-export function createFlowerControlsSchema(options = {}) {
-  const { petal, vein, stem, outline, grain } = FLOWER_DEFAULTS;
-  const mask = { ...FLOWER_DEFAULTS.mask, ...options.mask };
+// Build a Leva schema from a full (or partial) flower-defaults tree.
+// Partial overrides are merged onto FLOWER_DEFAULTS so each flower type can
+// ship its own starting look without duplicating the whole schema.
+export function createFlowerControlsSchema(defaults = {}) {
+  const { petal, vein, stem, outline, grain, mask } = mergeFlowerDefaults(defaults);
 
   return {
     Petal: folder({

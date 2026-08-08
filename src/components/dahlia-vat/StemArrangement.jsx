@@ -12,12 +12,14 @@ import {
   createLifecycleSchema,
   createStemSchema,
   createWindSchema,
-  FLOWER_TYPES,
 } from './config';
+import { FLOWER_TYPES } from './flowerTypes';
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+const DAHLIA_TYPE = FLOWER_TYPES.find((t) => t.id === 'dahlia');
+const ROSE_TYPE = FLOWER_TYPES.find((t) => t.id === 'rose');
 
-FLOWER_TYPES.forEach(preloadVATAssets);
+FLOWER_TYPES.forEach(({ metaUrl }) => preloadVATAssets(metaUrl));
 
 // Salt per attribute — keeps each random stream independent
 const S_LENGTH = 0, S_RADIUS = 1, S_LEAN = 2, S_BEND = 3;
@@ -37,8 +39,8 @@ function randomParams(i, seed, lenMin, lenMax, radMin, radMax, leanMin, leanMax,
 }
 
 // The single settings surface: every Leva panel for the field lives here (schemas
-// from config.js). Builds per-stem params and hands ProceduralStem everything as
-// props, including the shared 'Flower' shader controls.
+// from config.js / per-type flower defaults). Builds per-stem params and hands
+// ProceduralStem everything as props, including the matching flower look panel.
 export function StemArrangement({ position = [0, 0, 0] }) {
   // Precompile camera + shadow-map pipelines once at startup so the first stem
   // birth (and its first shadow render) doesn't stall on a synchronous compile.
@@ -54,10 +56,23 @@ export function StemArrangement({ position = [0, 0, 0] }) {
   const variationSchema = useMemo(() => createFlowerVariationSchema(), []);
   const windSchema = useMemo(() => createWindSchema(), []);
   const leafSchema = useMemo(() => createLeafSchema(), []);
-  const flowerSchema = useMemo(
-    () => createFlowerControlsSchema({ mask: { edgeWidth: 0.001 } }),
+
+  // One Leva panel per species so Rose / Dahlia materials can diverge.
+  // Unrolled (not looped) to satisfy Rules of Hooks; add a block when adding a type.
+  const dahliaSchema = useMemo(
+    () => createFlowerControlsSchema(DAHLIA_TYPE.materialDefaults),
     [],
   );
+  const roseSchema = useMemo(
+    () => createFlowerControlsSchema(ROSE_TYPE.materialDefaults),
+    [],
+  );
+  const dahliaControls = useControls(DAHLIA_TYPE.label, dahliaSchema, { collapsed: true });
+  const roseControls = useControls(ROSE_TYPE.label, roseSchema, { collapsed: true });
+  const flowerControlsById = useMemo(() => ({
+    [DAHLIA_TYPE.id]: dahliaControls,
+    [ROSE_TYPE.id]: roseControls,
+  }), [dahliaControls, roseControls]);
 
   const { count, spreadRadius, minGap, leanOut, phaseSpread, arrangementSeed } =
     useControls('Arrangement', arrangementSchema, { collapsed: true });
@@ -100,9 +115,6 @@ export function StemArrangement({ position = [0, 0, 0] }) {
     () => [curlPowerStart, curlPowerEnd], [curlPowerStart, curlPowerEnd],
   );
 
-  // Shared shader look — registered ONCE, passed to every plant
-  const flowerControls = useControls('Flower', flowerSchema, { collapsed: true });
-
   // Shared, stable object of lifecycle windows passed to every stem
   const lifecycleRanges = useMemo(() => ({
     delay: [delayMin, delayMax],
@@ -126,13 +138,14 @@ export function StemArrangement({ position = [0, 0, 0] }) {
       const typeIdx = Math.floor(
         stableRandomRange(i, S_TYPE, arrangementSeed, 0, FLOWER_TYPES.length),
       ) % FLOWER_TYPES.length;
+      const flowerType = FLOWER_TYPES[typeIdx];
       return {
         position:     [posX, 0, posZ],
         // Azimuth pointing away from the field centre (in ProceduralStem's lean
         // convention x=sin, z=cos) — the stem leans outward by `leanOut`.
         leanOutwardAngle: Math.atan2(posX, posZ),
         seed:         i * 13 + 1,
-        flowerMeta:   FLOWER_TYPES[typeIdx],
+        flowerType,
         colorOverride: {
           hueShift:   stableRandomRange(i, S_HUE,   arrangementSeed, -hueRange,   hueRange),
           lightShift: stableRandomRange(i, S_LIGHT, arrangementSeed, -lightRange, lightRange),
@@ -150,7 +163,7 @@ export function StemArrangement({ position = [0, 0, 0] }) {
 
   return (
     <group position={position}>
-      {stems.map(({ position: pos, leanOutwardAngle, seed, flowerMeta, colorOverride, params }, i) => (
+      {stems.map(({ position: pos, leanOutwardAngle, seed, flowerType, colorOverride, params }, i) => (
         <ProceduralStem
           key={i}
           position={pos}
@@ -158,7 +171,8 @@ export function StemArrangement({ position = [0, 0, 0] }) {
           leanOut={leanOut}
           phaseSpread={phaseSpread}
           seed={seed}
-          flowerMeta={flowerMeta}
+          flowerType={flowerType}
+          flowerControls={flowerControlsById[flowerType.id]}
           colorOverride={colorOverride}
           params={params}
           stemSegments={stemSegments}
@@ -168,7 +182,6 @@ export function StemArrangement({ position = [0, 0, 0] }) {
           bloomStart={bloomStart}
           bloomFrac={bloomFrac}
           lifecycleRanges={lifecycleRanges}
-          flowerControls={flowerControls}
           windAngle={windAngle}
           windStrength={windStrength}
           windScale={windScale}
