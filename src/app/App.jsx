@@ -4,17 +4,18 @@ import { LevaWrapper } from "@core";
 import { Canvas } from "@react-three/fiber";
 import { useControls } from "leva";
 import * as THREE from "three/webgpu";
-import { DirectionalLight } from "../components/DirectionalLight";
-import Effects from "../components/Effects";
-import { StemArrangement } from "../components/dahlia-vat/StemArrangement";
-import { ShadowCatcher } from "../components/ShadowCatcher";
-import { ProceduralSmoke } from "../components/ProceduralSmoke";
+import { DirectionalLight } from "../components/scene/DirectionalLight";
+import Effects from "../components/scene/Effects";
+import { PlantField } from "../components/plants/field/PlantField";
+import { ShadowCatcher } from "../components/scene/ShadowCatcher";
+import { ProceduralSmoke } from "../components/smoke/ProceduralSmoke";
 import { Character } from "../components/character/Character";
 import { Environment } from "@react-three/drei";
+import { SCENE_DEFAULTS } from "../components/scene/sceneDefaults";
 
 export default function App() {
   const { bgColor } = useControls("Scene", {
-    bgColor: { value: "#ede4d3", label: "background" },
+    bgColor: { value: SCENE_DEFAULTS.bgColor, label: "background" },
   });
 
   return (
@@ -49,7 +50,7 @@ export default function App() {
         <group position={[0, -1, 0]}>
           {/* <Character /> */}
           <ShadowCatcher groundColor={bgColor} />
-          <StemArrangement />
+          <PlantField />
           {/* <ProceduralSmoke position={[0, 0.1, 0]} /> */}
         </group>
 

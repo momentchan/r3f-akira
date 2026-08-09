@@ -1,0 +1,15 @@
+export const SHADOW_DEFAULTS = {
+  color: '#4e5769',
+  strength: 0.29,
+  spread: 0.47,
+  edgeSoft: 0.45,
+  edgeWarp: 0.36,
+  washNoise: 0.91,
+  washScale: 3.1,
+  contourColor: '#232a42',
+  contour: 0.6,
+  contourWidth: 1.5,
+  edgeAt: 0.35,
+  edgeNoise: 1.25,
+  edgeScale: 21,
+};
