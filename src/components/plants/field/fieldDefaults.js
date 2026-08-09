@@ -15,6 +15,8 @@ export const FIELD_DEFAULTS = {
     leanOut: 0.7,
     phaseSpread: 1,
     arrangementSeed: 0,
+    positionJitter: 0.35,
+    roseOuterBias: 0.75,
   },
   stemGeometry: {
     stemLength: [0.7, 1.32],
@@ -27,7 +29,6 @@ export const FIELD_DEFAULTS = {
     radialSegs: 8,
     bloomStart: 0.23,
     bloomFrac: 0.3,
-    flowerSize: 4.2,
   },
   lifecycle: {
     delay: [0.2, 1.2],

@@ -11,6 +11,20 @@ export function createArrangementSchema(defaults = FIELD_DEFAULTS.arrangement) {
     leanOut: { value: d.leanOut, min: 0, max: 1, step: 0.05, label: 'lean outward' },
     phaseSpread: { value: d.phaseSpread, min: 0, max: 1, step: 0.01, label: 'phase spread' },
     arrangementSeed: { value: d.arrangementSeed, min: 0, max: 999, step: 1, label: 'seed' },
+    positionJitter: {
+      value: d.positionJitter ?? 0.35,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      label: 'position jitter',
+    },
+    roseOuterBias: {
+      value: d.roseOuterBias ?? 0.75,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      label: 'roses → rim',
+    },
   };
 }
 
@@ -37,7 +51,6 @@ export function createStemGeometrySchema(defaults = FIELD_DEFAULTS.stemGeometry)
       radialSegs: { value: d.radialSegs, min: 3, max: 16, step: 1 },
       bloomStart: { value: d.bloomStart, min: 0, max: 1, step: 0.01, label: 'bloom start' },
       bloomFrac: { value: d.bloomFrac, min: 0, max: 0.5, step: 0.01, label: 'bloom frac' },
-      flowerSize: { value: d.flowerSize, min: 0, max: 20, step: 0.1, label: 'flower / radius' },
       stemYMax: { value: STEM_Y_MAX, min: -0.5, max: 0.5, step: 0.01, label: 'stem Y max' },
     }, { collapsed: true }),
   };

@@ -23,6 +23,9 @@ const S_FLARE = 5;
 const S_TYPE = 6;
 const S_HUE = 7;
 const S_LIGHT = 8;
+const S_SPIN = 9;
+const S_ANG_JIT = 10;
+const S_RAD_JIT = 11;
 
 function randomParams(i, seed, lenMin, lenMax, radMin, radMax, leanMin, leanMax,
   bendMin, bendMax, taperMin, taperMax, flareMin, flareMax) {
@@ -60,7 +63,8 @@ export function PlantField({ position = [0, 0, 0] }) {
   const fieldSchema = useMemo(() => createFieldControlsSchema(), []);
   const {
     count, spreadRadius, minGap, leanOut, phaseSpread, arrangementSeed,
-    stemSegments, radialSegs, bloomStart, bloomFrac, flowerSize, stemYMax,
+    positionJitter, roseOuterBias,
+    stemSegments, radialSegs, bloomStart, bloomFrac, stemYMax,
     stemLength: [lenMin, lenMax],
     stemRadius: [radMin, radMax],
     leanAngle: [leanMin, leanMax],
@@ -116,20 +120,33 @@ export function PlantField({ position = [0, 0, 0] }) {
   const effectiveSpread = Math.max(spreadRadius, minGap * Math.sqrt(count));
 
   const stems = useMemo(() => {
+    const fieldSpin = stableRandomRange(0, S_SPIN, arrangementSeed, 0, Math.PI * 2);
+    const maxAngleJit = positionJitter * GOLDEN_ANGLE * 0.45;
+    const maxRadJit = positionJitter * 0.18;
+
     return Array.from({ length: count }, (_, i) => {
-      const angle = i * GOLDEN_ANGLE;
-      const r = i === 0 ? 0 : effectiveSpread * Math.sqrt(i / (count - 1));
+      const ringT = count <= 1 ? 0 : i / (count - 1);
+      const angleJit = i === 0
+        ? 0
+        : stableRandomRange(i, S_ANG_JIT, arrangementSeed, -maxAngleJit, maxAngleJit);
+      const radScale = i === 0
+        ? 1
+        : stableRandomRange(i, S_RAD_JIT, arrangementSeed, 1 - maxRadJit, 1 + maxRadJit);
+
+      const angle = i * GOLDEN_ANGLE + fieldSpin + angleJit;
+      const r = i === 0 ? 0 : effectiveSpread * Math.sqrt(ringT) * radScale;
       const posX = Math.cos(angle) * r;
       const posZ = Math.sin(angle) * r;
-      const typeIdx = Math.floor(
-        stableRandomRange(i, S_TYPE, arrangementSeed, 0, FLOWER_TYPES.length),
-      ) % FLOWER_TYPES.length;
-      const flowerType = FLOWER_TYPES[typeIdx];
+
+      const pRose = (1 - roseOuterBias) * 0.5 + roseOuterBias * ringT;
+      const typeRoll = stableRandomRange(i, S_TYPE, arrangementSeed, 0, 1);
+      const flowerType = typeRoll < pRose ? ROSE_TYPE : DAHLIA_TYPE;
       const { hueRange = 0, lightRange = 0 } = flowerControlsById[flowerType.id] ?? {};
+
       return {
         position: [posX, 0, posZ],
         leanOutwardAngle: Math.atan2(posX, posZ),
-        seed: i * 13 + 1,
+        seed: i * 13 + 1 + arrangementSeed * 17,
         flowerType,
         colorOverride: {
           hueShift: stableRandomRange(i, S_HUE, arrangementSeed, -hueRange, hueRange),
@@ -142,7 +159,8 @@ export function PlantField({ position = [0, 0, 0] }) {
         ),
       };
     });
-  }, [count, effectiveSpread, arrangementSeed, flowerControlsById,
+  }, [count, effectiveSpread, arrangementSeed, positionJitter, roseOuterBias,
+    flowerControlsById,
     lenMin, lenMax, radMin, radMax, leanMin, leanMax,
     bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
 
@@ -162,7 +180,6 @@ export function PlantField({ position = [0, 0, 0] }) {
           params={params}
           stemSegments={stemSegments}
           radialSegs={radialSegs}
-          flowerSize={flowerSize}
           stemYMax={stemYMax}
           bloomStart={bloomStart}
           bloomFrac={bloomFrac}

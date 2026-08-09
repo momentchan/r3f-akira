@@ -405,7 +405,6 @@ export function createFlowerVertexColorMaterial(
 
       const shaded = color.toVar();
 
-      // Grade fill before ink rim so outlineColor stays pure.
       shaded.assign(applySaturation(shaded, petal.saturation));
 
       if (useMaskEdge) {

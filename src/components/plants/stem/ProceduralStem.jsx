@@ -66,7 +66,6 @@ export function ProceduralStem({
   params = {},
   stemSegments = FIELD_DEFAULTS.stemGeometry.stemSegments,
   radialSegs = FIELD_DEFAULTS.stemGeometry.radialSegs,
-  flowerSize = FIELD_DEFAULTS.stemGeometry.flowerSize,
   stemYMax = STEM_Y_MAX,
   bloomStart = FIELD_DEFAULTS.stemGeometry.bloomStart,
   bloomFrac = FIELD_DEFAULTS.stemGeometry.bloomFrac,
@@ -353,7 +352,11 @@ export function ProceduralStem({
       <group ref={tipGroupRef}>
         <VatFlower
           metaUrl={flowerType.metaUrl}
-          scaleMul={stemRadius * flowerSize}
+          scaleMul={stemRadius * (
+            flowerControls?.flowerSize
+            ?? flowerType.materialDefaults?.flowerSize
+            ?? 4.2
+          )}
           frameRatio={flowerFrameRef}
           stemYMax={stemYMax}
           usePetalCutout={flowerType.usePetalCutout !== false}

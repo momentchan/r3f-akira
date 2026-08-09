@@ -20,7 +20,6 @@ export function VatFlower({
   frameRatio = null,
   stemYMax = STEM_Y_MAX,
   flipX = true,
-  // Cutout punches holes from the UV mask; mask-edge inks the silhouette rim.
   usePetalCutout = true,
   useMaskEdge = true,
   maskPath = FLOWER_MASK_PATH,

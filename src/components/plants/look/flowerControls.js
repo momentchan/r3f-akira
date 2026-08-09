@@ -9,9 +9,16 @@ import {
 export { FLOWER_MASK_PATH, FLOWER_VEIN_PATH, ROSE_MASK_PATH } from './flowerDefaults';
 
 export function createFlowerControlsSchema(defaults = {}) {
-  const { petal, vein, stem, mask, colorVariation } = mergeFlowerDefaults(defaults);
+  const { petal, vein, stem, mask, colorVariation, flowerSize } = mergeFlowerDefaults(defaults);
 
   return {
+    flowerSize: {
+      value: flowerSize,
+      min: 0,
+      max: 20,
+      step: 0.1,
+      label: 'flower / radius',
+    },
     Petal: folder({
       Gradient: folder({
         baseColor: { value: petal.baseColor },

@@ -19,7 +19,6 @@ export const FLOWER_DEFAULTS = {
     baseColor: '#884beb',
     midColor: '#c9a8e8',
     tipColor: '#eee4f2',
-    // Final petal grade: 0 = grayscale, 1 = unchanged, >1 boosts chroma.
     saturation: 1,
   },
   vein: {
@@ -50,13 +49,13 @@ export const FLOWER_DEFAULTS = {
   mask: {
     threshold: 0.24,
     edgeWidth: 0.00,
-    // Shared woodblock ink for mask rim and vein strokes.
     edgeColor: '#3a2a33',
   },
   colorVariation: {
     hueRange: 0.04,
     lightRange: 0.05,
   },
+  flowerSize: 4.2,
 };
 
 export function mergeFlowerDefaults(overrides = {}, base = FLOWER_DEFAULTS) {

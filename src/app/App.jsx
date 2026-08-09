@@ -58,7 +58,7 @@ export default function App() {
         <Environment preset="sunset" />
 
         <AdaptiveDpr pixelated />
-        <CameraControls makeDefault />
+        <CameraControls makeDefault maxPolarAngle={Math.PI / 2} />
         <CanvasCapture />
         <DirectionalLight />
         <Effects />

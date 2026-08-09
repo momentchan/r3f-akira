@@ -1,6 +1,7 @@
 import { mergeFlowerDefaults } from '../look/flowerDefaults';
 
 export const ROSE_MATERIAL_DEFAULTS = mergeFlowerDefaults({
+  flowerSize: 2.2,
   petal: {
     baseColor: '#c7c7c7',
     midColor: '#e2e2e2',
@@ -25,4 +26,5 @@ export const ROSE_MATERIAL_DEFAULTS = mergeFlowerDefaults({
     edgeWidth: 0.002,
     edgeColor: '#2a181c',
   },
+
 });
