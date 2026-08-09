@@ -1,160 +1,203 @@
 import * as THREE from 'three/webgpu';
-import { LightingModel, MeshToonNodeMaterial } from 'three/webgpu';
 import {
-  BRDF_Lambert,
   Fn,
+  cameraPosition,
+  clamp,
+  dot,
   float,
-  materialColor,
-  materialReference,
+  floor,
+  max,
   mix,
-  normalView,
-  smoothstep,
-  vec2,
+  normalLocal,
+  positionLocal,
+  positionWorld,
+  pow,
+  step,
+  texture,
+  transformNormal,
+  uniform,
+  uv,
   vec3,
-  diffuseColor,
+  vec4,
 } from 'three/tsl';
-import type { Node, NodeBuilder } from 'three/webgpu';
+import {
+  CHARACTER_LOOK_DEFAULTS,
+} from '../look/characterDefaults';
 
 export interface ToonMaterialTextures {
   map?: THREE.Texture;
   normalMap?: THREE.Texture;
   aoMap?: THREE.Texture;
-  gradientMap?: THREE.Texture;
 }
 
-export interface ToonBandOptions {
-  /** Shadow-side irradiance. Default in MeshToonMaterial: 0.7 */
-  shadowLevel?: number;
-  /** Lit-side irradiance. Default in MeshToonMaterial: 1.0 */
-  highlightLevel?: number;
-  /** Step threshold for the default band. Default in MeshToonMaterial: 0.7 */
-  bandThreshold?: number;
+export type UniformValue<T> = { value: T };
+
+export interface WoodblockToonUniforms {
+  lightDir: UniformValue<THREE.Vector3>;
+  colorLevels: UniformValue<number>;
+  thresholdLow: UniformValue<number>;
+  thresholdHigh: UniformValue<number>;
+  rimStrength: UniformValue<number>;
+  rimThreshold: UniformValue<number>;
+  rimPower: UniformValue<number>;
+  shadowTint: UniformValue<THREE.Color>;
+  highlightTint: UniformValue<THREE.Color>;
+  aoIntensity: UniformValue<number>;
 }
 
-export interface ToonShadowTint {
-  shadow: [number, number, number];
-  lit: [number, number, number];
+export interface OutlineUniforms {
+  edgeColor: UniformValue<THREE.Color>;
+  outlineWidth: UniformValue<number>;
 }
 
-export interface ToonMaterialOptions extends ToonBandOptions {
+export interface ToonMaterialOptions {
   textures: ToonMaterialTextures;
-  color?: THREE.ColorRepresentation;
-  aoMapIntensity?: number;
-  normalScale?: THREE.Vector2;
-  shadowTint?: ToonShadowTint;
-  /** Override the built-in albedo node. Defaults to `materialColor` (map * color). */
-  colorNode?: Node;
+  colorLevels?: number;
+  thresholdLow?: number;
+  thresholdHigh?: number;
+  rimStrength?: number;
+  rimThreshold?: number;
+  rimPower?: number;
+  shadowTint?: string;
+  highlightTint?: string;
+  aoIntensity?: number;
+  lightDir?: THREE.Vector3;
 }
 
-/**
- * Mirrors Three.js `getGradientIrradiance` from `gradientmap_pars_fragment`.
- * Uses a 1D gradient map when present, otherwise a two-step toon band.
- */
-function createGradientIrradianceFn(options: ToonBandOptions) {
-  const shadowLevel = options.shadowLevel ?? 0.7;
-  const highlightLevel = options.highlightLevel ?? 1.0;
-  const bandThreshold = options.bandThreshold ?? 0.7;
-
-  return Fn(({ normal, lightDirection, builder }: { normal: Node; lightDirection: Node; builder: THREE.NodeBuilder }) => {
-    const dotNL = normal.dot(lightDirection);
-    const coord = vec2(dotNL.mul(0.5).add(0.5), 0.0);
-
-    if (builder.material.gradientMap) {
-      const gradientMap = materialReference('gradientMap', 'texture').context({ getUV: () => coord });
-      return vec3(gradientMap.r);
-    }
-
-    const fw = coord.fwidth().mul(0.5);
-
-    return mix(
-      vec3(shadowLevel),
-      vec3(highlightLevel),
-      smoothstep(float(bandThreshold).sub(fw.x), float(bandThreshold).add(fw.x), coord.x),
-    );
-  });
+export interface OutlineMaterialOptions {
+  edgeColor?: string;
+  outlineWidth?: number;
 }
 
-/**
- * Node reimplementation of `RE_Direct_Toon` / `RE_IndirectDiffuse_Toon`
- * from `lights_toon_pars_fragment`.
- */
-class CustomToonLightingModel extends LightingModel {
-  private readonly gradientIrradianceFn: ReturnType<typeof createGradientIrradianceFn>;
+export type CharacterToonMaterial = THREE.MeshBasicNodeMaterial & {
+  userData: { toonUniforms: WoodblockToonUniforms };
+};
 
-  constructor(gradientIrradianceFn: ReturnType<typeof createGradientIrradianceFn>) {
-    super();
-    this.gradientIrradianceFn = gradientIrradianceFn;
-  }
+export type CharacterOutlineMaterial = THREE.MeshBasicNodeMaterial & {
+  userData: { outlineUniforms: OutlineUniforms };
+};
 
-  direct({ lightDirection, lightColor, reflectedLight }: THREE.LightingModelDirectInput, builder: THREE.NodeBuilder) {
-    const irradiance = this.gradientIrradianceFn({ normal: normalView, lightDirection, builder }).mul(lightColor);
-
-    reflectedLight.directDiffuse.addAssign(
-      irradiance.mul(BRDF_Lambert({ diffuseColor: diffuseColor.rgb })),
-    );
-  }
-
-  indirect(builder: THREE.NodeBuilder) {
-    const { ambientOcclusion, irradiance, reflectedLight } = builder.context;
-
-    reflectedLight.indirectDiffuse.addAssign(irradiance.mul(BRDF_Lambert({ diffuseColor })));
-    reflectedLight.indirectDiffuse.mulAssign(ambientOcclusion);
-  }
+function uNumber(value: number) {
+  return uniform(value) as unknown as UniformValue<number>;
 }
 
-class CustomToonNodeMaterial extends MeshToonNodeMaterial {
-  private readonly gradientIrradianceFn: ReturnType<typeof createGradientIrradianceFn>;
-
-  constructor(
-    parameters: THREE.MeshToonMaterialParameters | undefined,
-    bandOptions: ToonBandOptions,
-  ) {
-    super(parameters);
-    this.gradientIrradianceFn = createGradientIrradianceFn(bandOptions);
-  }
-
-  setupLightingModel() {
-    return new CustomToonLightingModel(this.gradientIrradianceFn);
-  }
+function uColor(value: string) {
+  return uniform(new THREE.Color(value)) as unknown as UniformValue<THREE.Color>;
 }
 
-export function createToonNodeMaterial(options: ToonMaterialOptions): MeshToonNodeMaterial {
+function uVec3(value: THREE.Vector3) {
+  return uniform(value) as unknown as UniformValue<THREE.Vector3>;
+}
+
+export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterToonMaterial {
   const {
     textures,
-    color = '#ffffff',
-    aoMapIntensity = 1,
-    normalScale,
-    shadowLevel,
-    highlightLevel,
-    bandThreshold,
-    shadowTint,
-    colorNode,
+    colorLevels = CHARACTER_LOOK_DEFAULTS.colorLevels,
+    thresholdLow = CHARACTER_LOOK_DEFAULTS.thresholdLow,
+    thresholdHigh = CHARACTER_LOOK_DEFAULTS.thresholdHigh,
+    rimStrength = CHARACTER_LOOK_DEFAULTS.rimStrength,
+    rimThreshold = CHARACTER_LOOK_DEFAULTS.rimThreshold,
+    rimPower = CHARACTER_LOOK_DEFAULTS.rimPower,
+    shadowTint = CHARACTER_LOOK_DEFAULTS.shadowTint,
+    highlightTint = CHARACTER_LOOK_DEFAULTS.highlightTint,
+    aoIntensity = CHARACTER_LOOK_DEFAULTS.aoIntensity,
+    lightDir = new THREE.Vector3(...CHARACTER_LOOK_DEFAULTS.lightDir),
   } = options;
 
-  const material = new CustomToonNodeMaterial(
-    {
-      map: textures.map ?? null,
-      normalMap: textures.normalMap ?? null,
-      aoMap: textures.aoMap ?? null,
-      gradientMap: textures.gradientMap ?? null,
-      color,
-      aoMapIntensity,
-      normalScale,
-    },
-    { shadowLevel, highlightLevel, bandThreshold },
+  const toonUniforms: WoodblockToonUniforms = {
+    lightDir: uVec3(lightDir.clone().normalize()),
+    colorLevels: uNumber(colorLevels),
+    thresholdLow: uNumber(thresholdLow),
+    thresholdHigh: uNumber(thresholdHigh),
+    rimStrength: uNumber(rimStrength),
+    rimThreshold: uNumber(rimThreshold),
+    rimPower: uNumber(rimPower),
+    shadowTint: uColor(shadowTint),
+    highlightTint: uColor(highlightTint),
+    aoIntensity: uNumber(aoIntensity),
+  };
+
+  const albedoMap = textures.map ?? null;
+  const aoMap = textures.aoMap ?? null;
+
+  const material = new THREE.MeshBasicNodeMaterial({
+    toneMapped: false,
+    side: THREE.FrontSide,
+    map: albedoMap,
+  }) as CharacterToonMaterial;
+
+  material.fragmentNode = Fn(() => {
+    const uvCoord = uv();
+    const albedo = albedoMap
+      ? texture(albedoMap, uvCoord).rgb
+      : vec3(1.0, 1.0, 1.0);
+
+    const N = transformNormal(normalLocal).normalize().toVar();
+    const V = cameraPosition.sub(positionWorld).normalize().toVar();
+    const L = vec3(toonUniforms.lightDir as any).normalize().toVar();
+    const ndl = max(dot(N, L), 0.0).toVar();
+
+    const rimRaw = pow(
+      float(1.0).sub(max(dot(N, V), 0.0)),
+      toonUniforms.rimPower as any,
+    ).toVar();
+    const rimLift = step(toonUniforms.rimThreshold as any, rimRaw)
+      .mul(toonUniforms.rimStrength as any)
+      .toVar();
+
+    const thresholdWidth = max(
+      (toonUniforms.thresholdHigh as any).sub(toonUniforms.thresholdLow as any),
+      0.001,
+    ).toVar();
+    const levelSteps = max((toonUniforms.colorLevels as any).sub(1.0), 1.0).toVar();
+    const shade = clamp(
+      ndl.add(rimLift).sub(toonUniforms.thresholdLow as any).div(thresholdWidth),
+      0.0,
+      1.0,
+    ).toVar();
+    const quantized = floor(shade.mul(levelSteps).add(0.5)).div(levelSteps).toVar();
+
+    const litColor = mix(
+      albedo.mul(vec3(toonUniforms.shadowTint as any)),
+      albedo.mul(vec3(toonUniforms.highlightTint as any)),
+      quantized,
+    ).toVar();
+
+    if (aoMap) {
+      const ao = texture(aoMap, uvCoord).r;
+      const aoMul = mix(float(1.0), ao, toonUniforms.aoIntensity as any);
+      litColor.assign(litColor.mul(aoMul));
+    }
+
+    return vec4(clamp(litColor, 0.0, 1.0), 1.0);
+  })();
+
+  material.userData.toonUniforms = toonUniforms;
+  return material;
+}
+
+export function createOutlineMaterial(options: OutlineMaterialOptions = {}): CharacterOutlineMaterial {
+  const {
+    edgeColor = CHARACTER_LOOK_DEFAULTS.edgeColor,
+    outlineWidth = CHARACTER_LOOK_DEFAULTS.outlineWidth,
+  } = options;
+
+  const outlineUniforms: OutlineUniforms = {
+    edgeColor: uColor(edgeColor),
+    outlineWidth: uNumber(outlineWidth),
+  };
+
+  const material = new THREE.MeshBasicNodeMaterial({
+    toneMapped: false,
+    side: THREE.BackSide,
+    depthWrite: true,
+  }) as CharacterOutlineMaterial;
+
+  material.positionNode = positionLocal.add(
+    normalLocal.normalize().mul(outlineUniforms.outlineWidth as any),
   );
-
-  // Mirrors `#include <map_fragment>` while keeping a single override point.
-  material.colorNode = colorNode ?? Fn(() => materialColor)();
-
-  if (shadowTint) {
-    const { shadow, lit } = shadowTint;
-
-    // Runtime passes the shadow node as the first argument; the property type is outdated.
-    material.receivedShadowNode = Fn(([shadowNode]: [Node], _builder: NodeBuilder) => {
-      return shadowNode.mix(vec3(...shadow), vec3(...lit));
-    }) as unknown as NonNullable<MeshToonNodeMaterial['receivedShadowNode']>;
-  }
+  material.fragmentNode = Fn(() => vec4(vec3(outlineUniforms.edgeColor as any), 1.0))();
+  material.userData.outlineUniforms = outlineUniforms;
 
   return material;
 }

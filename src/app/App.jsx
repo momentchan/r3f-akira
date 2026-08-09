@@ -48,7 +48,7 @@ export default function App() {
         performance={{ min: 0.5, max: 1 }}
       >
         <group position={[0, -1, 0]}>
-          {/* <Character /> */}
+          <Character />
           <ShadowCatcher groundColor={bgColor} />
           <PlantField />
           {/* <ProceduralSmoke position={[0, 0.1, 0]} /> */}
