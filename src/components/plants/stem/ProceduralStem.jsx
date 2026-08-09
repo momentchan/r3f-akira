@@ -4,7 +4,6 @@ import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import {
   createFlowerMaskUniforms,
-  createFlowerOutlineUniforms,
   createFlowerStemMaterial,
   createFlowerUniforms,
 } from '../look/createFlowerMaterials';
@@ -114,18 +113,17 @@ export function ProceduralStem({
 
   const flowerUniforms = useMemo(() => createFlowerUniforms(), []);
   const maskUniforms = useMemo(() => createFlowerMaskUniforms(), []);
-  const outlineUniforms = useMemo(() => createFlowerOutlineUniforms(), []);
 
   useEffect(() => {
     if (!flowerControls) return;
-    syncFlowerControls(flowerControls, flowerUniforms, maskUniforms, outlineUniforms);
+    syncFlowerControls(flowerControls, flowerUniforms, maskUniforms);
     if (colorOverride) {
       const { hueShift = 0, lightShift = 0 } = colorOverride;
       flowerUniforms.petal.baseColor.value.offsetHSL(hueShift, 0, lightShift);
       flowerUniforms.petal.midColor.value.offsetHSL(hueShift, 0, lightShift);
       flowerUniforms.petal.tipColor.value.offsetHSL(hueShift, 0, lightShift);
     }
-  }, [flowerControls, flowerUniforms, maskUniforms, outlineUniforms, colorOverride]);
+  }, [flowerControls, flowerUniforms, maskUniforms, colorOverride]);
 
   const windSway = useMemo(() => uniform(new THREE.Vector2()), []);
   const stemGrowU = useMemo(() => uniform(0), []);
@@ -358,10 +356,11 @@ export function ProceduralStem({
           scaleMul={stemRadius * flowerSize}
           frameRatio={flowerFrameRef}
           stemYMax={stemYMax}
-          usePetalMask={flowerType.usePetalMask !== false}
+          usePetalCutout={flowerType.usePetalCutout !== false}
+          useMaskEdge={flowerType.useMaskEdge !== false}
+          maskPath={flowerType.maskPath}
           flowerUniforms={flowerUniforms}
           maskUniforms={maskUniforms}
-          outlineUniforms={outlineUniforms}
         />
       </group>
     </group>

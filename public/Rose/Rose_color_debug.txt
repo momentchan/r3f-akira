@@ -1,7 +1,7 @@
 has_colors=True
-color_count=19416
-vertex_count=19416
+color_count=36056
+vertex_count=36056
 object=Rose Type 2 White.001
-  verts=19416 loops=77312
-  attributes=['position type=FLOAT_VECTOR domain=POINT', '.select_vert type=BOOLEAN domain=POINT', '.edge_verts type=INT32_2D domain=EDGE', 'sharp_edge type=BOOLEAN domain=EDGE', '.select_edge type=BOOLEAN domain=EDGE', 'material_index type=INT domain=FACE', '.select_poly type=BOOLEAN domain=FACE', '.uv_select_face type=BOOLEAN domain=FACE', '.corner_vert type=INT domain=CORNER', '.corner_edge type=INT domain=CORNER', 'Color type=BYTE_COLOR domain=CORNER', 'UVMap type=FLOAT2 domain=CORNER', '.uv_select_vert type=BOOLEAN domain=CORNER', '.uv_select_edge type=BOOLEAN domain=CORNER']
+  verts=36056 loops=143872
+  attributes=['position type=FLOAT_VECTOR domain=POINT', '.select_vert type=BOOLEAN domain=POINT', '.edge_verts type=INT32_2D domain=EDGE', 'sharp_edge type=BOOLEAN domain=EDGE', 'material_index type=INT domain=FACE', '.uv_select_face type=BOOLEAN domain=FACE', '.corner_vert type=INT domain=CORNER', '.corner_edge type=INT domain=CORNER', 'Color type=BYTE_COLOR domain=CORNER', 'UVMap type=FLOAT2 domain=CORNER', '.uv_select_vert type=BOOLEAN domain=CORNER', '.uv_select_edge type=BOOLEAN domain=CORNER']
   color_attr=Color type=BYTE_COLOR domain=CORNER sample0=(1.0, 1.0, 1.0, 1.0)

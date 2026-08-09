@@ -40,24 +40,26 @@ export function createVatFlowerMaterials(
   nrmTex,
   meta,
   flowerUniforms,
-  outlineUniforms,
   maskUniforms,
   maskTexture,
   veinTexture,
   options = {},
 ) {
-  const { usePetalMask = true } = options;
+  const { usePetalCutout = true, useMaskEdge = true } = options;
   const frameUniform = uniform(0);
   const deformation = createVatDeformation(posTex, nrmTex, meta, frameUniform);
 
   // One merged ABC mesh: flower=(1,0,0), stem=(0,0,0) via COLOR_0.
   const material = createFlowerVertexColorMaterial(
     flowerUniforms,
-    outlineUniforms,
     maskUniforms,
     maskTexture,
     veinTexture,
-    { normalSource: deformation.vatNormalLocal, usePetalMask },
+    {
+      normalSource: deformation.vatNormalLocal,
+      usePetalCutout,
+      useMaskEdge,
+    },
   );
   material.positionNode = deformation.vatPosition;
 

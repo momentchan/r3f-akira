@@ -20,12 +20,13 @@ export function VatFlower({
   frameRatio = null,
   stemYMax = STEM_Y_MAX,
   flipX = true,
-  usePetalMask = true,
+  // Cutout punches holes from the UV mask; mask-edge inks the silhouette rim.
+  usePetalCutout = true,
+  useMaskEdge = true,
   maskPath = FLOWER_MASK_PATH,
   veinPath = FLOWER_VEIN_PATH,
   flowerUniforms,
   maskUniforms,
-  outlineUniforms,
 }) {
   const vatData = useVATPreloader(metaUrl);
   const maskTexture = useTexture(maskPath);
@@ -61,13 +62,15 @@ export function VatFlower({
       vatData.nrmTex,
       vatData.meta,
       flowerUniforms,
-      outlineUniforms,
       maskUniforms,
       maskTexture,
       veinTexture,
-      { usePetalMask },
+      { usePetalCutout, useMaskEdge },
     );
-  }, [vatData, flowerUniforms, outlineUniforms, maskUniforms, maskTexture, veinTexture, usePetalMask]);
+  }, [
+    vatData, flowerUniforms, maskUniforms,
+    maskTexture, veinTexture, usePetalCutout, useMaskEdge,
+  ]);
 
   useEffect(() => () => {
     materialBundle?.material.dispose();

@@ -77,20 +77,6 @@ const fbm3 = Fn(([p]) => {
   return value;
 });
 
-function applyPaperGrain(color, grainUniforms) {
-  const grainCoord = positionWorld.xy
-    .add(positionWorld.yz.mul(0.37))
-    .mul(grainUniforms.scale)
-    .toVar();
-  const grainSample = hash3(vec3(grainCoord, 0.0))
-    .mul(2.0)
-    .sub(1.0)
-    .mul(grainUniforms.strength)
-    .toVar();
-
-  return clamp(color.mul(float(1.0).add(grainSample)), 0.0, 1.0);
-}
-
 function createVeinLinesFromTextureFn(veinTexture, veinUniforms) {
   return Fn(([uvCoord, petalId]) => {
     // petalId is vertex color G in 0–1; offsets distortion and coverage only.
@@ -137,6 +123,11 @@ function createVeinLinesFromTextureFn(veinTexture, veinUniforms) {
   });
 }
 
+function applySaturation(color, saturation) {
+  const luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  return mix(vec3(luma), color, saturation);
+}
+
 function createMaskAlphaFn(maskTexture) {
   return Fn(([uvCoord]) => {
     const sample = texture(maskTexture, uvCoord);
@@ -180,15 +171,11 @@ function applyMaskDiscard(maskAlphaFn, maskUniforms) {
 }
 
 export function createFlowerUniforms() {
-  const { petal, vein, stem, grain } = FLOWER_DEFAULTS;
+  const { petal, vein, stem } = FLOWER_DEFAULTS;
   const lightDir = uniform(new THREE.Vector3(0, 3, 5).normalize());
 
   return {
     lightDir,
-    grain: {
-      scale: uniform(grain.scale),
-      strength: uniform(grain.strength),
-    },
     petal: {
       lightDir,
       colorLevels: uniform(petal.colorLevels),
@@ -206,6 +193,7 @@ export function createFlowerUniforms() {
       baseColor: uniform(new THREE.Color(petal.baseColor)),
       midColor: uniform(new THREE.Color(petal.midColor)),
       tipColor: uniform(new THREE.Color(petal.tipColor)),
+      saturation: uniform(petal.saturation ?? 1),
     },
     vein: {
       scale: uniform(vein.scale),
@@ -242,15 +230,7 @@ export function createFlowerMaskUniforms() {
   return {
     threshold: uniform(mask.threshold),
     edgeWidth: uniform(mask.edgeWidth),
-  };
-}
-
-export function createFlowerOutlineUniforms() {
-  const { outline } = FLOWER_DEFAULTS;
-
-  return {
-    outlineColor: uniform(new THREE.Color(outline.outlineColor)),
-    outlineWidth: uniform(outline.outlineWidth),
+    edgeColor: uniform(new THREE.Color(mask.edgeColor)),
   };
 }
 
@@ -316,8 +296,7 @@ function buildPetalColor(
   petal,
   veinUniforms,
   veinLinesFn,
-  outlineUniforms,
-  grainUniforms,
+  inkColor,
   normalSource = normalLocal,
   petalId = float(0.0),
 ) {
@@ -334,14 +313,13 @@ function buildPetalColor(
   const strokes = veinLinesFn(uvCoord, petalId).toVar();
 
   litColor.assign(
-    mix(litColor, vec3(outlineUniforms.outlineColor), clamp(strokes, 0.0, 1.0)),
+    mix(litColor, vec3(inkColor), clamp(strokes, 0.0, 1.0)),
   );
-  litColor.assign(applyPaperGrain(litColor, grainUniforms));
 
   return { color: litColor, uvCoord };
 }
 
-function buildStemColor(stem, grainUniforms, normalSource = normalLocal) {
+function buildStemColor(stem, normalSource = normalLocal) {
   const { quantizedShade } = buildQuantizedShade(stem, normalSource);
   const color = mix(
     vec3(stem.shadowColor),
@@ -363,7 +341,7 @@ function buildStemColor(stem, grainUniforms, normalSource = normalLocal) {
   ).toVar();
   color.assign(mix(color, vec3(stem.edgeColor), edge));
 
-  return applyPaperGrain(color, grainUniforms);
+  return color;
 }
 
 /** Vertex color tags: flower = (1, petal_id, 0), stem = (0, 0, 0). */
@@ -378,26 +356,29 @@ export function getPetalIdFromVertexColor(vertexColor) {
 
 export function createFlowerVertexColorMaterial(
   flowerUniforms,
-  outlineUniforms,
   maskUniforms,
   maskTexture,
   veinTexture,
   options = {},
 ) {
-  const { normalSource = normalLocal, usePetalMask = true } = options;
+  const {
+    normalSource = normalLocal,
+    usePetalCutout = true,
+    useMaskEdge = true,
+  } = options;
+  const useMask = usePetalCutout || useMaskEdge;
   const petal = flowerUniforms.petal;
   const stem = flowerUniforms.stem;
   const veinLinesFn = createVeinLinesFromTextureFn(veinTexture, flowerUniforms.vein);
-  const maskAlphaFn = usePetalMask ? createMaskAlphaFn(maskTexture) : null;
-  const maskEdgeFn = usePetalMask ? createMaskEdgeFn(maskAlphaFn) : null;
+  const maskAlphaFn = useMask ? createMaskAlphaFn(maskTexture) : null;
+  const maskEdgeFn = useMaskEdge ? createMaskEdgeFn(maskAlphaFn) : null;
 
   const material = new THREE.MeshBasicNodeMaterial({
     toneMapped: false,
     side: THREE.DoubleSide,
     vertexColors: true,
     transparent: false,
-    // Solid meshes (e.g. Rose VAT) skip the silhouette cutout entirely.
-    alphaTest: usePetalMask ? FLOWER_DEFAULTS.mask.threshold : 0,
+    alphaTest: usePetalCutout ? FLOWER_DEFAULTS.mask.threshold : 0,
     depthWrite: true,
     depthTest: true,
   });
@@ -408,7 +389,7 @@ export function createFlowerVertexColorMaterial(
     const result = vec4(0.0, 0.0, 0.0, 1.0).toVar();
 
     If(isFlower.greaterThan(float(0.5)), () => {
-      if (usePetalMask) {
+      if (usePetalCutout) {
         applyMaskDiscard(maskAlphaFn, maskUniforms);
       }
 
@@ -417,27 +398,30 @@ export function createFlowerVertexColorMaterial(
         petal,
         flowerUniforms.vein,
         veinLinesFn,
-        outlineUniforms,
-        flowerUniforms.grain,
+        maskUniforms.edgeColor,
         normalSource,
         petalId,
       );
 
-      if (usePetalMask) {
+      const shaded = color.toVar();
+
+      // Grade fill before ink rim so outlineColor stays pure.
+      shaded.assign(applySaturation(shaded, petal.saturation));
+
+      if (useMaskEdge) {
         const maskEdge = maskEdgeFn(
           uvCoord,
           maskUniforms.threshold,
           maskUniforms.edgeWidth,
         ).toVar();
-        result.assign(vec4(
-          clamp(mix(color, vec3(outlineUniforms.outlineColor), maskEdge), 0.0, 1.0),
-          1.0,
-        ));
-      } else {
-        result.assign(vec4(clamp(color, 0.0, 1.0), 1.0));
+        shaded.assign(
+          mix(shaded, vec3(maskUniforms.edgeColor), maskEdge),
+        );
       }
+
+      result.assign(vec4(clamp(shaded, 0.0, 1.0), 1.0));
     }).Else(() => {
-      const stemColor = buildStemColor(stem, flowerUniforms.grain, normalSource);
+      const stemColor = buildStemColor(stem, normalSource);
       result.assign(vec4(clamp(stemColor, 0.0, 1.0), 1.0));
     });
 
@@ -458,7 +442,7 @@ export function createFlowerStemMaterial(flowerUniforms, options = {}) {
   });
 
   material.fragmentNode = Fn(() => {
-    const color = buildStemColor(stem, flowerUniforms.grain, normalSource);
+    const color = buildStemColor(stem, normalSource);
     return vec4(clamp(color, 0.0, 1.0), 1.0);
   })();
 

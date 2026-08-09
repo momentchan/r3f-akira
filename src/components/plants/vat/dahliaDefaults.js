@@ -1,7 +1,11 @@
 import { mergeFlowerDefaults } from '../look/flowerDefaults';
 
 export const DAHLIA_MATERIAL_DEFAULTS = mergeFlowerDefaults({
+  colorVariation: {
+    hueRange: 0.25,
+    lightRange: 0.05,
+  },
   mask: {
-    edgeWidth: 0.001,
+    edgeWidth: 0.002,
   },
 });

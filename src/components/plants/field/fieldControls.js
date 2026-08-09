@@ -53,14 +53,6 @@ export function createLifecycleSchema(defaults = FIELD_DEFAULTS.lifecycle) {
   };
 }
 
-export function createColorVariationSchema(defaults = FIELD_DEFAULTS.colorVariation) {
-  const d = defaults;
-  return {
-    hueRange: { value: d.hueRange, min: 0, max: 0.5, step: 0.005, label: 'hue ±' },
-    lightRange: { value: d.lightRange, min: 0, max: 0.3, step: 0.005, label: 'light ±' },
-  };
-}
-
 export function createLeafSchema(defaults = FIELD_DEFAULTS.leaves) {
   const d = defaults;
   return {
@@ -95,7 +87,6 @@ export function createFieldControlsSchema(defaults = FIELD_DEFAULTS) {
     Arrangement: folder(createArrangementSchema(defaults.arrangement), { collapsed: true }),
     'Stem Geometry': folder(createStemGeometrySchema(defaults.stemGeometry), { collapsed: true }),
     Lifecycle: folder(createLifecycleSchema(defaults.lifecycle), { collapsed: true }),
-    'Color Variation': folder(createColorVariationSchema(defaults.colorVariation), { collapsed: true }),
     Wind: folder(createWindSchema(defaults.wind), { collapsed: true }),
     Leaves: folder(createLeafSchema(defaults.leaves), { collapsed: true }),
   };

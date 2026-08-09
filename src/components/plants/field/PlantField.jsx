@@ -71,7 +71,6 @@ export function PlantField({ position = [0, 0, 0] }) {
     grow: [growMin, growMax],
     keep: [keepMin, keepMax],
     die: [dieMin, dieMax],
-    hueRange, lightRange,
     windStrength, windAngle, windScale, windSpeed,
     leafCount, leafSpan, leafScale, scaleVariance, droop, leafBend,
     curlStrengthStart, curlStrengthEnd, curlPowerStart, curlPowerEnd,
@@ -126,6 +125,7 @@ export function PlantField({ position = [0, 0, 0] }) {
         stableRandomRange(i, S_TYPE, arrangementSeed, 0, FLOWER_TYPES.length),
       ) % FLOWER_TYPES.length;
       const flowerType = FLOWER_TYPES[typeIdx];
+      const { hueRange = 0, lightRange = 0 } = flowerControlsById[flowerType.id] ?? {};
       return {
         position: [posX, 0, posZ],
         leanOutwardAngle: Math.atan2(posX, posZ),
@@ -142,7 +142,7 @@ export function PlantField({ position = [0, 0, 0] }) {
         ),
       };
     });
-  }, [count, effectiveSpread, arrangementSeed, hueRange, lightRange,
+  }, [count, effectiveSpread, arrangementSeed, flowerControlsById,
     lenMin, lenMax, radMin, radMax, leanMin, leanMax,
     bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
 

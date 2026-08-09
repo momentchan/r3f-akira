@@ -11,8 +11,8 @@ export const FIELD_DEFAULTS = {
   arrangement: {
     count: 16,
     spreadRadius: 0.09,
-    minGap: 0.07,
-    leanOut: 0.3,
+    minGap: 0.09,
+    leanOut: 0.7,
     phaseSpread: 1,
     arrangementSeed: 0,
   },
@@ -34,10 +34,6 @@ export const FIELD_DEFAULTS = {
     grow: [5, 10],
     keep: [10, 20],
     die: [1.5, 3],
-  },
-  colorVariation: {
-    hueRange: 0.04,
-    lightRange: 0.05,
   },
   wind: {
     windStrength: 0.05,

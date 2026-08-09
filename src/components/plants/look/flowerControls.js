@@ -6,10 +6,10 @@ import {
   mergeFlowerDefaults,
 } from './flowerDefaults';
 
-export { FLOWER_MASK_PATH, FLOWER_VEIN_PATH };
+export { FLOWER_MASK_PATH, FLOWER_VEIN_PATH, ROSE_MASK_PATH } from './flowerDefaults';
 
 export function createFlowerControlsSchema(defaults = {}) {
-  const { petal, vein, stem, outline, grain, mask } = mergeFlowerDefaults(defaults);
+  const { petal, vein, stem, mask, colorVariation } = mergeFlowerDefaults(defaults);
 
   return {
     Petal: folder({
@@ -42,7 +42,12 @@ export function createFlowerControlsSchema(defaults = {}) {
       },
       shadowTint: { value: petal.shadowTint },
       highlightTint: { value: petal.highlightTint },
+      saturation: { value: petal.saturation ?? 1, min: 0, max: 2, step: 0.01 },
     }),
+    'Color Variation': folder({
+      hueRange: { value: colorVariation.hueRange, min: 0, max: 0.5, step: 0.005, label: 'hue ±' },
+      lightRange: { value: colorVariation.lightRange, min: 0, max: 0.3, step: 0.005, label: 'light ±' },
+    }, { collapsed: true }),
     VeinTexture: folder({
       scale: { value: vein.scale, min: 0.1, max: 4, step: 0.01 },
       rotation: { value: vein.rotation, min: 0, max: 3.14, step: 0.01 },
@@ -75,14 +80,7 @@ export function createFlowerControlsSchema(defaults = {}) {
     Mask: folder({
       threshold: { value: mask.threshold, min: 0, max: 1, step: 0.01 },
       edgeWidth: { value: mask.edgeWidth, min: 0.00, max: 0.002, step: 0.0001 },
-    }),
-    Outline: folder({
-      outlineWidth: { value: outline.outlineWidth, min: 0, max: 0.08, step: 0.001 },
-      outlineColor: { value: outline.outlineColor },
-    }),
-    Grain: folder({
-      grainScale: { value: grain.scale, min: 50, max: 1200, step: 1, label: 'scale' },
-      grainStrength: { value: grain.strength, min: 0, max: 0.35, step: 0.005, label: 'strength' },
+      edgeColor: { value: mask.edgeColor },
     }),
   };
 }
@@ -100,7 +98,6 @@ export function syncFlowerControls(
   controls,
   flowerUniforms,
   maskUniforms,
-  outlineUniforms,
   materials = {},
 ) {
   const { petal, stem, vein } = flowerUniforms;
@@ -121,6 +118,7 @@ export function syncFlowerControls(
   petal.baseColor.value.set(controls.baseColor);
   petal.midColor.value.set(controls.midColor);
   petal.tipColor.value.set(controls.tipColor);
+  petal.saturation.value = controls.saturation;
 
   vein.scale.value = controls.scale;
   vein.rotation.value = controls.rotation;
@@ -145,14 +143,9 @@ export function syncFlowerControls(
 
   maskUniforms.threshold.value = controls.threshold;
   maskUniforms.edgeWidth.value = controls.edgeWidth;
+  maskUniforms.edgeColor.value.set(controls.edgeColor);
 
   if (fillMaterial) {
     fillMaterial.alphaTest = controls.threshold;
   }
-
-  outlineUniforms.outlineWidth.value = controls.outlineWidth;
-  outlineUniforms.outlineColor.value.set(controls.outlineColor);
-
-  flowerUniforms.grain.scale.value = controls.grainScale;
-  flowerUniforms.grain.strength.value = controls.grainStrength;
 }

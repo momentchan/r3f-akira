@@ -1,5 +1,6 @@
 export const FLOWER_MASK_PATH = '/textures/blackanedwthioe.png';
 export const FLOWER_VEIN_PATH = '/textures/tujlip-veins.png';
+export const ROSE_MASK_PATH = '/textures/rose-mask.png';
 
 export const FLOWER_DEFAULTS = {
   petal: {
@@ -18,6 +19,8 @@ export const FLOWER_DEFAULTS = {
     baseColor: '#884beb',
     midColor: '#c9a8e8',
     tipColor: '#eee4f2',
+    // Final petal grade: 0 = grayscale, 1 = unchanged, >1 boosts chroma.
+    saturation: 1,
   },
   vein: {
     scale: 1,
@@ -47,14 +50,12 @@ export const FLOWER_DEFAULTS = {
   mask: {
     threshold: 0.24,
     edgeWidth: 0.00,
+    // Shared woodblock ink for mask rim and vein strokes.
+    edgeColor: '#3a2a33',
   },
-  outline: {
-    outlineWidth: 0.01,
-    outlineColor: '#3a2a33',
-  },
-  grain: {
-    scale: 480,
-    strength: 0.11,
+  colorVariation: {
+    hueRange: 0.04,
+    lightRange: 0.05,
   },
 };
 
