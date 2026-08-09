@@ -23,8 +23,7 @@ export const ROSE_MATERIAL_DEFAULTS = mergeFlowerDefaults({
   },
   mask: {
     threshold: 0.22,
-    edgeWidth: 0.002,
+    edgeWidth: 2,
     edgeColor: '#2a181c',
   },
-
 });

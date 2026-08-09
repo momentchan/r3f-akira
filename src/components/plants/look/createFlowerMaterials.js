@@ -13,6 +13,7 @@ import {
   float,
   floor,
   fract,
+  fwidth,
   max,
   mix,
   modelViewPosition,
@@ -136,30 +137,13 @@ function createMaskAlphaFn(maskTexture) {
 }
 
 function createMaskEdgeFn(maskAlphaFn) {
-  return Fn(([uvCoord, threshold, width]) => {
-    const center = maskAlphaFn(uvCoord).toVar();
-    const inside = step(threshold, center).toVar();
-    const edge = float(0.0).toVar();
-
-    Loop(8, ({ i }) => {
-      const angle = float(i).mul(Math.PI * 0.25);
-      const offset = vec2(cos(angle), sin(angle)).mul(width);
-      const neighbor = maskAlphaFn(uvCoord.add(offset));
-      edge.assign(
-        max(edge, inside.mul(float(1.0).sub(step(threshold, neighbor)))),
-      );
-    });
-
-    Loop(8, ({ i }) => {
-      const angle = float(i).mul(Math.PI * 0.25);
-      const offset = vec2(cos(angle), sin(angle)).mul(width.mul(1.6));
-      const neighbor = maskAlphaFn(uvCoord.add(offset));
-      edge.assign(
-        max(edge, inside.mul(float(1.0).sub(step(threshold, neighbor)))),
-      );
-    });
-
-    return clamp(edge, 0.0, 1.0);
+  return Fn(([uvCoord, threshold, edgePx]) => {
+    const m = maskAlphaFn(uvCoord).toVar();
+    const fw = max(fwidth(m), float(1e-5)).toVar();
+    const width = fw.mul(max(edgePx, float(0.001))).toVar();
+    const inside = smoothstep(threshold.sub(fw), threshold.add(fw), m).toVar();
+    const rim = float(1.0).sub(smoothstep(float(0.0), width, m.sub(threshold))).toVar();
+    return clamp(inside.mul(rim), 0.0, 1.0);
   });
 }
 
@@ -327,18 +311,13 @@ function buildStemColor(stem, normalSource = normalLocal) {
     quantizedShade,
   ).toVar();
 
-  // Ink-line silhouette: fragments facing away from the camera at grazing
-  // angles get pulled to the edge color, reading as a drawn outline.
   const N = transformNormal(normalSource).normalize().toVar();
   const V = cameraPosition.sub(positionWorld).normalize().toVar();
   const facing = abs(dot(N, V)).toVar();
-  const edge = float(1.0).sub(
-    smoothstep(
-      stem.edgeThreshold,
-      stem.edgeThreshold.add(max(stem.edgeSoftness, 0.001)),
-      facing,
-    ),
-  ).toVar();
+  const fw = max(fwidth(facing), float(1e-5)).toVar();
+  const width = fw.mul(max(stem.edgeSoftness, float(0.001))).toVar();
+  const start = max(facing.sub(stem.edgeThreshold), float(0.0)).toVar();
+  const edge = float(1.0).sub(smoothstep(float(0.0), width, start)).toVar();
   color.assign(mix(color, vec3(stem.edgeColor), edge));
 
   return color;

@@ -43,12 +43,12 @@ export const FLOWER_DEFAULTS = {
     shadowColor: '#33474f',
     highlightColor: '#4c6873',
     edgeColor: '#1c2a31',
-    edgeThreshold: 0.32,
-    edgeSoftness: 0.08,
+    edgeThreshold: 0,
+    edgeSoftness: 2,
   },
   mask: {
     threshold: 0.24,
-    edgeWidth: 0.00,
+    edgeWidth: 2,
     edgeColor: '#3a2a33',
   },
   colorVariation: {

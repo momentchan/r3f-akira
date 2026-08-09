@@ -81,12 +81,18 @@ export function createFlowerControlsSchema(defaults = {}) {
       stemShadowColor: { value: stem.shadowColor, label: 'shadowColor' },
       stemHighlightColor: { value: stem.highlightColor, label: 'highlightColor' },
       stemEdgeColor: { value: stem.edgeColor, label: 'edgeColor' },
-      stemEdgeThreshold: { value: stem.edgeThreshold, min: 0, max: 1, step: 0.01, label: 'edgeThreshold' },
-      stemEdgeSoftness: { value: stem.edgeSoftness, min: 0, max: 0.5, step: 0.005, label: 'edgeSoftness' },
+      stemEdgeThreshold: { value: stem.edgeThreshold, min: 0, max: 0.5, step: 0.01, label: 'edge start' },
+      stemEdgeSoftness: {
+        value: stem.edgeSoftness,
+        min: 0,
+        max: 6,
+        step: 0.05,
+        label: 'edge (screenspace)',
+      },
     }),
     Mask: folder({
       threshold: { value: mask.threshold, min: 0, max: 1, step: 0.01 },
-      edgeWidth: { value: mask.edgeWidth, min: 0.00, max: 0.002, step: 0.0001 },
+      edgeWidth: { value: mask.edgeWidth, min: 0, max: 6, step: 0.05, label: 'edge (screenspace)' },
       edgeColor: { value: mask.edgeColor },
     }),
   };

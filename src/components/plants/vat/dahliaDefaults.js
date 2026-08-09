@@ -7,6 +7,6 @@ export const DAHLIA_MATERIAL_DEFAULTS = mergeFlowerDefaults({
     lightRange: 0.05,
   },
   mask: {
-    edgeWidth: 0.002,
+    edgeWidth: 2,
   },
 });

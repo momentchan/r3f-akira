@@ -168,19 +168,11 @@ export function StemLeaves({
     // Normal follows the same bend + orientation so the curl shades correctly.
     const worldN = applyBasis(rotateX(normalGeometry, theta));
 
-    // Reuse the stem's toon look, but override two things for leaves (the stem itself
-    // is untouched — shared uniforms stay Leva-synced):
-    //  • colorLevels: the leaf's own step count.
-    //  • edgeThreshold = -1: DISABLE the grazing ink-edge. It's meant for the thin
-    //    stem silhouette, but on a broad/curling leaf large grazing areas (e.g. the
-    //    bent tip) would get inked near-black. faceDirection still gives two-sided
-    //    lighting (undersides lit, not black).
     const leafUniforms = {
       ...flowerUniforms,
       stem: {
         ...flowerUniforms.stem,
         colorLevels: colorLevelsU,
-        edgeThreshold: uniform(-1),
       },
     };
     const material = createFlowerStemMaterial(leafUniforms, {
