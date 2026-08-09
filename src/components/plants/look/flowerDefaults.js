@@ -30,6 +30,7 @@ export const FLOWER_DEFAULTS = {
     coverage: 0.4,
     coverageScale: 13,
     petalVariation: 15,
+    strokeWidth: 2,
   },
   stem: {
     colorLevels: 2,

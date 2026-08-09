@@ -105,8 +105,14 @@ function createVeinLinesFromTextureFn(veinTexture, veinUniforms) {
 
     const veinUV = rotated.mul(veinUniforms.scale).add(wobble).toVar();
     const sample = texture(veinTexture, veinUV);
-    const veinLine = float(1.0).sub(sample.r);
-    const stroke = step(veinUniforms.threshold, veinLine).toVar();
+    const veinLine = float(1.0).sub(sample.r).toVar();
+    const fw = max(fwidth(veinLine), float(1e-5)).toVar();
+    const width = fw.mul(max(veinUniforms.strokeWidth, float(0.001))).toVar();
+    const stroke = smoothstep(
+      veinUniforms.threshold.sub(width),
+      veinUniforms.threshold.add(fw),
+      veinLine,
+    ).toVar();
 
     // Organic coverage: a soft noise mask fades strokes in and out in
     // patches instead of showing every vein at full strength everywhere.
@@ -188,6 +194,7 @@ export function createFlowerUniforms() {
       coverage: uniform(vein.coverage),
       coverageScale: uniform(vein.coverageScale),
       petalVariation: uniform(vein.petalVariation),
+      strokeWidth: uniform(vein.strokeWidth ?? 2),
     },
     stem: {
       lightDir,

@@ -59,6 +59,13 @@ export function createFlowerControlsSchema(defaults = {}) {
       scale: { value: vein.scale, min: 0.1, max: 4, step: 0.01 },
       rotation: { value: vein.rotation, min: 0, max: 3.14, step: 0.01 },
       veinThreshold: { value: vein.threshold, min: 0, max: 1, step: 0.01, label: 'threshold' },
+      veinStrokeWidth: {
+        value: vein.strokeWidth ?? 2,
+        min: 0,
+        max: 6,
+        step: 0.05,
+        label: 'stroke (screenspace)',
+      },
       veinDistortion: { value: vein.distortion, min: 0, max: 0.06, step: 0.001, label: 'distortion' },
       veinDistortionScale: { value: vein.distortionScale, min: 0.5, max: 100, step: 0.5, label: 'distortScale' },
       veinCoverage: { value: vein.coverage, min: 0, max: 1, step: 0.01, label: 'coverage' },
@@ -136,6 +143,7 @@ export function syncFlowerControls(
   vein.scale.value = controls.scale;
   vein.rotation.value = controls.rotation;
   vein.threshold.value = controls.veinThreshold;
+  vein.strokeWidth.value = controls.veinStrokeWidth;
   vein.distortion.value = controls.veinDistortion;
   vein.distortionScale.value = controls.veinDistortionScale;
   vein.coverage.value = controls.veinCoverage;
