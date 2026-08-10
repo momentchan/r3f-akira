@@ -17,6 +17,22 @@ export function createCharacterControlsSchema(
     colorLevels: { value: d.colorLevels, min: 2, max: 6, step: 1 },
     thresholdLow: { value: d.thresholdLow, min: 0, max: 1, step: 0.01 },
     thresholdHigh: { value: d.thresholdHigh, min: 0, max: 1, step: 0.01 },
+    Dirt: folder({
+      dirtAmount: {
+        value: d.dirtAmount,
+        min: 0,
+        max: 1,
+        step: 0.01,
+        label: 'amount',
+      },
+      dirtFocus: {
+        value: d.dirtFocus,
+        min: 0,
+        max: 1,
+        step: 0.01,
+        label: 'wear focus',
+      },
+    }),
     Rim: folder({
       rimStrength: { value: d.rimStrength, min: 0, max: 0.5, step: 0.005 },
       rimThreshold: { value: d.rimThreshold, min: 0, max: 1, step: 0.01 },
@@ -53,6 +69,8 @@ export function syncCharacterControls(
     uniforms.shadowTint.value.set(controls.shadowTint);
     uniforms.highlightTint.value.set(controls.highlightTint);
     uniforms.aoIntensity.value = controls.aoIntensity;
+    if (uniforms.dirtAmount) uniforms.dirtAmount.value = controls.dirtAmount;
+    if (uniforms.dirtFocus) uniforms.dirtFocus.value = controls.dirtFocus;
   }
 
   if (outlineUniforms) {

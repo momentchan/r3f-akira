@@ -2,7 +2,12 @@ import { useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import * as THREE from 'three/webgpu';
-import { BODY_MESH_NAMES, BODY_TEXTURE_PATHS, DETAIL_TEXTURE_PATHS, MODEL_PATHS } from '../config';
+import {
+  BODY_MESH_NAMES,
+  BODY_TEXTURE_PATHS,
+  CHARACTER_MODEL_PATH,
+  DETAIL_TEXTURE_PATHS,
+} from '../config';
 import { useKTX2Texture } from '@core';
 import { CHARACTER_LOOK_DEFAULTS } from '../look/characterDefaults';
 import {
@@ -14,27 +19,26 @@ import {
 
 const configureTextures = (textures: any) => {
   if (textures.map) textures.map.colorSpace = THREE.SRGBColorSpace;
+  if (textures.dirtMap) textures.dirtMap.colorSpace = THREE.SRGBColorSpace;
   if (textures.normalMap) textures.normalMap.colorSpace = THREE.NoColorSpace;
   if (textures.aoMap) textures.aoMap.colorSpace = THREE.NoColorSpace;
   if (textures.metalnessMap) textures.metalnessMap.colorSpace = THREE.NoColorSpace;
 
-  ['map', 'metalnessMap', 'aoMap', 'normalMap'].forEach((key) => {
+  ['map', 'dirtMap', 'metalnessMap', 'aoMap', 'normalMap'].forEach((key) => {
     if (textures[key]) textures[key].flipY = false;
   });
   return textures;
 };
 
-const extractClip = (gltf: any, name: string): THREE.AnimationClip | null => {
-  if (!gltf?.animations?.[0]) return null;
-  const clip = gltf.animations[0].clone();
-  clip.name = name;
-  return clip;
-};
-
-function createLookMaterial(textures: { map?: THREE.Texture; aoMap?: THREE.Texture }) {
+function createLookMaterial(textures: {
+  map?: THREE.Texture;
+  dirtMap?: THREE.Texture;
+  aoMap?: THREE.Texture;
+}) {
   return createToonNodeMaterial({
     textures: {
       map: textures.map,
+      dirtMap: textures.dirtMap,
       aoMap: textures.aoMap,
     },
     ...CHARACTER_LOOK_DEFAULTS,
@@ -64,9 +68,17 @@ function attachOutlineClone(source: THREE.Mesh, outlineMat: CharacterOutlineMate
   return outline;
 }
 
+function cloneEmbeddedClips(gltf: { animations?: THREE.AnimationClip[] }) {
+  return (gltf.animations ?? []).map((clip) => {
+    const cloned = clip.clone();
+    // Keep Blender clip names (Lay / Fetal / Drift).
+    return cloned;
+  });
+}
+
 export function useCharacterAssets() {
-  const [meshData, idleAnim, walkAnim, runAnim, backAnim] = useGLTF(MODEL_PATHS);
-  const mesh = meshData.scene;
+  const gltf = useGLTF(CHARACTER_MODEL_PATH);
+  const mesh = gltf.scene;
   const bodyTex = configureTextures(useKTX2Texture(BODY_TEXTURE_PATHS));
   const detailTex = configureTextures(useKTX2Texture(DETAIL_TEXTURE_PATHS));
 
@@ -104,7 +116,13 @@ export function useCharacterAssets() {
       child.castShadow = true;
       child.receiveShadow = true;
 
-      if (BODY_MESH_NAMES.includes(child.name)) {
+      // Blender may suffix duplicates with ".001"
+      const baseName = child.name.replace(/\.\d+$/, '');
+
+      if (
+        BODY_MESH_NAMES.includes(child.name) ||
+        BODY_MESH_NAMES.includes(baseName)
+      ) {
         child.material = bodyMat;
         fillMeshes.push(child);
       } else if (!child.name.includes('Person')) {
@@ -117,17 +135,16 @@ export function useCharacterAssets() {
 
     fillMeshes.forEach((m) => attachOutlineClone(m, outlineMat));
 
-    const anims = [
-      { src: idleAnim, name: 'Idle' },
-      { src: walkAnim, name: 'Walk' },
-      { src: runAnim, name: 'Run' },
-      { src: backAnim, name: 'Back' },
-    ]
-      .map(({ src, name }) => extractClip(src, name))
-      .filter((clip): clip is THREE.AnimationClip => clip !== null);
-
-    return { scene: clonedScene, animations: anims, bodyMat, detailMat, outlineMat };
-  }, [mesh, idleAnim, walkAnim, runAnim, backAnim, bodyTex, detailTex]);
+    return {
+      scene: clonedScene,
+      animations: cloneEmbeddedClips(gltf),
+      bodyMat,
+      detailMat,
+      outlineMat,
+    };
+  }, [mesh, gltf, bodyTex, detailTex]);
 
   return { scene, animations, bodyMat, detailMat, outlineMat };
 }
+
+useGLTF.preload(CHARACTER_MODEL_PATH);

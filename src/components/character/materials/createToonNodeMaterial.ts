@@ -26,6 +26,7 @@ import {
 
 export interface ToonMaterialTextures {
   map?: THREE.Texture;
+  dirtMap?: THREE.Texture;
   normalMap?: THREE.Texture;
   aoMap?: THREE.Texture;
 }
@@ -43,6 +44,8 @@ export interface WoodblockToonUniforms {
   shadowTint: UniformValue<THREE.Color>;
   highlightTint: UniformValue<THREE.Color>;
   aoIntensity: UniformValue<number>;
+  dirtAmount: UniformValue<number>;
+  dirtFocus: UniformValue<number>;
 }
 
 export interface OutlineUniforms {
@@ -61,6 +64,8 @@ export interface ToonMaterialOptions {
   shadowTint?: string;
   highlightTint?: string;
   aoIntensity?: number;
+  dirtAmount?: number;
+  dirtFocus?: number;
   lightDir?: THREE.Vector3;
 }
 
@@ -101,6 +106,8 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
     shadowTint = CHARACTER_LOOK_DEFAULTS.shadowTint,
     highlightTint = CHARACTER_LOOK_DEFAULTS.highlightTint,
     aoIntensity = CHARACTER_LOOK_DEFAULTS.aoIntensity,
+    dirtAmount = CHARACTER_LOOK_DEFAULTS.dirtAmount,
+    dirtFocus = CHARACTER_LOOK_DEFAULTS.dirtFocus,
     lightDir = new THREE.Vector3(...CHARACTER_LOOK_DEFAULTS.lightDir),
   } = options;
 
@@ -115,9 +122,12 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
     shadowTint: uColor(shadowTint),
     highlightTint: uColor(highlightTint),
     aoIntensity: uNumber(aoIntensity),
+    dirtAmount: uNumber(dirtAmount),
+    dirtFocus: uNumber(dirtFocus),
   };
 
   const albedoMap = textures.map ?? null;
+  const dirtMap = textures.dirtMap ?? null;
   const aoMap = textures.aoMap ?? null;
 
   const material = new THREE.MeshBasicNodeMaterial({
@@ -128,9 +138,23 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
 
   material.fragmentNode = Fn(() => {
     const uvCoord = uv();
-    const albedo = albedoMap
+    const clean = albedoMap
       ? texture(albedoMap, uvCoord).rgb
       : vec3(1.0, 1.0, 1.0);
+
+    // Blend clean ↔ dirt: dirtFocus concentrates mix into darker wear regions.
+    let albedo = clean.toVar();
+    if (dirtMap) {
+      const dirt = texture(dirtMap, uvCoord).rgb;
+      const lumaW = vec3(0.299, 0.587, 0.114);
+      const cleanL = dot(clean, lumaW);
+      const dirtL = dot(dirt, lumaW);
+      const wear = clamp(cleanL.sub(dirtL).mul(3.0), 0.0, 1.0);
+      const flatW = toonUniforms.dirtAmount as any;
+      const focusedW = flatW.mul(wear);
+      const w = mix(flatW, focusedW, toonUniforms.dirtFocus as any);
+      albedo.assign(mix(clean, dirt, w));
+    }
 
     const N = transformNormal(normalLocal).normalize().toVar();
     const V = cameraPosition.sub(positionWorld).normalize().toVar();

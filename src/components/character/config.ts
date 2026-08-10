@@ -1,3 +1,7 @@
+import type { RefObject } from 'react';
+import type { Object3D } from 'three';
+import type { BodyBoundsPayload } from './hooks/useCharacterBodyBounds';
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -22,6 +26,7 @@ export const BODY_MESH_NAMES: readonly string[] = [
 
 export const BODY_TEXTURE_PATHS = {
   map: 'textures/Body/Astronaut_Suit_Body_Albedo.ktx2',
+  dirtMap: 'textures/Body/Astronaut_Suit_Body_Dirt_Albedo.ktx2',
   metalnessMap: 'textures/Body/Astronaut_Suit_Body_Metallic.ktx2',
   aoMap: 'textures/Body/Astronaut_Suit_Body_Ao.ktx2',
   normalMap: 'textures/Body/Astronaut_Suit_Body_Normals.ktx2',
@@ -29,27 +34,60 @@ export const BODY_TEXTURE_PATHS = {
 
 export const DETAIL_TEXTURE_PATHS = {
   map: 'textures/Details/Astronaut_Suit_Details_Albedo.ktx2',
+  dirtMap: 'textures/Details/Astronaut_Suit_Details_Dirt_Albedo.ktx2',
   metalnessMap: 'textures/Details/Astronaut_Suit_Details_Metallic.ktx2',
   aoMap: 'textures/Details/Astronaut_Suit_Details_Ao.ktx2',
   normalMap: 'textures/Details/Astronaut_Suit_Details_Normals.ktx2',
 };
 
-export const MODEL_PATHS = [
+/** Mesh + embedded clips (Lay / Fetal / Drift). */
+export const CHARACTER_MODEL_PATH = '/models/Astronaut_new.glb';
+
+/** Legacy locomotion clips (separate files; different skeleton — not used with Astronaut_new). */
+export const LOCOMOTION_MODEL_PATHS = [
   '/models/Astronaut.glb',
   '/models/Idle.glb',
   '/models/Walking.glb',
   '/models/Running.glb',
   '/models/WalkingBack.glb',
-];
+] as const;
+
+/** @deprecated use CHARACTER_MODEL_PATH */
+export const MODEL_PATHS = [CHARACTER_MODEL_PATH];
 
 // ============================================================================
 // Types
 // ============================================================================
 
+/** Still subject in the flower bed vs playable locomotion. */
+export type CharacterMode = 'tableau' | 'locomotion';
+
+/** Clip name from Astronaut_new, or `Bind` for rest pose with no animation. */
+export type CharacterPose =
+  | 'Bind'
+  | 'Lay'
+  | 'Fetal'
+  | 'Drift'
+  | 'Idle'
+  | 'Walk'
+  | 'Run'
+  | 'Back'
+  | (string & {});
+
 export interface CharacterProps {
   position?: [number, number, number];
+  /** Euler radians applied on the root group (tableau lay-down, etc.). */
+  rotation?: [number, number, number];
   scale?: number;
   visible?: boolean;
+  /** `tableau` = still subject; `locomotion` = WASD (default for walk scenes). */
+  mode?: CharacterMode;
+  /** `Bind` = GLB initial pose (no clips). Clip names (Idle, Rest, …) play that anim alone. */
+  pose?: CharacterPose;
+  /** Shared root with PlantField — Box3 locals are expressed in this space. */
+  fieldParentRef?: RefObject<Object3D | null>;
+  /** Receives measured bounds after Lay pose settles. */
+  onBodyBounds?: (bounds: BodyBoundsPayload | null) => void;
 }
 
 export interface CharacterState {

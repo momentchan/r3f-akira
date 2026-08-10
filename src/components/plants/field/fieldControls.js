@@ -95,9 +95,32 @@ export function createWindSchema(defaults = FIELD_DEFAULTS.wind) {
   };
 }
 
+export function createSurroundSchema(defaults = FIELD_DEFAULTS.surround) {
+  const d = defaults;
+  return {
+    enabled: { value: d.enabled, label: 'surround body' },
+    showDebug: { value: d.showDebug, label: 'show BVH debug' },
+    clearMargin: {
+      value: d.clearMargin,
+      min: 0.05,
+      max: 1.2,
+      step: 0.01,
+      label: 'mesh clear distance',
+    },
+    bvhDepth: {
+      value: d.bvhDepth,
+      min: 3,
+      max: 20,
+      step: 1,
+      label: 'BVH helper depth',
+    },
+  };
+}
+
 export function createFieldControlsSchema(defaults = FIELD_DEFAULTS) {
   return {
     Arrangement: folder(createArrangementSchema(defaults.arrangement), { collapsed: true }),
+    Surround: folder(createSurroundSchema(defaults.surround), { collapsed: true }),
     'Stem Geometry': folder(createStemGeometrySchema(defaults.stemGeometry), { collapsed: true }),
     Lifecycle: folder(createLifecycleSchema(defaults.lifecycle), { collapsed: true }),
     Wind: folder(createWindSchema(defaults.wind), { collapsed: true }),

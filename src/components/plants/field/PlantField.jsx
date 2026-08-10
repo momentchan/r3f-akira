@@ -4,9 +4,10 @@ import { stableRandomRange } from '@core';
 import { preloadVATAssets } from '@core/vat';
 import { createFlowerControlsSchema } from '../look/flowerControls';
 import { ProceduralStem } from '../stem/ProceduralStem';
+import { clearPointFromBvh } from './bodyBounds';
 import { createFieldControlsSchema } from './fieldControls';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
-
+import { BodyBoundsDebug } from '../../scene/BodyBoundsDebug';
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const DAHLIA_TYPE = FLOWER_TYPES.find((t) => t.id === 'dahlia');
@@ -27,6 +28,9 @@ const S_SPIN = 9;
 const S_ANG_JIT = 10;
 const S_RAD_JIT = 11;
 
+/** Heights (field local Y) sampled for closest-point vs the lying suit. */
+const CLEAR_HEIGHTS = [0.05, 0.2, 0.4, 0.7, 1.0, 1.35];
+
 function randomParams(i, seed, lenMin, lenMax, radMin, radMax, leanMin, leanMax,
   bendMin, bendMax, taperMin, taperMax, flareMin, flareMax) {
   return {
@@ -39,8 +43,10 @@ function randomParams(i, seed, lenMin, lenMax, radMin, radMax, leanMin, leanMax,
   };
 }
 
-export function PlantField({ position = [0, 0, 0] }) {
-  // Shared across the field — Space toggles grow/stop for every plant's lifecycle.
+export function PlantField({
+  position = [0, 0, 0],
+  bodyBounds = null,
+}) {
   const lifecyclePausedRef = useRef(false);
 
   useEffect(() => {
@@ -64,6 +70,10 @@ export function PlantField({ position = [0, 0, 0] }) {
   const {
     count, spreadRadius, minGap, leanOut, phaseSpread, arrangementSeed,
     positionJitter, roseOuterBias,
+    enabled: surroundEnabled,
+    showDebug,
+    clearMargin,
+    bvhDepth,
     stemSegments, radialSegs, bloomStart, bloomFrac, stemYMax,
     stemLength: [lenMin, lenMax],
     stemRadius: [radMin, radMax],
@@ -81,7 +91,6 @@ export function PlantField({ position = [0, 0, 0] }) {
     bendStrength, bendVariance, colorLevels,
   } = useControls('Field', fieldSchema, { collapsed: true });
 
-  // Unrolled per species for Rules of Hooks; both nest under Look.
   const dahliaSchema = useMemo(
     () => createFlowerControlsSchema(DAHLIA_TYPE.materialDefaults),
     [],
@@ -117,58 +126,94 @@ export function PlantField({ position = [0, 0, 0] }) {
     die: [dieMin, dieMax],
   }), [delayMin, delayMax, growMin, growMax, keepMin, keepMax, dieMin, dieMax]);
 
+  const boundsVersion = bodyBounds?.version ?? 0;
+  const bvh = surroundEnabled ? bodyBounds?.bvh : null;
   const effectiveSpread = Math.max(spreadRadius, minGap * Math.sqrt(count));
 
   const stems = useMemo(() => {
+    // Wait for posed MeshBVH before planting.
+    if (!bvh) return [];
+
     const fieldSpin = stableRandomRange(0, S_SPIN, arrangementSeed, 0, Math.PI * 2);
     const maxAngleJit = positionJitter * GOLDEN_ANGLE * 0.45;
     const maxRadJit = positionJitter * 0.18;
+    const cx = bodyBounds?.localBox
+      ? (bodyBounds.localBox.min.x + bodyBounds.localBox.max.x) * 0.5
+      : 0;
+    const cz = bodyBounds?.localBox
+      ? (bodyBounds.localBox.min.z + bodyBounds.localBox.max.z) * 0.5
+      : 0;
+    const box = bodyBounds?.localBox;
+    const halfX = box ? (box.max.x - box.min.x) * 0.5 : effectiveSpread * 0.35;
+    const halfZ = box ? (box.max.z - box.min.z) * 0.5 : effectiveSpread * 0.35;
+    // Seed near the body; BVH push settles them just outside the mesh.
+    const nearR = Math.max(0.05, Math.min(halfX, halfZ) * 0.2);
+    const farR = Math.max(effectiveSpread, Math.hypot(halfX, halfZ) + 0.6);
 
-    return Array.from({ length: count }, (_, i) => {
-      const ringT = count <= 1 ? 0 : i / (count - 1);
-      const angleJit = i === 0
+    const out = [];
+    let attempts = 0;
+    const maxAttempts = count * 8;
+
+    for (let i = 0; out.length < count && attempts < maxAttempts; attempts += 1, i += 1) {
+      const ringT = count <= 1 ? 0 : (out.length / Math.max(count - 1, 1));
+      const angleJit = out.length === 0
         ? 0
-        : stableRandomRange(i, S_ANG_JIT, arrangementSeed, -maxAngleJit, maxAngleJit);
-      const radScale = i === 0
+        : stableRandomRange(attempts, S_ANG_JIT, arrangementSeed, -maxAngleJit, maxAngleJit);
+      const radScale = out.length === 0
         ? 1
-        : stableRandomRange(i, S_RAD_JIT, arrangementSeed, 1 - maxRadJit, 1 + maxRadJit);
+        : stableRandomRange(attempts, S_RAD_JIT, arrangementSeed, 1 - maxRadJit, 1 + maxRadJit);
 
-      const angle = i * GOLDEN_ANGLE + fieldSpin + angleJit;
-      const r = i === 0 ? 0 : effectiveSpread * Math.sqrt(ringT) * radScale;
-      const posX = Math.cos(angle) * r;
-      const posZ = Math.sin(angle) * r;
+      const angle = attempts * GOLDEN_ANGLE + fieldSpin + angleJit;
+      // Bias samples close to the body (pow > 1 keeps more stems in the near band).
+      const r = (nearR + Math.pow(ringT, 1.75) * (farR - nearR)) * radScale;
+      let posX = cx + Math.cos(angle) * r;
+      let posZ = cz + Math.sin(angle) * r;
+
+      const [cxPos, czPos, ok] = clearPointFromBvh(
+        posX, posZ, bvh, clearMargin, CLEAR_HEIGHTS,
+      );
+      if (!ok) continue;
+      posX = cxPos;
+      posZ = czPos;
 
       const pRose = (1 - roseOuterBias) * 0.5 + roseOuterBias * ringT;
-      const typeRoll = stableRandomRange(i, S_TYPE, arrangementSeed, 0, 1);
+      const typeRoll = stableRandomRange(attempts, S_TYPE, arrangementSeed, 0, 1);
       const flowerType = typeRoll < pRose ? ROSE_TYPE : DAHLIA_TYPE;
       const { hueRange = 0, lightRange = 0 } = flowerControlsById[flowerType.id] ?? {};
 
-      return {
+      out.push({
         position: [posX, 0, posZ],
-        leanOutwardAngle: Math.atan2(posX, posZ),
-        seed: i * 13 + 1 + arrangementSeed * 17,
+        leanOutwardAngle: Math.atan2(posX - cx, posZ - cz),
+        seed: attempts * 13 + 1 + arrangementSeed * 17,
         flowerType,
         colorOverride: {
-          hueShift: stableRandomRange(i, S_HUE, arrangementSeed, -hueRange, hueRange),
-          lightShift: stableRandomRange(i, S_LIGHT, arrangementSeed, -lightRange, lightRange),
+          hueShift: stableRandomRange(attempts, S_HUE, arrangementSeed, -hueRange, hueRange),
+          lightShift: stableRandomRange(attempts, S_LIGHT, arrangementSeed, -lightRange, lightRange),
         },
         params: randomParams(
-          i, arrangementSeed,
+          attempts, arrangementSeed,
           lenMin, lenMax, radMin, radMax, leanMin, leanMax,
           bendMin, bendMax, taperMin, taperMax, flareMin, flareMax,
         ),
-      };
-    });
+      });
+    }
+
+    return out;
   }, [count, effectiveSpread, arrangementSeed, positionJitter, roseOuterBias,
-    flowerControlsById,
+    bvh, clearMargin, boundsVersion, bodyBounds, flowerControlsById,
     lenMin, lenMax, radMin, radMax, leanMin, leanMax,
     bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
 
   return (
     <group position={position}>
+      <BodyBoundsDebug
+        geometry={bodyBounds?.geometry ?? null}
+        visible={Boolean(showDebug && surroundEnabled && bodyBounds?.geometry)}
+        depth={bvhDepth}
+      />
       {stems.map(({ position: pos, leanOutwardAngle, seed, flowerType, colorOverride, params }, i) => (
         <ProceduralStem
-          key={i}
+          key={`${boundsVersion}-${i}`}
           position={pos}
           leanOutwardAngle={leanOutwardAngle}
           leanOut={leanOut}

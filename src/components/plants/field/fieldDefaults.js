@@ -9,14 +9,24 @@ export const STEM_RANGES = {
 
 export const FIELD_DEFAULTS = {
   arrangement: {
-    count: 16,
-    spreadRadius: 0.09,
-    minGap: 0.09,
-    leanOut: 0.7,
+    count: 28,
+    spreadRadius: 2.1,
+    minGap: 0.12,
+    leanOut: 0.85,
     phaseSpread: 1,
     arrangementSeed: 0,
     positionJitter: 0.35,
     roseOuterBias: 0.75,
+  },
+  /** Keep flowers off the body via MeshBVH closest-point distance. */
+  surround: {
+    enabled: true,
+    /** MeshBVHHelper is the costly bit — off by default. */
+    showDebug: false,
+    /** Min distance from posed mesh surface to a stem base. */
+    clearMargin: 0.12,
+    /** BVHHelper display depth when showDebug is on (keep low). */
+    bvhDepth: 8,
   },
   stemGeometry: {
     stemLength: [0.7, 1.32],

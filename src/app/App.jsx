@@ -1,19 +1,23 @@
-import { AdaptiveDpr, CameraControls } from "@react-three/drei";
-import { CanvasCapture } from "@core";
-import { LevaWrapper } from "@core";
+import { useCallback, useRef, useState } from "react";
+import { AdaptiveDpr, CameraControls, Environment } from "@react-three/drei";
+import { CanvasCapture, LevaWrapper } from "@core";
 import { Canvas } from "@react-three/fiber";
 import { useControls } from "leva";
 import * as THREE from "three/webgpu";
+import { Character } from "../components/character/Character";
+import { PlantField } from "../components/plants/field/PlantField";
 import { DirectionalLight } from "../components/scene/DirectionalLight";
 import Effects from "../components/scene/Effects";
-import { PlantField } from "../components/plants/field/PlantField";
 import { ShadowCatcher } from "../components/scene/ShadowCatcher";
-import { ProceduralSmoke } from "../components/smoke/ProceduralSmoke";
-import { Character } from "../components/character/Character";
-import { Environment } from "@react-three/drei";
 import { SCENE_DEFAULTS } from "../components/scene/sceneDefaults";
 
 export default function App() {
+  const fieldParentRef = useRef(null);
+  const [bodyBounds, setBodyBounds] = useState(null);
+  const onBodyBounds = useCallback((bounds) => {
+    setBodyBounds(bounds);
+  }, []);
+
   const { bgColor } = useControls("Scene", {
     bgColor: { value: SCENE_DEFAULTS.bgColor, label: "background" },
   });
@@ -28,7 +32,8 @@ export default function App() {
           fov: 45,
           near: 0.1,
           far: 200,
-          position: [0, 0, 3],
+          // Slight overhead three-quarter on the flower bed
+          position: [1.4, 1.6, 2.2],
         }}
         gl={(canvas) => {
           const renderer = new THREE.WebGPURenderer({
@@ -47,11 +52,17 @@ export default function App() {
         dpr={[1, 2]}
         performance={{ min: 0.5, max: 1 }}
       >
-        <group position={[0, -1, 0]}>
-          <Character/>
+        <group ref={fieldParentRef} position={[0, -1, 0]}>
+          <Character
+            mode="tableau"
+            pose="Lay"
+            position={[0, 0.6, 0]}
+            scale={1.5}
+            fieldParentRef={fieldParentRef}
+            onBodyBounds={onBodyBounds}
+          />
           <ShadowCatcher groundColor={bgColor} />
-          <PlantField />
-          {/* <ProceduralSmoke position={[0, 0.1, 0]} /> */}
+          <PlantField bodyBounds={bodyBounds} />
         </group>
 
         <color attach="background" args={[bgColor]} />
@@ -59,7 +70,7 @@ export default function App() {
 
         <AdaptiveDpr pixelated />
         <CameraControls makeDefault maxPolarAngle={Math.PI / 2} />
-        {/* <CanvasCapture /> */}
+        <CanvasCapture />
         <DirectionalLight />
         <Effects />
       </Canvas>

@@ -1,8 +1,7 @@
 import { useEffect, useRef, type MutableRefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useAnimations } from '@react-three/drei';
 import * as THREE from 'three/webgpu';
-import type { AnimationClip, Group, Object3D } from 'three';
+import type { AnimationAction, Group } from 'three';
 
 import { INITIAL_PHYSICS_STATE, type PhysicsState } from '../config';
 import { input } from '../input/controls';
@@ -14,20 +13,20 @@ export type ControlMode = 'camera' | 'tank';
 
 export function useCharacterPhysics(
   groupRef: MutableRefObject<Group | null>,
-  scene: Object3D | null,
-  animations: AnimationClip[],
+  actions: Record<string, AnimationAction | null | undefined> | null | undefined,
   controlMode: ControlMode = 'camera',
+  enabled = true,
 ) {
   const { camera } = useThree();
-  const sceneRef = useRef<Object3D | null>(null);
-  sceneRef.current = scene;
-  const { actions } = useAnimations(animations, sceneRef);
 
   const state = useRef<PhysicsState>({ ...INITIAL_PHYSICS_STATE });
   const modeRef = useRef(controlMode);
   modeRef.current = controlMode;
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
 
   useEffect(() => {
+    if (!enabled || !actions) return;
     (['Idle', 'Walk', 'Run', 'Back'] as const).forEach((name) => {
       const action = actions[name];
       if (action) {
@@ -35,10 +34,10 @@ export function useCharacterPhysics(
         action.setEffectiveWeight(name === 'Idle' ? 1.0 : 0.0);
       }
     });
-  }, [actions]);
+  }, [actions, enabled]);
 
   useFrame((_, delta) => {
-    if (!groupRef.current) return;
+    if (!enabledRef.current || !groupRef.current || !actions) return;
 
     const s = state.current;
     const mode = modeRef.current;
