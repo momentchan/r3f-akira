@@ -5,6 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { useControls } from "leva";
 import * as THREE from "three/webgpu";
 import { Character } from "../components/character/Character";
+import { Backpack } from "../components/character/Backpack.tsx";
 import { PlantField } from "../components/plants/field/PlantField";
 import { DirectionalLight } from "../components/scene/DirectionalLight";
 import Effects from "../components/scene/Effects";
@@ -64,6 +65,13 @@ export default function App() {
             scale={1.5}
             fieldParentRef={fieldParentRef}
             onBodyBounds={onBodyBounds}
+            contactPoints={contactPoints}
+          />
+          <Backpack
+            position={[-1.8, 0.1, -0.5]}
+            rotation={[THREE.MathUtils.degToRad(0), THREE.MathUtils.degToRad(200), THREE.MathUtils.degToRad(-5)]}
+            scale={1.5}
+            fieldParentRef={fieldParentRef}
             contactPoints={contactPoints}
           />
           <ShadowCatcher groundColor={bgColor} />

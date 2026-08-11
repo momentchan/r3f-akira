@@ -68,6 +68,15 @@ function attachOutlineClone(source: THREE.Mesh, outlineMat: CharacterOutlineMate
   return outline;
 }
 
+function ensureContactDirtAttr(mesh: THREE.Mesh) {
+  const pos = mesh.geometry?.getAttribute?.('position');
+  if (!pos || mesh.geometry.getAttribute('aContactDirt')) return;
+  mesh.geometry.setAttribute(
+    'aContactDirt',
+    new THREE.BufferAttribute(new Float32Array(pos.count), 1),
+  );
+}
+
 function cloneEmbeddedClips(gltf: { animations?: THREE.AnimationClip[] }) {
   return (gltf.animations ?? []).map((clip) => {
     const cloned = clip.clone();
@@ -132,14 +141,7 @@ export function useCharacterAssets() {
         child.visible = false;
       }
 
-      // Contact-dirt channel (filled by bakeContactDirt when stems place).
-      const pos = child.geometry?.getAttribute?.('position');
-      if (pos && !child.geometry.getAttribute('aContactDirt')) {
-        child.geometry.setAttribute(
-          'aContactDirt',
-          new THREE.BufferAttribute(new Float32Array(pos.count), 1),
-        );
-      }
+      ensureContactDirtAttr(child);
     });
 
     fillMeshes.forEach((m) => attachOutlineClone(m, outlineMat));

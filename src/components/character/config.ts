@@ -43,6 +43,9 @@ export const DETAIL_TEXTURE_PATHS = {
 /** Mesh + embedded clips (Lay / Fetal / Drift). */
 export const CHARACTER_MODEL_PATH = '/models/Astronaut_new.glb';
 
+/** Standalone backpack prop (placed in App — not bone-attached). */
+export const BACKPACK_MODEL_PATH = '/models/backpack.glb';
+
 /** Legacy locomotion clips (separate files; different skeleton — not used with Astronaut_new). */
 export const LOCOMOTION_MODEL_PATHS = [
   '/models/Astronaut.glb',
