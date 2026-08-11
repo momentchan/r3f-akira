@@ -1,3 +1,6 @@
+import { FLOWER_DEFAULTS } from '../look/flowerDefaults';
+import { STEM_Y_MAX } from './paths';
+
 export const STEM_RANGES = {
   stemLength: { min: 0.05, max: 2 },
   stemRadius: { min: 0.002, max: 0.06 },
@@ -9,14 +12,14 @@ export const STEM_RANGES = {
 
 export const FIELD_DEFAULTS = {
   arrangement: {
-    count: 28,
-    spreadRadius: 2.1,
-    minGap: 0.12,
+    count: 128,
+    spreadRadius: 2.8,
+    minGap: 0.1,
     leanOut: 0.85,
     phaseSpread: 1,
     arrangementSeed: 0,
     positionJitter: 0.35,
-    roseOuterBias: 0.75,
+    roseRatio: 0.7,
   },
   /** Keep flowers off the body via MeshBVH closest-point distance. */
   surround: {
@@ -35,11 +38,15 @@ export const FIELD_DEFAULTS = {
     bendDegree: [0.05, 0.25],
     radiusAttenuation: [0.3, 0.7],
     baseFlare: [0.1, 0.4],
-    stemSegments: 32,
-    radialSegs: 8,
+    // Slightly lighter tessellation — one merged mesh for the whole field.
+    stemSegments: 24,
+    radialSegs: 6,
     bloomStart: 0.23,
     bloomFrac: 0.3,
+    stemYMax: STEM_Y_MAX,
   },
+  /** Shared stem toon look (was duplicated under each flower Look panel). */
+  stemLook: { ...FLOWER_DEFAULTS.stem },
   lifecycle: {
     delay: [0.2, 1.2],
     grow: [5, 10],
@@ -52,8 +59,9 @@ export const FIELD_DEFAULTS = {
     windScale: 1.5,
     windSpeed: 0.6,
   },
+  // Leaves deferred while the field runs as one batched system.
   leaves: {
-    leafCount: 4,
+    leafCount: 3,
     leafSpan: [0.3, 0.8],
     leafScale: 0.2,
     scaleVariance: 0.3,

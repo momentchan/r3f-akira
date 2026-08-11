@@ -9,7 +9,7 @@ import {
 export { FLOWER_MASK_PATH, FLOWER_VEIN_PATH, ROSE_MASK_PATH } from './flowerDefaults';
 
 export function createFlowerControlsSchema(defaults = {}) {
-  const { petal, vein, stem, mask, colorVariation, flowerSize } = mergeFlowerDefaults(defaults);
+  const { petal, vein, mask, colorVariation, flowerSize } = mergeFlowerDefaults(defaults);
 
   return {
     flowerSize: {
@@ -78,25 +78,6 @@ export function createFlowerControlsSchema(defaults = {}) {
         label: 'petalVariation',
       },
     }),
-    'Stem Material': folder({
-      stemColorLevels: { value: stem.colorLevels, min: 2, max: 6, step: 1, label: 'colorLevels' },
-      stemThresholdLow: { value: stem.thresholdLow, min: 0, max: 1, step: 0.01, label: 'thresholdLow' },
-      stemThresholdHigh: { value: stem.thresholdHigh, min: 0, max: 1, step: 0.01, label: 'thresholdHigh' },
-      stemRimStrength: { value: stem.rimStrength, min: 0, max: 0.5, step: 0.005, label: 'rimStrength' },
-      stemRimThreshold: { value: stem.rimThreshold, min: 0, max: 1, step: 0.01, label: 'rimThreshold' },
-      stemRimPower: { value: stem.rimPower, min: 0.5, max: 8, step: 0.1, label: 'rimPower' },
-      stemShadowColor: { value: stem.shadowColor, label: 'shadowColor' },
-      stemHighlightColor: { value: stem.highlightColor, label: 'highlightColor' },
-      stemEdgeColor: { value: stem.edgeColor, label: 'edgeColor' },
-      stemEdgeThreshold: { value: stem.edgeThreshold, min: 0, max: 0.5, step: 0.01, label: 'edge start' },
-      stemEdgeSoftness: {
-        value: stem.edgeSoftness,
-        min: 0,
-        max: 6,
-        step: 0.05,
-        label: 'edge (screenspace)',
-      },
-    }),
     Mask: folder({
       threshold: { value: mask.threshold, min: 0, max: 1, step: 0.01 },
       edgeWidth: { value: mask.edgeWidth, min: 0, max: 6, step: 0.05, label: 'edge (screenspace)' },
@@ -120,7 +101,7 @@ export function syncFlowerControls(
   maskUniforms,
   materials = {},
 ) {
-  const { petal, stem, vein } = flowerUniforms;
+  const { petal, vein } = flowerUniforms;
   const { fillMaterial } = materials;
 
   petal.colorLevels.value = controls.colorLevels;
@@ -150,17 +131,7 @@ export function syncFlowerControls(
   vein.coverageScale.value = controls.veinCoverageScale;
   vein.petalVariation.value = controls.veinPetalVariation;
 
-  stem.colorLevels.value = controls.stemColorLevels;
-  stem.thresholdLow.value = controls.stemThresholdLow;
-  stem.thresholdHigh.value = controls.stemThresholdHigh;
-  if (controls.stemRimStrength != null) stem.rimStrength.value = controls.stemRimStrength;
-  if (controls.stemRimThreshold != null) stem.rimThreshold.value = controls.stemRimThreshold;
-  if (controls.stemRimPower != null) stem.rimPower.value = controls.stemRimPower;
-  stem.shadowColor.value.set(controls.stemShadowColor);
-  stem.highlightColor.value.set(controls.stemHighlightColor);
-  stem.edgeColor.value.set(controls.stemEdgeColor);
-  stem.edgeThreshold.value = controls.stemEdgeThreshold;
-  stem.edgeSoftness.value = controls.stemEdgeSoftness;
+  // Stem look is owned by the top-level Stem panel (syncStemLookControls).
 
   maskUniforms.threshold.value = controls.threshold;
   maskUniforms.edgeWidth.value = controls.edgeWidth;

@@ -1,12 +1,11 @@
 import { folder } from 'leva';
-import { STEM_Y_MAX } from './paths';
-import { FIELD_DEFAULTS, STEM_RANGES } from './fieldDefaults';
+import { FIELD_DEFAULTS } from './fieldDefaults';
 
 export function createArrangementSchema(defaults = FIELD_DEFAULTS.arrangement) {
   const d = defaults;
   return {
-    count: { value: d.count, min: 1, max: 30, step: 1 },
-    spreadRadius: { value: d.spreadRadius, min: 0, max: 1.5, step: 0.01 },
+    count: { value: d.count, min: 1, max: 256, step: 1 },
+    spreadRadius: { value: d.spreadRadius, min: 0, max: 4, step: 0.01 },
     minGap: { value: d.minGap, min: 0, max: 1, step: 0.01, label: 'min gap' },
     leanOut: { value: d.leanOut, min: 0, max: 1, step: 0.05, label: 'lean outward' },
     phaseSpread: { value: d.phaseSpread, min: 0, max: 1, step: 0.01, label: 'phase spread' },
@@ -18,41 +17,13 @@ export function createArrangementSchema(defaults = FIELD_DEFAULTS.arrangement) {
       step: 0.01,
       label: 'position jitter',
     },
-    roseOuterBias: {
-      value: d.roseOuterBias ?? 0.75,
+    roseRatio: {
+      value: d.roseRatio ?? 0.45,
       min: 0,
       max: 1,
       step: 0.01,
-      label: 'roses → rim',
+      label: 'rose ratio',
     },
-  };
-}
-
-export function createStemGeometrySchema(defaults = FIELD_DEFAULTS.stemGeometry) {
-  const d = defaults;
-  const R = STEM_RANGES;
-  return {
-    Ranges: folder({
-      stemLength: { value: d.stemLength, min: R.stemLength.min, max: R.stemLength.max, step: 0.01, label: 'length' },
-      stemRadius: { value: d.stemRadius, min: R.stemRadius.min, max: R.stemRadius.max, step: 0.001, label: 'radius' },
-      leanAngle: { value: d.leanAngle, min: R.leanAngle.min, max: R.leanAngle.max, step: 0.5, label: 'lean °' },
-      bendDegree: { value: d.bendDegree, min: R.bendDegree.min, max: R.bendDegree.max, step: 0.005, label: 'bend' },
-      radiusAttenuation: {
-        value: d.radiusAttenuation,
-        min: R.radiusAttenuation.min,
-        max: R.radiusAttenuation.max,
-        step: 0.01,
-        label: 'taper',
-      },
-      baseFlare: { value: d.baseFlare, min: R.baseFlare.min, max: R.baseFlare.max, step: 0.01, label: 'flare' },
-    }),
-    Structure: folder({
-      stemSegments: { value: d.stemSegments, min: 4, max: 128, step: 1 },
-      radialSegs: { value: d.radialSegs, min: 3, max: 16, step: 1 },
-      bloomStart: { value: d.bloomStart, min: 0, max: 1, step: 0.01, label: 'bloom start' },
-      bloomFrac: { value: d.bloomFrac, min: 0, max: 0.5, step: 0.01, label: 'bloom frac' },
-      stemYMax: { value: STEM_Y_MAX, min: -0.5, max: 0.5, step: 0.01, label: 'stem Y max' },
-    }, { collapsed: true }),
   };
 }
 
@@ -121,9 +92,7 @@ export function createFieldControlsSchema(defaults = FIELD_DEFAULTS) {
   return {
     Arrangement: folder(createArrangementSchema(defaults.arrangement), { collapsed: true }),
     Surround: folder(createSurroundSchema(defaults.surround), { collapsed: true }),
-    'Stem Geometry': folder(createStemGeometrySchema(defaults.stemGeometry), { collapsed: true }),
     Lifecycle: folder(createLifecycleSchema(defaults.lifecycle), { collapsed: true }),
     Wind: folder(createWindSchema(defaults.wind), { collapsed: true }),
-    Leaves: folder(createLeafSchema(defaults.leaves), { collapsed: true }),
   };
 }

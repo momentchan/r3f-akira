@@ -17,6 +17,8 @@ import {
   max,
   mix,
   modelViewPosition,
+  mx_hsvtorgb,
+  mx_rgbtohsv,
   normalLocal,
   positionLocal,
   positionWorld,
@@ -133,6 +135,17 @@ function createVeinLinesFromTextureFn(veinTexture, veinUniforms) {
 function applySaturation(color, saturation) {
   const luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
   return mix(vec3(luma), color, saturation);
+}
+
+/** Match THREE.Color.offsetHSL(h, 0, l) via HSV (close enough for petal variation). */
+function applyHueLightShift(color, hueShift, lightShift) {
+  const hsv = mx_rgbtohsv(color).toVar();
+  hsv.assign(vec3(
+    fract(hsv.x.add(hueShift)),
+    hsv.y,
+    clamp(hsv.z.add(lightShift), 0.0, 1.0),
+  ));
+  return mx_hsvtorgb(hsv);
 }
 
 function createMaskAlphaFn(maskTexture) {
@@ -351,6 +364,8 @@ export function createFlowerVertexColorMaterial(
     normalSource = normalLocal,
     usePetalCutout = true,
     useMaskEdge = true,
+    /** Optional TSL nodes: { hueShift, lightShift } for per-instance petal variation. */
+    colorVariation = null,
   } = options;
   const useMask = usePetalCutout || useMaskEdge;
   const petal = flowerUniforms.petal;
@@ -390,6 +405,14 @@ export function createFlowerVertexColorMaterial(
       );
 
       const shaded = color.toVar();
+
+      if (colorVariation) {
+        shaded.assign(applyHueLightShift(
+          shaded,
+          colorVariation.hueShift,
+          colorVariation.lightShift,
+        ));
+      }
 
       shaded.assign(applySaturation(shaded, petal.saturation));
 
@@ -454,6 +477,62 @@ export function createFlowerStemMaterial(flowerUniforms, options = {}) {
   if (posNode) {
     material.positionNode = posNode;
   }
+
+  return material;
+}
+
+/**
+ * One-draw field stems: per-vertex `plantId` indexes a Float RGBA DataTexture
+ *   R = stemGrow, G = swayX, B = swayZ, A = unused
+ * Vertices above the grow tip are collapsed onto the local centerline.
+ */
+export function createBatchedStemMaterial(flowerUniforms, options = {}) {
+  const {
+    normalSource = normalLocal,
+    plantDataTexture,
+    texWidth,
+    maskPow = 2,
+    startScale = 0.1,
+  } = options;
+  const stem = flowerUniforms.stem;
+  const uTexWidth = uniform(texWidth);
+
+  const material = new THREE.MeshBasicNodeMaterial({
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    depthWrite: true,
+    depthTest: true,
+  });
+
+  material.fragmentNode = Fn(() => {
+    const plantId = attribute('plantId', 'float');
+    const dataUV = vec2(plantId.add(0.5).div(uTexWidth), 0.5);
+    const grow = texture(plantDataTexture, dataUV).r;
+    If(uv().x.greaterThan(grow), () => {
+      Discard();
+    });
+    const color = buildStemColor(stem, normalSource);
+    return vec4(clamp(color, 0.0, 1.0), 1.0);
+  })();
+
+  material.positionNode = Fn(() => {
+    const plantId = attribute('plantId', 'float');
+    const center = attribute('center', 'vec3');
+    const dataUV = vec2(plantId.add(0.5).div(uTexWidth), 0.5);
+    const data = texture(plantDataTexture, dataUV);
+    const grow = data.r.toVar();
+    const sway = vec2(data.g, data.b);
+
+    const s0 = float(startScale);
+    const rScale = s0.add(grow.mul(1.0 - startScale));
+    const along = uv().x.toVar();
+    // Collapse undrawn tip onto the ring center so shadows don't ghost.
+    const visible = step(along, grow);
+    const grown = center.add(positionLocal.sub(center).mul(rScale));
+    const base = mix(center, grown, visible);
+    const mask = pow(along, float(maskPow));
+    return base.add(vec3(sway.x, 0.0, sway.y).mul(mask.mul(visible)));
+  })();
 
   return material;
 }

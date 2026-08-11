@@ -3,9 +3,10 @@ import { folder, useControls } from 'leva';
 import { stableRandomRange } from '@core';
 import { preloadVATAssets } from '@core/vat';
 import { createFlowerControlsSchema } from '../look/flowerControls';
-import { ProceduralStem } from '../stem/ProceduralStem';
 import { clearPointFromBvh } from './bodyBounds';
 import { createFieldControlsSchema } from './fieldControls';
+import { createStemSchema } from '../stem/stemControls';
+import { PlantSystem } from './PlantSystem';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
 import { BodyBoundsDebug } from '../../scene/BodyBoundsDebug';
 
@@ -69,11 +70,21 @@ export function PlantField({
   const fieldSchema = useMemo(() => createFieldControlsSchema(), []);
   const {
     count, spreadRadius, minGap, leanOut, phaseSpread, arrangementSeed,
-    positionJitter, roseOuterBias,
+    positionJitter, roseRatio,
     enabled: surroundEnabled,
     showDebug,
     clearMargin,
     bvhDepth,
+    delay: [delayMin, delayMax],
+    grow: [growMin, growMax],
+    keep: [keepMin, keepMax],
+    die: [dieMin, dieMax],
+    windStrength, windAngle, windScale, windSpeed,
+  } = useControls('Field', fieldSchema, { collapsed: true });
+
+  const stemSchema = useMemo(() => createStemSchema(), []);
+  const stemControls = useControls('Stem', stemSchema, { collapsed: true });
+  const {
     stemSegments, radialSegs, bloomStart, bloomFrac, stemYMax,
     stemLength: [lenMin, lenMax],
     stemRadius: [radMin, radMax],
@@ -81,15 +92,52 @@ export function PlantField({
     bendDegree: [bendMin, bendMax],
     radiusAttenuation: [taperMin, taperMax],
     baseFlare: [flareMin, flareMax],
-    delay: [delayMin, delayMax],
-    grow: [growMin, growMax],
-    keep: [keepMin, keepMax],
-    die: [dieMin, dieMax],
-    windStrength, windAngle, windScale, windSpeed,
+    leafCount,
+    leafSpan,
+    leafScale,
+    scaleVariance,
+    droop,
+    leafBend,
+    curlStrengthStart,
+    curlStrengthEnd,
+    curlPowerStart,
+    curlPowerEnd,
+    bendStrength,
+    bendVariance,
+    colorLevels: leafColorLevels,
+  } = stemControls;
+
+  const stemLookControls = useMemo(() => ({
+    stemColorLevels: stemControls.stemColorLevels,
+    stemThresholdLow: stemControls.stemThresholdLow,
+    stemThresholdHigh: stemControls.stemThresholdHigh,
+    stemRimStrength: stemControls.stemRimStrength,
+    stemRimThreshold: stemControls.stemRimThreshold,
+    stemRimPower: stemControls.stemRimPower,
+    stemShadowColor: stemControls.stemShadowColor,
+    stemHighlightColor: stemControls.stemHighlightColor,
+    stemEdgeColor: stemControls.stemEdgeColor,
+    stemEdgeThreshold: stemControls.stemEdgeThreshold,
+    stemEdgeSoftness: stemControls.stemEdgeSoftness,
+  }), [stemControls]);
+
+  const leafControls = useMemo(() => ({
+    leafCount,
+    leafSpan,
+    leafScale,
+    scaleVariance,
+    droop,
+    leafBend,
+    curlStrength: [curlStrengthStart, curlStrengthEnd],
+    curlPower: [curlPowerStart, curlPowerEnd],
+    bendStrength,
+    bendVariance,
+    colorLevels: leafColorLevels,
+  }), [
     leafCount, leafSpan, leafScale, scaleVariance, droop, leafBend,
     curlStrengthStart, curlStrengthEnd, curlPowerStart, curlPowerEnd,
-    bendStrength, bendVariance, colorLevels,
-  } = useControls('Field', fieldSchema, { collapsed: true });
+    bendStrength, bendVariance, leafColorLevels,
+  ]);
 
   const dahliaSchema = useMemo(
     () => createFlowerControlsSchema(DAHLIA_TYPE.materialDefaults),
@@ -109,15 +157,6 @@ export function PlantField({
     [DAHLIA_TYPE.id]: dahliaControls,
     [ROSE_TYPE.id]: roseControls,
   }), [dahliaControls, roseControls]);
-
-  const curlStrength = useMemo(
-    () => [curlStrengthStart, curlStrengthEnd],
-    [curlStrengthStart, curlStrengthEnd],
-  );
-  const curlPower = useMemo(
-    () => [curlPowerStart, curlPowerEnd],
-    [curlPowerStart, curlPowerEnd],
-  );
 
   const lifecycleRanges = useMemo(() => ({
     delay: [delayMin, delayMax],
@@ -152,7 +191,7 @@ export function PlantField({
 
     const out = [];
     let attempts = 0;
-    const maxAttempts = count * 8;
+    const maxAttempts = count * 24;
 
     for (let i = 0; out.length < count && attempts < maxAttempts; attempts += 1, i += 1) {
       const ringT = count <= 1 ? 0 : (out.length / Math.max(count - 1, 1));
@@ -176,9 +215,8 @@ export function PlantField({
       posX = cxPos;
       posZ = czPos;
 
-      const pRose = (1 - roseOuterBias) * 0.5 + roseOuterBias * ringT;
       const typeRoll = stableRandomRange(attempts, S_TYPE, arrangementSeed, 0, 1);
-      const flowerType = typeRoll < pRose ? ROSE_TYPE : DAHLIA_TYPE;
+      const flowerType = typeRoll < roseRatio ? ROSE_TYPE : DAHLIA_TYPE;
       const { hueRange = 0, lightRange = 0 } = flowerControlsById[flowerType.id] ?? {};
 
       out.push({
@@ -199,7 +237,7 @@ export function PlantField({
     }
 
     return out;
-  }, [count, effectiveSpread, arrangementSeed, positionJitter, roseOuterBias,
+  }, [count, effectiveSpread, arrangementSeed, positionJitter, roseRatio,
     bvh, clearMargin, boundsVersion, bodyBounds, flowerControlsById,
     lenMin, lenMax, radMin, radMax, leanMin, leanMax,
     bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
@@ -211,42 +249,25 @@ export function PlantField({
         visible={Boolean(showDebug && surroundEnabled && bodyBounds?.geometry)}
         depth={bvhDepth}
       />
-      {stems.map(({ position: pos, leanOutwardAngle, seed, flowerType, colorOverride, params }, i) => (
-        <ProceduralStem
-          key={`${boundsVersion}-${i}`}
-          position={pos}
-          leanOutwardAngle={leanOutwardAngle}
-          leanOut={leanOut}
-          phaseSpread={phaseSpread}
-          seed={seed}
-          flowerType={flowerType}
-          flowerControls={flowerControlsById[flowerType.id]}
-          colorOverride={colorOverride}
-          params={params}
-          stemSegments={stemSegments}
-          radialSegs={radialSegs}
-          stemYMax={stemYMax}
-          bloomStart={bloomStart}
-          bloomFrac={bloomFrac}
-          lifecycleRanges={lifecycleRanges}
-          lifecyclePausedRef={lifecyclePausedRef}
-          windAngle={windAngle}
-          windStrength={windStrength}
-          windScale={windScale}
-          windSpeed={windSpeed}
-          leafCount={leafCount}
-          leafSpan={leafSpan}
-          leafScale={leafScale}
-          scaleVariance={scaleVariance}
-          droop={droop}
-          leafBend={leafBend}
-          curlStrength={curlStrength}
-          curlPower={curlPower}
-          bendStrength={bendStrength}
-          bendVariance={bendVariance}
-          colorLevels={colorLevels}
-        />
-      ))}
+      <PlantSystem
+        stems={stems}
+        leanOut={leanOut}
+        phaseSpread={phaseSpread}
+        stemSegments={stemSegments}
+        radialSegs={radialSegs}
+        stemYMax={stemYMax}
+        bloomStart={bloomStart}
+        bloomFrac={bloomFrac}
+        lifecycleRanges={lifecycleRanges}
+        lifecyclePausedRef={lifecyclePausedRef}
+        flowerControlsById={flowerControlsById}
+        stemLookControls={stemLookControls}
+        leafControls={leafControls}
+        windAngle={windAngle}
+        windStrength={windStrength}
+        windScale={windScale}
+        windSpeed={windSpeed}
+      />
     </group>
   );
 }
