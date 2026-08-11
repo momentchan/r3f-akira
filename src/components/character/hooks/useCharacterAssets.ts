@@ -131,6 +131,15 @@ export function useCharacterAssets() {
       } else {
         child.visible = false;
       }
+
+      // Contact-dirt channel (filled by bakeContactDirt when stems place).
+      const pos = child.geometry?.getAttribute?.('position');
+      if (pos && !child.geometry.getAttribute('aContactDirt')) {
+        child.geometry.setAttribute(
+          'aContactDirt',
+          new THREE.BufferAttribute(new Float32Array(pos.count), 1),
+        );
+      }
     });
 
     fillMeshes.forEach((m) => attachOutlineClone(m, outlineMat));

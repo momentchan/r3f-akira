@@ -78,6 +78,31 @@ export function createSurroundSchema(defaults = FIELD_DEFAULTS.surround) {
       step: 0.01,
       label: 'mesh clear distance',
     },
+    faceClearRadius: {
+      value: d.faceClearRadius ?? 0.38,
+      min: 0,
+      max: 1.2,
+      step: 0.01,
+      label: 'face clear radius',
+    },
+    contactPow: {
+      value: d.contactPow ?? 2.55,
+      min: 1,
+      max: 4,
+      step: 0.05,
+      label: 'contact density',
+    },
+    nearSizeMin: {
+      value: d.nearSizeMin ?? 0.48,
+      min: 0.25,
+      max: 1,
+      step: 0.01,
+      label: 'near bloom scale',
+    },
+    showCompositionDebug: {
+      value: d.showCompositionDebug ?? false,
+      label: 'show composition guides',
+    },
     bvhDepth: {
       value: d.bvhDepth,
       min: 3,

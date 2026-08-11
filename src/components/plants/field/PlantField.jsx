@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { folder, useControls } from 'leva';
+import { useControls } from 'leva';
 import { stableRandomRange } from '@core';
 import { preloadVATAssets } from '@core/vat';
 import { createFlowerControlsSchema } from '../look/flowerControls';
@@ -9,6 +9,7 @@ import { createStemSchema } from '../stem/stemControls';
 import { PlantSystem } from './PlantSystem';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
 import { BodyBoundsDebug } from '../../scene/BodyBoundsDebug';
+import { CompositionDebug } from './CompositionDebug';
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const DAHLIA_TYPE = FLOWER_TYPES.find((t) => t.id === 'dahlia');
@@ -33,10 +34,10 @@ const S_RAD_JIT = 11;
 const CLEAR_HEIGHTS = [0.05, 0.2, 0.4, 0.7, 1.0, 1.35];
 
 function randomParams(i, seed, lenMin, lenMax, radMin, radMax, leanMin, leanMax,
-  bendMin, bendMax, taperMin, taperMax, flareMin, flareMax) {
+  bendMin, bendMax, taperMin, taperMax, flareMin, flareMax, sizeMul = 1) {
   return {
-    stemLength: stableRandomRange(i, S_LENGTH, seed, lenMin, lenMax),
-    stemRadius: stableRandomRange(i, S_RADIUS, seed, radMin, radMax),
+    stemLength: stableRandomRange(i, S_LENGTH, seed, lenMin, lenMax) * sizeMul,
+    stemRadius: stableRandomRange(i, S_RADIUS, seed, radMin, radMax) * sizeMul,
     leanAngle: stableRandomRange(i, S_LEAN, seed, leanMin, leanMax),
     bendDegree: stableRandomRange(i, S_BEND, seed, bendMin, bendMax),
     radiusAttenuation: stableRandomRange(i, S_TAPER, seed, taperMin, taperMax),
@@ -44,9 +45,24 @@ function randomParams(i, seed, lenMin, lenMax, radMin, radMax, leanMin, leanMax,
   };
 }
 
+/** Push XZ away from a soft circular keep-out (helmet pocket). */
+function clearPointFromDisc(x, z, cx, cz, radius) {
+  if (radius <= 1e-5) return [x, z, true];
+  const dx = x - cx;
+  const dz = z - cz;
+  const d = Math.hypot(dx, dz);
+  if (d >= radius) return [x, z, true];
+  if (d < 1e-5) {
+    return [cx + radius, cz, true];
+  }
+  const s = radius / d;
+  return [cx + dx * s, cz + dz * s, true];
+}
+
 export function PlantField({
   position = [0, 0, 0],
   bodyBounds = null,
+  onStemBases,
 }) {
   const lifecyclePausedRef = useRef(false);
 
@@ -74,6 +90,10 @@ export function PlantField({
     enabled: surroundEnabled,
     showDebug,
     clearMargin,
+    faceClearRadius,
+    contactPow,
+    nearSizeMin,
+    showCompositionDebug,
     bvhDepth,
     delay: [delayMin, delayMax],
     grow: [growMin, growMax],
@@ -111,15 +131,21 @@ export function PlantField({
     stemColorLevels: stemControls.stemColorLevels,
     stemThresholdLow: stemControls.stemThresholdLow,
     stemThresholdHigh: stemControls.stemThresholdHigh,
-    stemRimStrength: stemControls.stemRimStrength,
-    stemRimThreshold: stemControls.stemRimThreshold,
-    stemRimPower: stemControls.stemRimPower,
     stemShadowColor: stemControls.stemShadowColor,
     stemHighlightColor: stemControls.stemHighlightColor,
     stemEdgeColor: stemControls.stemEdgeColor,
     stemEdgeThreshold: stemControls.stemEdgeThreshold,
     stemEdgeSoftness: stemControls.stemEdgeSoftness,
-  }), [stemControls]);
+  }), [
+    stemControls.stemColorLevels,
+    stemControls.stemThresholdLow,
+    stemControls.stemThresholdHigh,
+    stemControls.stemShadowColor,
+    stemControls.stemHighlightColor,
+    stemControls.stemEdgeColor,
+    stemControls.stemEdgeThreshold,
+    stemControls.stemEdgeSoftness,
+  ]);
 
   const leafControls = useMemo(() => ({
     leafCount,
@@ -147,16 +173,36 @@ export function PlantField({
     () => createFlowerControlsSchema(ROSE_TYPE.materialDefaults),
     [],
   );
-  const dahliaControls = useControls('Look', {
-    Dahlia: folder(dahliaSchema, { collapsed: true }),
-  }, { collapsed: true });
-  const roseControls = useControls('Look', {
-    Rose: folder(roseSchema, { collapsed: true }),
-  }, { collapsed: true });
+  // Schema object must stay referentially stable — a new `{ Dahlia: folder(...) }`
+  // each render remounts Leva inputs and rebuilds the plant field (lifecycle restart).
+  const dahliaControls = useControls('Flower.Dahlia', dahliaSchema, { collapsed: true });
+  const roseControls = useControls('Flower.Rose', roseSchema, { collapsed: true });
   const flowerControlsById = useMemo(() => ({
     [DAHLIA_TYPE.id]: dahliaControls,
     [ROSE_TYPE.id]: roseControls,
   }), [dahliaControls, roseControls]);
+
+  // Color variation ranges for layout — keep stable so Flower Leva doesn't rebuild stems.
+  const colorVarByIdRef = useRef({
+    [DAHLIA_TYPE.id]: {
+      hueRange: DAHLIA_TYPE.materialDefaults?.colorVariation?.hueRange ?? 0,
+      lightRange: DAHLIA_TYPE.materialDefaults?.colorVariation?.lightRange ?? 0,
+    },
+    [ROSE_TYPE.id]: {
+      hueRange: ROSE_TYPE.materialDefaults?.colorVariation?.hueRange ?? 0,
+      lightRange: ROSE_TYPE.materialDefaults?.colorVariation?.lightRange ?? 0,
+    },
+  });
+  colorVarByIdRef.current = {
+    [DAHLIA_TYPE.id]: {
+      hueRange: dahliaControls.hueRange ?? colorVarByIdRef.current[DAHLIA_TYPE.id].hueRange,
+      lightRange: dahliaControls.lightRange ?? colorVarByIdRef.current[DAHLIA_TYPE.id].lightRange,
+    },
+    [ROSE_TYPE.id]: {
+      hueRange: roseControls.hueRange ?? colorVarByIdRef.current[ROSE_TYPE.id].hueRange,
+      lightRange: roseControls.lightRange ?? colorVarByIdRef.current[ROSE_TYPE.id].lightRange,
+    },
+  };
 
   const lifecycleRanges = useMemo(() => ({
     delay: [delayMin, delayMax],
@@ -168,6 +214,35 @@ export function PlantField({
   const boundsVersion = bodyBounds?.version ?? 0;
   const bvh = surroundEnabled ? bodyBounds?.bvh : null;
   const effectiveSpread = Math.max(spreadRadius, minGap * Math.sqrt(count));
+
+  const resolvedHeadLocal = useMemo(() => {
+    const box = bodyBounds?.localBox;
+    const cx = box ? (box.min.x + box.max.x) * 0.5 : 0;
+    const cz = box ? (box.min.z + box.max.z) * 0.5 : 0;
+    const base = bodyBounds?.headLocal;
+    return {
+      x: base?.x ?? cx,
+      y: base?.y ?? 0,
+      z: base?.z ?? cz,
+      found: Boolean(base),
+    };
+  }, [bodyBounds]);
+
+  const compositionGuide = useMemo(() => {
+    const box = bodyBounds?.localBox;
+    const cx = box ? (box.min.x + box.max.x) * 0.5 : 0;
+    const cz = box ? (box.min.z + box.max.z) * 0.5 : 0;
+    const halfX = box ? (box.max.x - box.min.x) * 0.5 : effectiveSpread * 0.35;
+    const halfZ = box ? (box.max.z - box.min.z) * 0.5 : effectiveSpread * 0.35;
+    const nearR = Math.max(0.05, Math.min(halfX, halfZ) * 0.35);
+    const farR = Math.max(effectiveSpread, Math.hypot(halfX, halfZ) + 0.6);
+    return {
+      center: [cx, cz],
+      nearR,
+      farR,
+      headLocal: resolvedHeadLocal,
+    };
+  }, [bodyBounds, effectiveSpread, resolvedHeadLocal]);
 
   const stems = useMemo(() => {
     // Wait for posed MeshBVH before planting.
@@ -185,9 +260,11 @@ export function PlantField({
     const box = bodyBounds?.localBox;
     const halfX = box ? (box.max.x - box.min.x) * 0.5 : effectiveSpread * 0.35;
     const halfZ = box ? (box.max.z - box.min.z) * 0.5 : effectiveSpread * 0.35;
-    // Seed near the body; BVH push settles them just outside the mesh.
-    const nearR = Math.max(0.05, Math.min(halfX, halfZ) * 0.2);
+    // Wider near band = denser contact clustering on the suit silhouette.
+    const nearR = Math.max(0.05, Math.min(halfX, halfZ) * 0.35);
     const farR = Math.max(effectiveSpread, Math.hypot(halfX, halfZ) + 0.6);
+    const head = resolvedHeadLocal;
+    const densPow = Math.max(contactPow, 1);
 
     const out = [];
     let attempts = 0;
@@ -203,8 +280,8 @@ export function PlantField({
         : stableRandomRange(attempts, S_RAD_JIT, arrangementSeed, 1 - maxRadJit, 1 + maxRadJit);
 
       const angle = attempts * GOLDEN_ANGLE + fieldSpin + angleJit;
-      // Bias samples close to the body (pow > 1 keeps more stems in the near band).
-      const r = (nearR + Math.pow(ringT, 1.75) * (farR - nearR)) * radScale;
+      // Higher contactPow packs more stems into the near band; rim stays looser.
+      const r = (nearR + Math.pow(ringT, densPow) * (farR - nearR)) * radScale;
       let posX = cx + Math.cos(angle) * r;
       let posZ = cz + Math.sin(angle) * r;
 
@@ -215,9 +292,32 @@ export function PlantField({
       posX = cxPos;
       posZ = czPos;
 
+      // Quiet pocket around helmet / face.
+      if (faceClearRadius > 0) {
+        const [fx, fz] = clearPointFromDisc(
+          posX, posZ, head.x, head.z, faceClearRadius,
+        );
+        // Re-check mesh clearance after face push.
+        const [px2, pz2, ok2] = clearPointFromBvh(
+          fx, fz, bvh, clearMargin, CLEAR_HEIGHTS,
+        );
+        if (!ok2) continue;
+        posX = px2;
+        posZ = pz2;
+        // Still inside face disc after mesh push → skip.
+        if (Math.hypot(posX - head.x, posZ - head.z) < faceClearRadius * 0.92) {
+          continue;
+        }
+      }
+
       const typeRoll = stableRandomRange(attempts, S_TYPE, arrangementSeed, 0, 1);
       const flowerType = typeRoll < roseRatio ? ROSE_TYPE : DAHLIA_TYPE;
-      const { hueRange = 0, lightRange = 0 } = flowerControlsById[flowerType.id] ?? {};
+      const { hueRange = 0, lightRange = 0 } = colorVarByIdRef.current[flowerType.id] ?? {};
+
+      // Bloom size hierarchy: smaller near the body, fuller toward the rim.
+      const distC = Math.hypot(posX - cx, posZ - cz);
+      const rimT = Math.min(1, Math.max(0, (distC - nearR) / Math.max(farR - nearR, 1e-4)));
+      const sizeMul = nearSizeMin + (1 - nearSizeMin) * Math.pow(rimT, 0.65);
 
       out.push({
         position: [posX, 0, posZ],
@@ -232,15 +332,25 @@ export function PlantField({
           attempts, arrangementSeed,
           lenMin, lenMax, radMin, radMax, leanMin, leanMax,
           bendMin, bendMax, taperMin, taperMax, flareMin, flareMax,
+          sizeMul,
         ),
       });
     }
 
     return out;
   }, [count, effectiveSpread, arrangementSeed, positionJitter, roseRatio,
-    bvh, clearMargin, boundsVersion, bodyBounds, flowerControlsById,
+    bvh, clearMargin, faceClearRadius, contactPow, nearSizeMin,
+    boundsVersion, bodyBounds, resolvedHeadLocal,
     lenMin, lenMax, radMin, radMax, leanMin, leanMax,
     bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
+
+  useEffect(() => {
+    if (!onStemBases) return;
+    onStemBases(stems.map((s) => ({
+      x: s.position[0],
+      z: s.position[2],
+    })));
+  }, [stems, onStemBases]);
 
   return (
     <group position={position}>
@@ -248,6 +358,16 @@ export function PlantField({
         geometry={bodyBounds?.geometry ?? null}
         visible={Boolean(showDebug && surroundEnabled && bodyBounds?.geometry)}
         depth={bvhDepth}
+      />
+      <CompositionDebug
+        visible={Boolean(showCompositionDebug && surroundEnabled)}
+        center={compositionGuide.center}
+        headLocal={compositionGuide.headLocal}
+        faceClearRadius={faceClearRadius}
+        nearR={compositionGuide.nearR}
+        farR={compositionGuide.farR}
+        nearSizeMin={nearSizeMin}
+        clearMargin={clearMargin}
       />
       <PlantSystem
         stems={stems}

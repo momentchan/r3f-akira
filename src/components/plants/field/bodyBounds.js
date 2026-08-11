@@ -149,6 +149,99 @@ export function worldBoxToLocal(worldBox, parent) {
   return local;
 }
 
+const HEAD_BONE_RE = /\bhead\b|c_head|head\.x/i;
+const NECK_BONE_RE = /\bneck\b|c_neck|neck\.x/i;
+const HELMET_MESH_RE = /helmet/i;
+
+function scoreHeadBone(name) {
+  if (/^c_head(\.|$)/i.test(name) || name.toLowerCase() === 'c_head.x') return 10;
+  if (/^head(\.|$)/i.test(name) || /^head\.x$/i.test(name)) return 9;
+  if (HEAD_BONE_RE.test(name) && !/ref|scale_fix|twist/i.test(name)) return 7;
+  if (HEAD_BONE_RE.test(name)) return 4;
+  if (NECK_BONE_RE.test(name) && !/ref|twist/i.test(name)) return 2;
+  return -1;
+}
+
+function considerBone(obj, parent, world, state) {
+  if (!obj?.isBone) return;
+  const score = scoreHeadBone(obj.name || '');
+  if (score < state.bestScore) return;
+  obj.getWorldPosition(world);
+  parent.worldToLocal(world);
+  state.bestScore = score;
+  state.best = world.clone();
+}
+
+/**
+ * Posed helmet mesh AABB center — object.origin is bind-root, so bake vertices.
+ * Prefer the main helmet shell over glass/detail pieces.
+ */
+function findHelmetMeshLocalPoint(root, parent) {
+  const world = new THREE.Vector3();
+  const candidates = [];
+
+  root.traverse((obj) => {
+    if (!obj.isMesh || !obj.visible) return;
+    const name = obj.name || '';
+    if (!HELMET_MESH_RE.test(name)) return;
+    const position = obj.geometry?.getAttribute?.('position');
+    if (!position || position.count < 3) return;
+
+    const box = new THREE.Box3();
+    const step = Math.max(1, Math.floor(position.count / 64));
+    for (let i = 0; i < position.count; i += step) {
+      // getVertexPosition is mesh-local after skinning; object.origin is bind-root.
+      if (obj.isSkinnedMesh) obj.getVertexPosition(i, world);
+      else world.fromBufferAttribute(position, i);
+      world.applyMatrix4(obj.matrixWorld);
+      box.expandByPoint(world);
+    }
+    if (box.isEmpty()) return;
+
+    let score = 1;
+    if (/Helmet_Mesh$/i.test(name) && !/Details|Glass/i.test(name)) score = 10;
+    else if (/Helmet_Mesh/i.test(name) && !/Details|Glass/i.test(name)) score = 8;
+    else if (/Glass/i.test(name)) score = 3;
+    candidates.push({ score, box });
+  });
+
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.score - a.score);
+  candidates[0].box.getCenter(world);
+  parent.worldToLocal(world);
+  return world.clone();
+}
+
+/**
+ * Best-effort head point in `parent` local space (for face breathing pocket).
+ * Prefers posed helmet mesh AABB (skinned vertices), then head bones.
+ * Skinned mesh *object* origins are ignored — they sit at the bind root.
+ */
+export function findHeadLocalPoint(root, parent) {
+  root.updateWorldMatrix(true, true);
+  parent.updateWorldMatrix(true, false);
+
+  const skeletons = new Set();
+  root.traverse((obj) => {
+    if (obj.isSkinnedMesh && obj.skeleton) skeletons.add(obj.skeleton);
+  });
+  for (const sk of skeletons) sk.update();
+  root.updateWorldMatrix(true, true);
+
+  const fromHelmet = findHelmetMeshLocalPoint(root, parent);
+  if (fromHelmet) return fromHelmet;
+
+  const world = new THREE.Vector3();
+  const state = { best: null, bestScore: -1 };
+
+  root.traverse((obj) => considerBone(obj, parent, world, state));
+  for (const sk of skeletons) {
+    for (const bone of sk.bones) considerBone(bone, parent, world, state);
+  }
+
+  return state.best;
+}
+
 export function expandBoxXZ(localBox, margin) {
   const out = localBox.clone();
   out.min.x -= margin;

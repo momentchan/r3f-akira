@@ -32,11 +32,6 @@ export function createFlowerControlsSchema(defaults = {}) {
           step: 0.01,
         },
       }),
-      Rim: folder({
-        rimStrength: { value: petal.rimStrength, min: 0, max: 0.5, step: 0.005 },
-        rimThreshold: { value: petal.rimThreshold, min: 0, max: 1, step: 0.01 },
-        rimPower: { value: petal.rimPower, min: 0.5, max: 8, step: 0.1 },
-      }),
       colorLevels: { value: petal.colorLevels, min: 2, max: 8, step: 1 },
       thresholdLow: { value: petal.thresholdLow, min: 0, max: 1, step: 0.01 },
       thresholdHigh: { value: petal.thresholdHigh, min: 0, max: 1, step: 0.01 },
@@ -107,9 +102,6 @@ export function syncFlowerControls(
   petal.colorLevels.value = controls.colorLevels;
   petal.gradientLevels.value = controls.gradientLevels;
   petal.gradientBandStrength.value = controls.gradientBandStrength;
-  petal.rimStrength.value = controls.rimStrength;
-  petal.rimThreshold.value = controls.rimThreshold;
-  petal.rimPower.value = controls.rimPower;
   petal.thresholdLow.value = controls.thresholdLow;
   petal.thresholdHigh.value = controls.thresholdHigh;
   petal.thresholdNoiseScale.value = controls.thresholdNoiseScale;

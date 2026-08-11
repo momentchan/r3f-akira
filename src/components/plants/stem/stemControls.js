@@ -39,9 +39,6 @@ export function createStemLookSchema(defaults = FIELD_DEFAULTS.stemLook) {
     stemColorLevels: { value: d.colorLevels, min: 2, max: 6, step: 1, label: 'colorLevels' },
     stemThresholdLow: { value: d.thresholdLow, min: 0, max: 1, step: 0.01, label: 'thresholdLow' },
     stemThresholdHigh: { value: d.thresholdHigh, min: 0, max: 1, step: 0.01, label: 'thresholdHigh' },
-    stemRimStrength: { value: d.rimStrength, min: 0, max: 0.5, step: 0.005, label: 'rimStrength' },
-    stemRimThreshold: { value: d.rimThreshold, min: 0, max: 1, step: 0.01, label: 'rimThreshold' },
-    stemRimPower: { value: d.rimPower, min: 0.5, max: 8, step: 0.1, label: 'rimPower' },
     stemShadowColor: { value: d.shadowColor, label: 'shadow' },
     stemHighlightColor: { value: d.highlightColor, label: 'highlight' },
     stemEdgeColor: { value: d.edgeColor, label: 'edge' },
@@ -97,9 +94,6 @@ export function syncStemLookControls(controls, flowerUniformsList) {
     stem.colorLevels.value = controls.stemColorLevels;
     stem.thresholdLow.value = controls.stemThresholdLow;
     stem.thresholdHigh.value = controls.stemThresholdHigh;
-    stem.rimStrength.value = controls.stemRimStrength;
-    stem.rimThreshold.value = controls.stemRimThreshold;
-    stem.rimPower.value = controls.stemRimPower;
     stem.shadowColor.value.set(controls.stemShadowColor);
     stem.highlightColor.value.set(controls.stemHighlightColor);
     stem.edgeColor.value.set(controls.stemEdgeColor);

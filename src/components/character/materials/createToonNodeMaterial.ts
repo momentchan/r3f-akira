@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn,
-  cameraPosition,
+  attribute,
   clamp,
   dot,
   float,
@@ -10,9 +10,7 @@ import {
   mix,
   normalLocal,
   positionLocal,
-  positionWorld,
-  pow,
-  step,
+  smoothstep,
   texture,
   transformNormal,
   uniform,
@@ -38,14 +36,15 @@ export interface WoodblockToonUniforms {
   colorLevels: UniformValue<number>;
   thresholdLow: UniformValue<number>;
   thresholdHigh: UniformValue<number>;
-  rimStrength: UniformValue<number>;
-  rimThreshold: UniformValue<number>;
-  rimPower: UniformValue<number>;
   shadowTint: UniformValue<THREE.Color>;
   highlightTint: UniformValue<THREE.Color>;
   aoIntensity: UniformValue<number>;
   dirtAmount: UniformValue<number>;
-  dirtFocus: UniformValue<number>;
+  dirtLevels: UniformValue<number>;
+  dirtContactCut: UniformValue<number>;
+  dirtContactFade: UniformValue<number>;
+  /** 1 = visualize aContactDirt mask (magenta heat). */
+  dirtDebug: UniformValue<number>;
 }
 
 export interface OutlineUniforms {
@@ -58,14 +57,14 @@ export interface ToonMaterialOptions {
   colorLevels?: number;
   thresholdLow?: number;
   thresholdHigh?: number;
-  rimStrength?: number;
-  rimThreshold?: number;
-  rimPower?: number;
   shadowTint?: string;
   highlightTint?: string;
   aoIntensity?: number;
   dirtAmount?: number;
-  dirtFocus?: number;
+  dirtLevels?: number;
+  dirtContactCut?: number;
+  dirtContactFade?: number;
+  dirtDebug?: number | boolean;
   lightDir?: THREE.Vector3;
 }
 
@@ -100,14 +99,14 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
     colorLevels = CHARACTER_LOOK_DEFAULTS.colorLevels,
     thresholdLow = CHARACTER_LOOK_DEFAULTS.thresholdLow,
     thresholdHigh = CHARACTER_LOOK_DEFAULTS.thresholdHigh,
-    rimStrength = CHARACTER_LOOK_DEFAULTS.rimStrength,
-    rimThreshold = CHARACTER_LOOK_DEFAULTS.rimThreshold,
-    rimPower = CHARACTER_LOOK_DEFAULTS.rimPower,
     shadowTint = CHARACTER_LOOK_DEFAULTS.shadowTint,
     highlightTint = CHARACTER_LOOK_DEFAULTS.highlightTint,
     aoIntensity = CHARACTER_LOOK_DEFAULTS.aoIntensity,
     dirtAmount = CHARACTER_LOOK_DEFAULTS.dirtAmount,
-    dirtFocus = CHARACTER_LOOK_DEFAULTS.dirtFocus,
+    dirtLevels = CHARACTER_LOOK_DEFAULTS.dirtLevels,
+    dirtContactCut = CHARACTER_LOOK_DEFAULTS.dirtContactCut,
+    dirtContactFade = CHARACTER_LOOK_DEFAULTS.dirtContactFade,
+    dirtDebug = CHARACTER_LOOK_DEFAULTS.dirtDebug,
     lightDir = new THREE.Vector3(...CHARACTER_LOOK_DEFAULTS.lightDir),
   } = options;
 
@@ -116,14 +115,14 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
     colorLevels: uNumber(colorLevels),
     thresholdLow: uNumber(thresholdLow),
     thresholdHigh: uNumber(thresholdHigh),
-    rimStrength: uNumber(rimStrength),
-    rimThreshold: uNumber(rimThreshold),
-    rimPower: uNumber(rimPower),
     shadowTint: uColor(shadowTint),
     highlightTint: uColor(highlightTint),
     aoIntensity: uNumber(aoIntensity),
     dirtAmount: uNumber(dirtAmount),
-    dirtFocus: uNumber(dirtFocus),
+    dirtLevels: uNumber(dirtLevels),
+    dirtContactCut: uNumber(dirtContactCut),
+    dirtContactFade: uNumber(dirtContactFade),
+    dirtDebug: uNumber(dirtDebug ? 1 : 0),
   };
 
   const albedoMap = textures.map ?? null;
@@ -142,44 +141,41 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
       ? texture(albedoMap, uvCoord).rgb
       : vec3(1.0, 1.0, 1.0);
 
-    // Blend clean ↔ dirt: dirtFocus concentrates mix into darker wear regions.
-    let albedo = clean.toVar();
-    if (dirtMap) {
-      const dirt = texture(dirtMap, uvCoord).rgb;
-      const lumaW = vec3(0.299, 0.587, 0.114);
-      const cleanL = dot(clean, lumaW);
-      const dirtL = dot(dirt, lumaW);
-      const wear = clamp(cleanL.sub(dirtL).mul(3.0), 0.0, 1.0);
-      const flatW = toonUniforms.dirtAmount as any;
-      const focusedW = flatW.mul(wear);
-      const w = mix(flatW, focusedW, toonUniforms.dirtFocus as any);
-      albedo.assign(mix(clean, dirt, w));
-    }
+    // Soft contact: cut = onset, fade = soft edge width (smoothstep, not hard step).
+    const contactRaw = attribute('aContactDirt', 'float');
+    const contactCut = toonUniforms.dirtContactCut as any;
+    const contactEnd = contactCut.add(
+      max(toonUniforms.dirtContactFade as any, 0.001),
+    );
+    const contact = smoothstep(contactCut, contactEnd, contactRaw);
 
     const N = transformNormal(normalLocal).normalize().toVar();
-    const V = cameraPosition.sub(positionWorld).normalize().toVar();
     const L = vec3(toonUniforms.lightDir as any).normalize().toVar();
     const ndl = max(dot(N, L), 0.0).toVar();
-
-    const rimRaw = pow(
-      float(1.0).sub(max(dot(N, V), 0.0)),
-      toonUniforms.rimPower as any,
-    ).toVar();
-    const rimLift = step(toonUniforms.rimThreshold as any, rimRaw)
-      .mul(toonUniforms.rimStrength as any)
-      .toVar();
 
     const thresholdWidth = max(
       (toonUniforms.thresholdHigh as any).sub(toonUniforms.thresholdLow as any),
       0.001,
     ).toVar();
-    const levelSteps = max((toonUniforms.colorLevels as any).sub(1.0), 1.0).toVar();
-    const shade = clamp(
-      ndl.add(rimLift).sub(toonUniforms.thresholdLow as any).div(thresholdWidth),
+    const preShade = clamp(
+      ndl.sub(toonUniforms.thresholdLow as any).div(thresholdWidth),
       0.0,
       1.0,
     ).toVar();
-    const quantized = floor(shade.mul(levelSteps).add(0.5)).div(levelSteps).toVar();
+    const shadowWeight = float(1.0).sub(preShade);
+
+    let albedo = clean.toVar();
+    if (dirtMap) {
+      const dirt = texture(dirtMap, uvCoord).rgb;
+      const levels = max((toonUniforms.dirtLevels as any).sub(1.0), 1.0);
+      const dirtQ = floor(dirt.mul(levels).add(0.5)).div(levels);
+      const shadeGate = mix(float(0.4), float(1.0), shadowWeight);
+      const w = (toonUniforms.dirtAmount as any).mul(contact).mul(shadeGate);
+      albedo.assign(mix(clean, dirtQ, w));
+    }
+
+    const levelSteps = max((toonUniforms.colorLevels as any).sub(1.0), 1.0).toVar();
+    const quantized = floor(preShade.mul(levelSteps).add(0.5)).div(levelSteps).toVar();
 
     const litColor = mix(
       albedo.mul(vec3(toonUniforms.shadowTint as any)),
@@ -193,7 +189,14 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
       litColor.assign(litColor.mul(aoMul));
     }
 
-    return vec4(clamp(litColor, 0.0, 1.0), 1.0);
+    const debugCol = mix(
+      vec3(0.12, 0.12, 0.14),
+      vec3(1.0, 0.2, 0.75),
+      contact,
+    );
+    const outRgb = mix(litColor, debugCol, toonUniforms.dirtDebug as any);
+
+    return vec4(clamp(outRgb, 0.0, 1.0), 1.0);
   })();
 
   material.userData.toonUniforms = toonUniforms;

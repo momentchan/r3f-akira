@@ -2,19 +2,21 @@ export const CHARACTER_LOOK_DEFAULTS = {
   colorLevels: 2,
   thresholdLow: 0.28,
   thresholdHigh: 0.62,
-  rimStrength: 0.06,
-  rimThreshold: 0.78,
-  rimPower: 2.2,
   shadowTint: '#c3b2dd',
   highlightTint: '#ffffff',
   aoIntensity: 0,
   edgeColor: '#2a181c',
   outlineWidth: 0.001,
   lightDir: [0, 3, 5] as [number, number, number],
-  /** 0 = clean only, 1 = full dirt albedo. */
-  dirtAmount: 0.32,
-  /** 0 = flat mix, 1 = dirt only where darker than clean (wear-focused). */
-  dirtFocus: 0.7,
+  /** Dirt albedo mix strength in contact bands. */
+  dirtAmount: 0.78,
+  /** Light posterize of dirt albedo (2 = harder blocks). */
+  dirtLevels: 6,
+  /** Soft contact: cut = where dirt starts; fade = soft edge width after cut. */
+  dirtContactCut: 0,
+  dirtContactFade: 0.15,
+  /** Visualize aContactDirt as magenta heat overlay. */
+  dirtDebug: false,
 };
 
 export function mergeCharacterLookDefaults(

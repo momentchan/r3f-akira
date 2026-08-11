@@ -14,8 +14,12 @@ import { SCENE_DEFAULTS } from "../components/scene/sceneDefaults";
 export default function App() {
   const fieldParentRef = useRef(null);
   const [bodyBounds, setBodyBounds] = useState(null);
+  const [contactPoints, setContactPoints] = useState([]);
   const onBodyBounds = useCallback((bounds) => {
     setBodyBounds(bounds);
+  }, []);
+  const onStemBases = useCallback((bases) => {
+    setContactPoints(bases);
   }, []);
 
   const { bgColor } = useControls("Scene", {
@@ -60,16 +64,17 @@ export default function App() {
             scale={1.5}
             fieldParentRef={fieldParentRef}
             onBodyBounds={onBodyBounds}
+            contactPoints={contactPoints}
           />
           <ShadowCatcher groundColor={bgColor} />
-          <PlantField bodyBounds={bodyBounds} />
+          <PlantField bodyBounds={bodyBounds} onStemBases={onStemBases} />
         </group>
 
         <color attach="background" args={[bgColor]} />
         <Environment preset="sunset" />
 
         <AdaptiveDpr pixelated />
-        <CameraControls makeDefault maxPolarAngle={Math.PI / 2} />
+        <CameraControls makeDefault maxPolarAngle={Math.PI / 2.5} />
         <CanvasCapture />
         <DirectionalLight />
         <Effects />

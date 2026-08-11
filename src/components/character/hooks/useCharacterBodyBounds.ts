@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import type { MutableRefObject } from 'react';
 import type { Group, Object3D } from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
-import { buildCharacterMeshBVH } from '../../plants/field/bodyBounds';
+import { buildCharacterMeshBVH, findHeadLocalPoint } from '../../plants/field/bodyBounds';
 
 export type BodyBoundsPayload = {
   localBox: import('three').Box3;
@@ -12,6 +12,8 @@ export type BodyBoundsPayload = {
   bvh: MeshBVH;
   /** Geometry owning boundsTree — dispose when replaced. */
   geometry: import('three').BufferGeometry;
+  /** Head/helmet point in field-parent local space (helmet mesh center, else bone). */
+  headLocal: import('three').Vector3 | null;
   version: number;
 };
 
@@ -67,8 +69,8 @@ export function useCharacterBodyBounds({
     const parent = fieldParentRef?.current ?? root.parent;
     if (!parent) return;
 
-    // Rebuild once per pose (key by pose + scale-ish presence).
-    const key = `${pose ?? 'none'}`;
+    // Rebuild once per pose — bump key if head lookup changes.
+    const key = `${pose ?? 'none'}:head-mesh-v1`;
     if (key === builtKey.current && latestRef.current) return;
 
     const built = buildCharacterMeshBVH(root, parent);
@@ -83,6 +85,7 @@ export function useCharacterBodyBounds({
       worldBox: built.worldBox,
       bvh: built.bvh,
       geometry: built.geometry,
+      headLocal: findHeadLocalPoint(root, parent),
       version: versionRef.current,
     };
     latestRef.current = payload;

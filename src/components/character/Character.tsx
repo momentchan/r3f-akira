@@ -14,6 +14,7 @@ import {
   createCharacterControlsSchema,
   syncCharacterControls,
 } from './look/characterControls';
+import { bakeContactDirt } from './utils/bakeContactDirt';
 
 export const Character = ({
   position = [0, 0, 0],
@@ -24,6 +25,7 @@ export const Character = ({
   pose = 'Lay',
   fieldParentRef,
   onBodyBounds,
+  contactPoints,
 }: CharacterProps) => {
   const groupRef = useRef<Group>(null);
   const { scene, animations, bodyMat, detailMat, outlineMat } =
@@ -60,6 +62,17 @@ export const Character = ({
       outlineMat?.userData.outlineUniforms,
     );
   }, [bodyMat, detailMat, outlineMat, controls]);
+
+  // Light dirt only where stems meet the suit (subtle lived-in wear).
+  useEffect(() => {
+    if (!isTableau || !groupRef.current || !fieldParentRef?.current) return;
+    bakeContactDirt(
+      groupRef.current,
+      fieldParentRef.current,
+      contactPoints ?? [],
+      { inner: 0.1, outer: 0.45 },
+    );
+  }, [isTableau, contactPoints, fieldParentRef, scene, pose]);
 
   if (!scene) return null;
 

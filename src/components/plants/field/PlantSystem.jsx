@@ -70,6 +70,15 @@ function FlowerTypeBatch({
   const maskTexture = useTexture(flowerType.maskPath);
   const veinTexture = useTexture(FLOWER_VEIN_PATH);
 
+  const flowerControlsRef = useRef(flowerControls);
+  flowerControlsRef.current = flowerControls;
+  const stemLookControlsRef = useRef(stemLookControls);
+  stemLookControlsRef.current = stemLookControls;
+  const plantsRef = useRef(plants);
+  plantsRef.current = plants;
+  const plantIndexMapRef = useRef(plantIndexMap);
+  plantIndexMapRef.current = plantIndexMap;
+
   useEffect(() => {
     configureFlowerTexture(maskTexture);
     configureFlowerTexture(veinTexture);
@@ -78,6 +87,7 @@ function FlowerTypeBatch({
   const flowerUniforms = useMemo(() => createFlowerUniforms(), []);
   const maskUniforms = useMemo(() => createFlowerMaskUniforms(), []);
 
+  // Sync Look → uniforms only (never rebuild mesh/lifecycle).
   useEffect(() => {
     if (flowerControls) {
       syncFlowerControls(flowerControls, flowerUniforms, maskUniforms);
@@ -101,7 +111,7 @@ function FlowerTypeBatch({
       if (p.geometry !== merged) p.geometry.dispose();
     });
     return merged;
-  }, [vatData, stemYMax]);
+  }, [vatData.isLoaded, vatData.scene, vatData.meta, stemYMax]);
 
   const materialBundle = useMemo(() => {
     if (!vatData.isLoaded || !vatData.posTex || !vatData.nrmTex || !vatData.meta) {
@@ -123,24 +133,29 @@ function FlowerTypeBatch({
       },
     );
   }, [
-    vatData, flowerUniforms, maskUniforms, maskTexture, veinTexture, flowerType,
+    vatData.isLoaded, vatData.posTex, vatData.nrmTex, vatData.meta,
+    flowerUniforms, maskUniforms, maskTexture, veinTexture,
+    flowerType.id, flowerType.usePetalCutout, flowerType.useMaskEdge,
   ]);
 
+  const layoutKey = `${flowerType.id}:${plants.length}:${plantIndexMap.join(',')}`;
   const [mesh, setMesh] = useState(null);
 
   useEffect(() => {
-    if (!geometry || !materialBundle || plants.length === 0) {
+    const typePlants = plantsRef.current;
+    const indices = plantIndexMapRef.current;
+    if (!geometry || !materialBundle || typePlants.length === 0) {
       setMesh(null);
       return undefined;
     }
 
     const geo = prepareInstancedVatGeometry(geometry);
-    const count = plants.length;
-    const tip0 = new Float32Array(count * 4); // pos.xyz, scale
-    const tip1 = new Float32Array(count * 4); // quat.xyz, frame
-    const colorVar = new Float32Array(count * 2); // hue, light
+    const count = typePlants.length;
+    const tip0 = new Float32Array(count * 4);
+    const tip1 = new Float32Array(count * 4);
+    const colorVar = new Float32Array(count * 2);
     for (let i = 0; i < count; i++) {
-      const o = plants[i].colorOverride ?? {};
+      const o = typePlants[i].colorOverride ?? {};
       colorVar[i * 2] = o.hueShift ?? 0;
       colorVar[i * 2 + 1] = o.lightShift ?? 0;
     }
@@ -153,10 +168,13 @@ function FlowerTypeBatch({
     instance.castShadow = true;
     instance.receiveShadow = true;
     instance.count = count;
-    // Tip TRS is in instanced attrs; keep instanceMatrix identity.
     const identity = new THREE.Matrix4();
     for (let i = 0; i < count; i++) instance.setMatrixAt(i, identity);
     instance.instanceMatrix.needsUpdate = true;
+
+    const size = flowerControlsRef.current?.flowerSize
+      ?? flowerType.materialDefaults?.flowerSize
+      ?? 4.2;
 
     runtimeRef.current.flowerBatches[flowerType.id] = {
       mesh: instance,
@@ -164,14 +182,9 @@ function FlowerTypeBatch({
       tip1,
       tip0Attr: geo.getAttribute('aTip0'),
       tip1Attr: geo.getAttribute('aTip1'),
-      plantIndexMap,
+      plantIndexMap: indices,
       flowerUniforms,
-      scaleMuls: plants.map((p) => {
-        const size = flowerControls?.flowerSize
-          ?? flowerType.materialDefaults?.flowerSize
-          ?? 4.2;
-        return p.params.stemRadius * size;
-      }),
+      scaleMuls: typePlants.map((p) => p.params.stemRadius * size),
     };
     setMesh(instance);
 
@@ -181,10 +194,17 @@ function FlowerTypeBatch({
       geo.dispose();
       setMesh(null);
     };
-  }, [
-    geometry, materialBundle, plants, plantIndexMap, flowerType, flowerControls, runtimeRef,
-    flowerUniforms,
-  ]);
+  }, [layoutKey, geometry, materialBundle, flowerType, flowerUniforms, runtimeRef]);
+
+  useEffect(() => {
+    const batch = runtimeRef.current.flowerBatches[flowerType.id];
+    const typePlants = plantsRef.current;
+    if (!batch || !typePlants.length) return;
+    const size = flowerControlsRef.current?.flowerSize
+      ?? flowerType.materialDefaults?.flowerSize
+      ?? 4.2;
+    batch.scaleMuls = typePlants.map((p) => p.params.stemRadius * size);
+  }, [flowerControls?.flowerSize, layoutKey, flowerType, runtimeRef]);
 
   useEffect(() => () => {
     materialBundle?.material.dispose();
@@ -294,7 +314,15 @@ export function PlantSystem({
   }, [stemBuild.plantData, stemFlowerUniforms]);
 
   useEffect(() => {
-    runtimeRef.current.plants = stemBuild.plants;
+    const prev = runtimeRef.current.plants;
+    const next = stemBuild.plants;
+    // Keep lifecycle ages across layout rebuilds with the same seeds.
+    if (prev?.length && next.length === prev.length) {
+      for (let i = 0; i < next.length; i += 1) {
+        if (prev[i]?.seed === next[i].seed) next[i].age = prev[i].age;
+      }
+    }
+    runtimeRef.current.plants = next;
     runtimeRef.current.plantData = stemBuild.plantData;
   }, [stemBuild]);
 

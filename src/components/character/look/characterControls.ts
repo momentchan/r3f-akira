@@ -23,20 +23,33 @@ export function createCharacterControlsSchema(
         min: 0,
         max: 1,
         step: 0.01,
-        label: 'amount',
+        label: 'dirt amount',
       },
-      dirtFocus: {
-        value: d.dirtFocus,
+      dirtLevels: {
+        value: d.dirtLevels ?? 3,
+        min: 2,
+        max: 10,
+        step: 1,
+        label: 'tone levels',
+      },
+      dirtContactCut: {
+        value: d.dirtContactCut ?? 0.12,
         min: 0,
         max: 1,
         step: 0.01,
-        label: 'wear focus',
+        label: 'contact cut',
       },
-    }),
-    Rim: folder({
-      rimStrength: { value: d.rimStrength, min: 0, max: 0.5, step: 0.005 },
-      rimThreshold: { value: d.rimThreshold, min: 0, max: 1, step: 0.01 },
-      rimPower: { value: d.rimPower, min: 0.5, max: 8, step: 0.1 },
+      dirtContactFade: {
+        value: d.dirtContactFade ?? 0.48,
+        min: 0.01,
+        max: 1,
+        step: 0.01,
+        label: 'contact fade',
+      },
+      dirtDebug: {
+        value: Boolean(d.dirtDebug),
+        label: 'show contact mask',
+      },
     }),
     shadowTint: { value: d.shadowTint },
     highlightTint: { value: d.highlightTint },
@@ -63,14 +76,16 @@ export function syncCharacterControls(
     uniforms.colorLevels.value = controls.colorLevels;
     uniforms.thresholdLow.value = controls.thresholdLow;
     uniforms.thresholdHigh.value = controls.thresholdHigh;
-    uniforms.rimStrength.value = controls.rimStrength;
-    uniforms.rimThreshold.value = controls.rimThreshold;
-    uniforms.rimPower.value = controls.rimPower;
     uniforms.shadowTint.value.set(controls.shadowTint);
     uniforms.highlightTint.value.set(controls.highlightTint);
     uniforms.aoIntensity.value = controls.aoIntensity;
     if (uniforms.dirtAmount) uniforms.dirtAmount.value = controls.dirtAmount;
-    if (uniforms.dirtFocus) uniforms.dirtFocus.value = controls.dirtFocus;
+    if (uniforms.dirtLevels) uniforms.dirtLevels.value = controls.dirtLevels;
+    if (uniforms.dirtContactCut) uniforms.dirtContactCut.value = controls.dirtContactCut;
+    if (uniforms.dirtContactFade) uniforms.dirtContactFade.value = controls.dirtContactFade;
+    if (uniforms.dirtDebug) {
+      uniforms.dirtDebug.value = controls.dirtDebug ? 1 : 0;
+    }
   }
 
   if (outlineUniforms) {

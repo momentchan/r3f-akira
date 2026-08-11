@@ -186,9 +186,6 @@ export function createFlowerUniforms() {
       gradientBandStrength: uniform(petal.gradientBandStrength),
       shadowTint: uniform(new THREE.Color(petal.shadowTint)),
       highlightTint: uniform(new THREE.Color(petal.highlightTint)),
-      rimStrength: uniform(petal.rimStrength),
-      rimThreshold: uniform(petal.rimThreshold),
-      rimPower: uniform(petal.rimPower),
       thresholdLow: uniform(petal.thresholdLow),
       thresholdHigh: uniform(petal.thresholdHigh),
       thresholdNoiseScale: uniform(petal.thresholdNoiseScale),
@@ -217,9 +214,6 @@ export function createFlowerUniforms() {
       edgeColor: uniform(new THREE.Color(stem.edgeColor)),
       edgeThreshold: uniform(stem.edgeThreshold),
       edgeSoftness: uniform(stem.edgeSoftness),
-      rimStrength: uniform(stem.rimStrength),
-      rimThreshold: uniform(stem.rimThreshold),
-      rimPower: uniform(stem.rimPower),
       thresholdLow: uniform(stem.thresholdLow),
       thresholdHigh: uniform(stem.thresholdHigh),
       thresholdNoiseScale: uniform(stem.thresholdNoiseScale),
@@ -240,7 +234,6 @@ export function createFlowerMaskUniforms() {
 
 function buildQuantizedShade(shading, normalSource = normalLocal) {
   const N = transformNormal(normalSource).normalize().toVar();
-  const V = cameraPosition.sub(positionWorld).normalize().toVar();
   const L = vec3(shading.lightDir).normalize().toVar();
   const ndl = max(dot(N, L), 0.0).toVar();
 
@@ -251,12 +244,6 @@ function buildQuantizedShade(shading, normalSource = normalLocal) {
     .mul(shading.thresholdNoiseStrength)
     .toVar();
 
-  const rimRaw = pow(
-    float(1.0).sub(max(dot(N, V), 0.0)),
-    shading.rimPower,
-  ).toVar();
-  const rimLift = step(shading.rimThreshold, rimRaw).mul(shading.rimStrength).toVar();
-
   const thresholdWidth = max(
     shading.thresholdHigh.sub(shading.thresholdLow),
     0.001,
@@ -264,7 +251,6 @@ function buildQuantizedShade(shading, normalSource = normalLocal) {
   const levelSteps = max(shading.colorLevels.sub(1.0), 1.0).toVar();
   const shade = clamp(
     ndl
-      .add(rimLift)
       .sub(shading.thresholdLow.add(thresholdNoise))
       .div(thresholdWidth),
     0.0,
