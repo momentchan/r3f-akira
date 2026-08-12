@@ -19,6 +19,28 @@ import { CLIMB_DEFAULTS } from './climbDefaults';
 const _lightWorld = new THREE.Vector3();
 const _lightTarget = new THREE.Vector3();
 const PATH_DEBOUNCE_MS = 120;
+// Checkpoint gate: Step 3 expands independent rings across directed regions.
+const CLIMB_CHECKPOINT = 3;
+const CHECKPOINT_DEBUG_ONLY = CLIMB_CHECKPOINT <= 3;
+
+const REGION_CAPSULE_IDS = {
+  'calf.r': ['calf.r'],
+  calves: ['calf.l', 'calf.r'],
+  legs: ['calf.l', 'calf.r', 'thigh.l', 'thigh.r'],
+  arms: ['forearm.l', 'forearm.r', 'upperarm.l', 'upperarm.r'],
+  limbs: [
+    'calf.l',
+    'calf.r',
+    'thigh.l',
+    'thigh.r',
+    'forearm.l',
+    'forearm.r',
+    'upperarm.l',
+    'upperarm.r',
+  ],
+  torso: ['torso'],
+  all: null,
+};
 
 function createPlantDataTexture(count) {
   const width = Math.max(1, THREE.MathUtils.ceilPowerOfTwo(count));
@@ -53,15 +75,21 @@ function phaseFrac(seed) {
 function pathKeyFromControls(c) {
   return [
     c.count,
+    c.region,
     c.bodyRatio,
     c.arrangementSeed,
     c.sampleCount,
     c.stepLength,
+    c.stationJitter,
     c.turns,
+    c.ringArcDegrees,
+    c.rootBendStrength,
     c.climbBias,
     c.clearGap,
     c.peelAt,
-    c.capsuleRadiusScale,
+    c.maxCoilsPerCapsule,
+    c.debugSingleHelix,
+    c.debugCapsuleId,
   ].join(':');
 }
 
@@ -94,6 +122,7 @@ export function ClimbTendrils({
         bvh: bodyBounds.bvh,
         localBox: bodyBounds.localBox,
         capsules: bodyBounds.capsules ?? [],
+        capsuleDiagnostics: bodyBounds.capsuleDiagnostics ?? null,
         bodyRight: bodyBounds.bodyRight ?? null,
       });
     }
@@ -110,6 +139,7 @@ export function ClimbTendrils({
     bodyBounds?.version,
     bodyBounds?.bvh,
     bodyBounds?.capsules,
+    bodyBounds?.capsuleDiagnostics,
     bodyBounds?.bodyRight,
     backpackBounds?.version,
     backpackBounds?.bvh,
@@ -120,45 +150,63 @@ export function ClimbTendrils({
   const [debouncedPath, setDebouncedPath] = useState(() => ({
     key: livePathKey,
     count: controls.count,
+    region: controls.region,
     bodyRatio: controls.bodyRatio,
     arrangementSeed: controls.arrangementSeed,
     sampleCount: controls.sampleCount,
     stepLength: controls.stepLength,
+    stationJitter: controls.stationJitter,
     turns: controls.turns,
+    ringArcDegrees: controls.ringArcDegrees,
+    rootBendStrength: controls.rootBendStrength,
     climbBias: controls.climbBias,
     clearGap: controls.clearGap,
     peelAt: controls.peelAt,
-    capsuleRadiusScale: controls.capsuleRadiusScale,
+    maxCoilsPerCapsule: controls.maxCoilsPerCapsule,
+    debugSingleHelix: controls.debugSingleHelix,
+    debugCapsuleId: controls.debugCapsuleId,
   }));
 
   useEffect(() => {
     const next = {
       key: livePathKey,
       count: controls.count,
+      region: controls.region,
       bodyRatio: controls.bodyRatio,
       arrangementSeed: controls.arrangementSeed,
       sampleCount: controls.sampleCount,
       stepLength: controls.stepLength,
+      stationJitter: controls.stationJitter,
       turns: controls.turns,
+      ringArcDegrees: controls.ringArcDegrees,
+      rootBendStrength: controls.rootBendStrength,
       climbBias: controls.climbBias,
       clearGap: controls.clearGap,
       peelAt: controls.peelAt,
-      capsuleRadiusScale: controls.capsuleRadiusScale,
+      maxCoilsPerCapsule: controls.maxCoilsPerCapsule,
+      debugSingleHelix: controls.debugSingleHelix,
+      debugCapsuleId: controls.debugCapsuleId,
     };
     const id = window.setTimeout(() => setDebouncedPath(next), PATH_DEBOUNCE_MS);
     return () => window.clearTimeout(id);
   }, [
     livePathKey,
     controls.count,
+    controls.region,
     controls.bodyRatio,
     controls.arrangementSeed,
     controls.sampleCount,
     controls.stepLength,
+    controls.stationJitter,
     controls.turns,
+    controls.ringArcDegrees,
+    controls.rootBendStrength,
     controls.climbBias,
     controls.clearGap,
     controls.peelAt,
-    controls.capsuleRadiusScale,
+    controls.maxCoilsPerCapsule,
+    controls.debugSingleHelix,
+    controls.debugCapsuleId,
   ]);
 
   const flowerUniforms = useMemo(() => {
@@ -170,19 +218,33 @@ export function ClimbTendrils({
   const hostVersionKey = `${bodyBounds?.version ?? 0}:${backpackBounds?.version ?? 0}`;
 
   const wraps = useMemo(() => {
+    if (CLIMB_CHECKPOINT === 1) return [];
     if (!controls.enabled || !hosts.length || debouncedPath.count < 1) return [];
     return buildWrapCurves({
       hosts,
       count: debouncedPath.count,
-      bodyRatio: debouncedPath.bodyRatio,
+      bodyRatio: CLIMB_CHECKPOINT <= 3 ? 1 : debouncedPath.bodyRatio,
       seed: debouncedPath.arrangementSeed,
       sampleCount: debouncedPath.sampleCount,
       stepLength: debouncedPath.stepLength,
-      turns: debouncedPath.turns,
+      stationJitter: debouncedPath.stationJitter,
+      turns: CLIMB_CHECKPOINT === 2 ? 3.5 : debouncedPath.turns,
       climbBias: debouncedPath.climbBias,
       clearGap: debouncedPath.clearGap,
       peelAt: debouncedPath.peelAt,
-      capsuleRadiusScale: debouncedPath.capsuleRadiusScale,
+      maxCoilsPerCapsule: debouncedPath.maxCoilsPerCapsule,
+      debugSingleHelix: CLIMB_CHECKPOINT === 2 || (
+        CLIMB_CHECKPOINT > 3 && debouncedPath.debugSingleHelix
+      ),
+      debugCapsuleId: CLIMB_CHECKPOINT === 2 ? 'calf.r' : debouncedPath.debugCapsuleId,
+      wrapStyle: CLIMB_CHECKPOINT <= 3 ? 'independent-rings' : 'helix',
+      ringCount: 5,
+      ringAxialWidth: 0.012,
+      ringEntrySide: 'random-lateral',
+      ringEntrySideBias: 1,
+      ringArcDegrees: debouncedPath.ringArcDegrees,
+      rootBendStrength: debouncedPath.rootBendStrength,
+      enabledCapsuleIds: REGION_CAPSULE_IDS[debouncedPath.region] ?? null,
     });
   }, [controls.enabled, hosts, hostVersionKey, debouncedPath]);
 
@@ -401,9 +463,11 @@ export function ClimbTendrils({
     tex.needsUpdate = true;
   }, 1);
 
-  if (!controls.enabled) return null;
+  if (!controls.enabled && !CHECKPOINT_DEBUG_ONLY) return null;
 
-  const showStems = Boolean(stemBuild.geometry && stemMaterial && stemBuild.plants.length);
+  const showStems = !CHECKPOINT_DEBUG_ONLY
+    && Boolean(stemBuild.geometry && stemMaterial && stemBuild.plants.length);
+  const debugVisible = Boolean(controls.showDebug);
 
   return (
     <group name="ClimbTendrils">
@@ -419,16 +483,20 @@ export function ClimbTendrils({
         </AsyncCompile>
       )}
       <ClimbDebug
-        visible={Boolean(controls.showDebug)}
+        visible={debugVisible}
         wraps={wraps}
         hosts={hosts}
         showSeeds={controls.showSeeds}
+        showHitch={controls.showHitch}
         showPaths={controls.showPaths}
         showDirs={controls.showDirs}
         showBounds={controls.showBounds}
         showCapsules={controls.showCapsules}
+        showCapsuleLabels={controls.showCapsuleLabels}
+        showDiagnostics={controls.showDiagnostics}
+        showPathLabels={controls.showCapsuleLabels}
+        capsuleFilterId={CLIMB_CHECKPOINT === 2 ? 'calf.r' : null}
         pathCount={controls.pathCount}
-        capsuleRadiusScale={debouncedPath.capsuleRadiusScale ?? 1}
       />
     </group>
   );

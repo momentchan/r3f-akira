@@ -4,7 +4,10 @@ import type { MutableRefObject } from 'react';
 import type { Group, Object3D } from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
 import { buildCharacterMeshBVH, findHeadLocalPoint } from '../../plants/field/bodyBounds';
-import { extractBodyAxes, extractLimbCapsules } from '../../plants/climb/limbCapsules';
+import {
+  extractBodyAxes,
+  extractLimbCapsulesWithDiagnostics,
+} from '../../plants/climb/limbCapsules';
 
 export type LimbCapsule = {
   id: string;
@@ -13,6 +16,18 @@ export type LimbCapsule = {
   radius: number;
   weight: number;
   length: number;
+};
+
+export type CapsuleDiagnostics = {
+  expected: number;
+  found: number;
+  boneCount: number;
+  validIds: string[];
+  issues: Array<{
+    id: string;
+    reason: string;
+    missing?: string[];
+  }>;
 };
 
 export type BodyBoundsPayload = {
@@ -24,8 +39,10 @@ export type BodyBoundsPayload = {
   geometry: import('three').BufferGeometry;
   /** Head/helmet point in field-parent local space (helmet mesh center, else bone). */
   headLocal: import('three').Vector3 | null;
-  /** Limb capsules (legs + torso) in field-parent space for climb wraps. */
+  /** Directed wrap regions (limbs + torso) in field-parent space. */
   capsules: LimbCapsule[];
+  /** Extraction status for the climb debug checkpoint. */
+  capsuleDiagnostics: CapsuleDiagnostics;
   /** Character-facing right (thigh.r − thigh.l), field-parent space. */
   bodyRight: import('three').Vector3;
   version: number;
@@ -84,7 +101,7 @@ export function useCharacterBodyBounds({
     if (!parent) return;
 
     // Rebuild once per pose — bump key if capsule/head lookup changes.
-    const key = `${pose ?? 'none'}:capsules-ground-slots-v1`;
+    const key = `${pose ?? 'none'}:directed-wrap-regions-v2`;
     if (key === builtKey.current && latestRef.current) return;
 
     const built = buildCharacterMeshBVH(root, parent);
@@ -95,13 +112,15 @@ export function useCharacterBodyBounds({
     builtKey.current = key;
 
     const axes = extractBodyAxes(root, parent);
+    const extracted = extractLimbCapsulesWithDiagnostics(root, parent);
     const payload: BodyBoundsPayload = {
       localBox: built.localBox,
       worldBox: built.worldBox,
       bvh: built.bvh,
       geometry: built.geometry,
       headLocal: findHeadLocalPoint(root, parent),
-      capsules: extractLimbCapsules(root, parent),
+      capsules: extracted.capsules,
+      capsuleDiagnostics: extracted.diagnostics,
       bodyRight: axes.right,
       version: versionRef.current,
     };

@@ -5,7 +5,12 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
   const d = defaults;
   return {
     enabled: { value: d.enabled, label: 'enabled' },
-    count: { value: d.count, min: 0, max: 1024, step: 1, label: 'tendril count' },
+    region: {
+      value: d.region ?? 'all',
+      options: ['calf.r', 'calves', 'legs', 'arms', 'limbs', 'torso', 'all'],
+      label: 'region',
+    },
+    count: { value: d.count, min: 0, max: 512, step: 1, label: 'coil budget' },
     bodyRatio: {
       value: d.bodyRatio,
       min: 0,
@@ -35,32 +40,59 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
     Path: folder({
       sampleCount: {
         value: d.sampleCount,
-        min: 6,
-        max: 28,
+        min: 24,
+        max: 96,
         step: 1,
-        label: 'samples',
+        label: 'arc samples',
       },
       stepLength: {
         value: d.stepLength,
-        min: 0.015,
-        max: 0.12,
-        step: 0.001,
-        label: 'step length',
+        min: 0.04,
+        max: 0.25,
+        step: 0.005,
+        label: 'station pitch',
       },
-      turns: { value: d.turns, min: 0.2, max: 3, step: 0.05, label: 'turns' },
+      stationJitter: {
+        value: d.stationJitter ?? 0.45,
+        min: 0,
+        max: 1,
+        step: 0.01,
+        label: 'station jitter',
+      },
+      turns: {
+        value: d.turns,
+        min: 0.5,
+        max: 3,
+        step: 0.05,
+        label: 'turns per coil',
+      },
+      ringArcDegrees: {
+        value: d.ringArcDegrees ?? 220,
+        min: 90,
+        max: 360,
+        step: 5,
+        label: 'ring arc (degrees)',
+      },
+      rootBendStrength: {
+        value: d.rootBendStrength ?? 0.55,
+        min: 0.1,
+        max: 1,
+        step: 0.01,
+        label: 'bend strength',
+      },
       climbBias: {
         value: d.climbBias,
         min: 0.1,
-        max: 0.95,
+        max: 1,
         step: 0.01,
         label: 'climb bias',
       },
       clearGap: {
         value: d.clearGap,
-        min: 0.002,
-        max: 0.04,
+        min: 0,
+        max: 0.12,
         step: 0.001,
-        label: 'surface gap',
+        label: 'mesh surface offset',
       },
       peelAt: {
         value: d.peelAt,
@@ -69,12 +101,12 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
         step: 0.01,
         label: 'peel tip',
       },
-      capsuleRadiusScale: {
-        value: d.capsuleRadiusScale,
-        min: 0.4,
-        max: 2.5,
-        step: 0.05,
-        label: 'capsule radius',
+      maxCoilsPerCapsule: {
+        value: d.maxCoilsPerCapsule,
+        min: 1,
+        max: 12,
+        step: 1,
+        label: 'max coils / limb',
       },
     }, { collapsed: true }),
     Tube: folder({
@@ -151,12 +183,35 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
       },
     }, { collapsed: true }),
     Debug: folder({
-      showDebug: { value: d.debug.showDebug, label: 'show climb debug' },
-      showSeeds: { value: d.debug.showSeeds, label: 'seeds / hitch' },
+      showDebug: { value: d.debug.showDebug, label: 'show debug (master)' },
+      showSeeds: { value: d.debug.showSeeds, label: 'ground roots' },
       showPaths: { value: d.debug.showPaths, label: 'path polylines' },
+      showHitch: {
+        value: d.debug.showHitch ?? false,
+        label: 'surface hitch',
+      },
       showDirs: { value: d.debug.showDirs, label: 'direction axes' },
       showBounds: { value: d.debug.showBounds, label: 'host AABB' },
-      showCapsules: { value: d.debug.showCapsules ?? true, label: 'limb capsules' },
+      showCapsules: {
+        value: d.debug.showCapsules ?? false,
+        label: 'limb capsules',
+      },
+      showCapsuleLabels: {
+        value: d.debug.showCapsuleLabels ?? false,
+        label: 'labels',
+      },
+      showDiagnostics: {
+        value: d.debug.showDiagnostics ?? false,
+        label: 'diagnostics panel',
+      },
+      debugSingleHelix: {
+        value: d.debug.debugSingleHelix ?? false,
+        label: 'single helix debug',
+      },
+      debugCapsuleId: {
+        value: d.debug.debugCapsuleId ?? 'calf.r',
+        label: 'debug capsule id',
+      },
       pathCount: {
         value: d.debug.pathCount,
         min: 1,
