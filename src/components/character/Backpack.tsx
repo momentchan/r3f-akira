@@ -18,6 +18,10 @@ import {
   type CharacterOutlineMaterial,
 } from './materials/createToonNodeMaterial';
 import { bakeContactDirt } from './utils/bakeContactDirt';
+import {
+  useWrapHostBounds,
+  type WrapHostBoundsPayload,
+} from './hooks/useWrapHostBounds';
 
 type StemBaseXZ = { x: number; z: number };
 
@@ -27,6 +31,7 @@ type Props = {
   scale?: number;
   fieldParentRef?: RefObject<THREE.Object3D | null>;
   contactPoints?: StemBaseXZ[];
+  onBounds?: (bounds: WrapHostBoundsPayload | null) => void;
 };
 
 function configureTextures(textures: Record<string, THREE.Texture | undefined>) {
@@ -59,10 +64,20 @@ export function Backpack({
   scale = 1,
   fieldParentRef,
   contactPoints,
+  onBounds,
 }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const gltf = useGLTF(BACKPACK_MODEL_PATH);
   const detailTex = configureTextures(useKTX2Texture(DETAIL_TEXTURE_PATHS) as any);
+
+  const boundsKey = `${position.join(',')}:${rotation.join(',')}:${scale}`;
+  useWrapHostBounds({
+    groupRef,
+    fieldParentRef,
+    enabled: Boolean(onBounds),
+    revisionKey: boundsKey,
+    onBounds,
+  });
 
   const schema = useMemo(
     () => createCharacterControlsSchema(CHARACTER_LOOK_DEFAULTS),

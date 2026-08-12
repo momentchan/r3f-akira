@@ -6,6 +6,7 @@ import { useControls } from "leva";
 import * as THREE from "three/webgpu";
 import { Character } from "../components/character/Character";
 import { Backpack } from "../components/character/Backpack.tsx";
+import { ClimbTendrils } from "../components/plants/climb/ClimbTendrils";
 import { PlantField } from "../components/plants/field/PlantField";
 import { DirectionalLight } from "../components/scene/DirectionalLight";
 import Effects from "../components/scene/Effects";
@@ -15,9 +16,13 @@ import { SCENE_DEFAULTS } from "../components/scene/sceneDefaults";
 export default function App() {
   const fieldParentRef = useRef(null);
   const [bodyBounds, setBodyBounds] = useState(null);
+  const [backpackBounds, setBackpackBounds] = useState(null);
   const [contactPoints, setContactPoints] = useState([]);
   const onBodyBounds = useCallback((bounds) => {
     setBodyBounds(bounds);
+  }, []);
+  const onBackpackBounds = useCallback((bounds) => {
+    setBackpackBounds(bounds);
   }, []);
   const onStemBases = useCallback((bases) => {
     setContactPoints(bases);
@@ -67,15 +72,17 @@ export default function App() {
             onBodyBounds={onBodyBounds}
             contactPoints={contactPoints}
           />
-          <Backpack
+          {/* <Backpack
             position={[-1.8, 0.1, -0.5]}
             rotation={[THREE.MathUtils.degToRad(0), THREE.MathUtils.degToRad(200), THREE.MathUtils.degToRad(-5)]}
             scale={1.5}
             fieldParentRef={fieldParentRef}
             contactPoints={contactPoints}
-          />
+            onBounds={onBackpackBounds}
+          /> */}
           <ShadowCatcher groundColor={bgColor} />
-          <PlantField bodyBounds={bodyBounds} onStemBases={onStemBases} />
+          {/* <PlantField bodyBounds={bodyBounds} onStemBases={onStemBases} /> */}
+          <ClimbTendrils bodyBounds={bodyBounds} backpackBounds={backpackBounds} />
         </group>
 
         <color attach="background" args={[bgColor]} />

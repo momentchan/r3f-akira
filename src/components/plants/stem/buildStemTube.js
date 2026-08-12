@@ -135,3 +135,108 @@ export function buildStemTubeGeometry(curve, {
 
   return geo;
 }
+
+const _packP = new THREE.Vector3();
+const _packN = new THREE.Vector3();
+const _packB = new THREE.Vector3();
+const _packNormal = new THREE.Vector3();
+const _packVertex = new THREE.Vector3();
+
+/**
+ * Pack many stem tubes into one BufferGeometry (no mergeGeometries / no temp TubeGeometry).
+ * `curves` items: `{ curve: THREE.Curve, plantId: number }`.
+ * UV.x = path t (used by batched grow discard); `center` + `plantId` match field stems.
+ */
+export function buildPackedStemTubes(curves, {
+  stemRadius,
+  stemSegments,
+  radialSegs,
+  radiusAttenuation,
+  baseFlare,
+}) {
+  const n = curves.length;
+  if (n < 1) return null;
+
+  const rings = stemSegments + 1;
+  const vertsPerRing = radialSegs + 1;
+  const vertsPerStem = rings * vertsPerRing;
+  const totalVerts = n * vertsPerStem;
+  const totalIndices = n * stemSegments * radialSegs * 6;
+
+  const positions = new Float32Array(totalVerts * 3);
+  const normals = new Float32Array(totalVerts * 3);
+  const uvs = new Float32Array(totalVerts * 2);
+  const centers = new Float32Array(totalVerts * 3);
+  const plantIds = new Float32Array(totalVerts);
+  const indices = new Uint32Array(totalIndices);
+
+  let iOffset = 0;
+  let vOffset = 0;
+
+  for (let s = 0; s < n; s += 1) {
+    const { curve, plantId } = curves[s];
+    const frames = curve.computeFrenetFrames(stemSegments, false);
+
+    for (let i = 0; i <= stemSegments; i += 1) {
+      const t = i / stemSegments;
+      const radiusScale = (1 - (1 - radiusAttenuation) * t) + baseFlare * (1 - t) ** 3;
+      const r = stemRadius * radiusScale;
+      curve.getPointAt(t, _packP);
+      _packN.copy(frames.normals[i]);
+      _packB.copy(frames.binormals[i]);
+
+      for (let j = 0; j <= radialSegs; j += 1) {
+        const v = (j / radialSegs) * Math.PI * 2;
+        const sin = Math.sin(v);
+        const cos = -Math.cos(v);
+        _packNormal
+          .copy(_packN)
+          .multiplyScalar(cos)
+          .addScaledVector(_packB, sin)
+          .normalize();
+        _packVertex.copy(_packP).addScaledVector(_packNormal, r);
+
+        const idx = vOffset + i * vertsPerRing + j;
+        const i3 = idx * 3;
+        positions[i3] = _packVertex.x;
+        positions[i3 + 1] = _packVertex.y;
+        positions[i3 + 2] = _packVertex.z;
+        normals[i3] = _packNormal.x;
+        normals[i3 + 1] = _packNormal.y;
+        normals[i3 + 2] = _packNormal.z;
+        centers[i3] = _packP.x;
+        centers[i3 + 1] = _packP.y;
+        centers[i3 + 2] = _packP.z;
+        uvs[idx * 2] = t;
+        uvs[idx * 2 + 1] = j / radialSegs;
+        plantIds[idx] = plantId;
+      }
+    }
+
+    for (let i = 0; i < stemSegments; i += 1) {
+      for (let j = 0; j < radialSegs; j += 1) {
+        const a = vOffset + i * vertsPerRing + j;
+        const b = vOffset + (i + 1) * vertsPerRing + j;
+        const c = b + 1;
+        const d = a + 1;
+        indices[iOffset++] = a;
+        indices[iOffset++] = b;
+        indices[iOffset++] = d;
+        indices[iOffset++] = b;
+        indices[iOffset++] = c;
+        indices[iOffset++] = d;
+      }
+    }
+
+    vOffset += vertsPerStem;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setAttribute('center', new THREE.BufferAttribute(centers, 3));
+  geo.setAttribute('plantId', new THREE.BufferAttribute(plantIds, 1));
+  geo.setIndex(new THREE.BufferAttribute(indices, 1));
+  return geo;
+}

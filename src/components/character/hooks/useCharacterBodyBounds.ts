@@ -4,6 +4,16 @@ import type { MutableRefObject } from 'react';
 import type { Group, Object3D } from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
 import { buildCharacterMeshBVH, findHeadLocalPoint } from '../../plants/field/bodyBounds';
+import { extractBodyAxes, extractLimbCapsules } from '../../plants/climb/limbCapsules';
+
+export type LimbCapsule = {
+  id: string;
+  a: import('three').Vector3;
+  b: import('three').Vector3;
+  radius: number;
+  weight: number;
+  length: number;
+};
 
 export type BodyBoundsPayload = {
   localBox: import('three').Box3;
@@ -14,6 +24,10 @@ export type BodyBoundsPayload = {
   geometry: import('three').BufferGeometry;
   /** Head/helmet point in field-parent local space (helmet mesh center, else bone). */
   headLocal: import('three').Vector3 | null;
+  /** Limb capsules (legs + torso) in field-parent space for climb wraps. */
+  capsules: LimbCapsule[];
+  /** Character-facing right (thigh.r − thigh.l), field-parent space. */
+  bodyRight: import('three').Vector3;
   version: number;
 };
 
@@ -69,8 +83,8 @@ export function useCharacterBodyBounds({
     const parent = fieldParentRef?.current ?? root.parent;
     if (!parent) return;
 
-    // Rebuild once per pose — bump key if head lookup changes.
-    const key = `${pose ?? 'none'}:head-mesh-v1`;
+    // Rebuild once per pose — bump key if capsule/head lookup changes.
+    const key = `${pose ?? 'none'}:capsules-ground-slots-v1`;
     if (key === builtKey.current && latestRef.current) return;
 
     const built = buildCharacterMeshBVH(root, parent);
@@ -80,12 +94,15 @@ export function useCharacterBodyBounds({
     versionRef.current += 1;
     builtKey.current = key;
 
+    const axes = extractBodyAxes(root, parent);
     const payload: BodyBoundsPayload = {
       localBox: built.localBox,
       worldBox: built.worldBox,
       bvh: built.bvh,
       geometry: built.geometry,
       headLocal: findHeadLocalPoint(root, parent),
+      capsules: extractLimbCapsules(root, parent),
+      bodyRight: axes.right,
       version: versionRef.current,
     };
     latestRef.current = payload;
