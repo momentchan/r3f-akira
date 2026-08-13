@@ -203,89 +203,28 @@ export function extractLimbCapsules(root, parent, options) {
 }
 
 /**
- * Approximate a prop AABB as one capsule along its longest axis (backpack).
- * @returns {LimbCapsule | null}
+ * Ordered ring stations per directed body region.
+ * @returns {Array<{ capsule: LimbCapsule, ringIndex: number, ringsOnRegion: number, station: number }>}
  */
-export function capsuleFromBox(localBox, id = 'box') {
-  if (!localBox || localBox.isEmpty()) return null;
-  const center = new THREE.Vector3();
-  const size = new THREE.Vector3();
-  localBox.getCenter(center);
-  localBox.getSize(size);
-
-  const dims = [
-    { axis: 0, len: size.x },
-    { axis: 1, len: size.y },
-    { axis: 2, len: size.z },
-  ].sort((x, y) => y.len - x.len);
-
-  const major = dims[0];
-  const mid = dims[1];
-  const minor = dims[2];
-  const half = major.len * 0.42;
-  const a = center.clone();
-  const b = center.clone();
-  a.setComponent(major.axis, center.getComponent(major.axis) - half);
-  b.setComponent(major.axis, center.getComponent(major.axis) + half);
-
-  const radius = Math.max(0.04, 0.45 * 0.5 * (mid.len + minor.len));
-  return {
-    id,
-    a,
-    b,
-    radius,
-    weight: 1,
-    length: a.distanceTo(b),
-  };
-}
-
-/**
- * Allocate tendril counts across capsules by weight × length.
- * @returns {Array<{ capsule: LimbCapsule, count: number }>}
- */
-export function allocateCapsuleCounts(capsules, total) {
-  if (!capsules.length || total < 1) return [];
-  const scores = capsules.map((c) => Math.max(c.length, 0.05) * (c.weight || 1));
-  const sum = scores.reduce((s, v) => s + v, 0);
-  const raw = scores.map((s) => (s / sum) * total);
-  const floors = raw.map((v) => Math.floor(v));
-  let used = floors.reduce((s, v) => s + v, 0);
-  const frac = raw.map((v, i) => ({ i, f: v - floors[i] }))
-    .sort((a, b) => b.f - a.f);
-  const counts = floors.slice();
-  let k = 0;
-  while (used < total && k < frac.length * 4) {
-    counts[frac[k % frac.length].i] += 1;
-    used += 1;
-    k += 1;
-  }
-  return capsules.map((capsule, i) => ({ capsule, count: counts[i] }))
-    .filter((e) => e.count > 0);
-}
-
-/**
- * Pitch-based helix coil slots per capsule (axial distance per full turn).
- * @returns {Array<{ capsule: LimbCapsule, coilIndex: number, coilsOnCapsule: number, uStart: number }>}
- */
-export function allocateHelixCoils(capsules, helixPitch, {
-  maxCoilsPerCapsule = 8,
+export function allocateRingStations(capsules, ringSpacing, {
+  maxRingsPerRegion = 8,
   totalBudget = 512,
 } = {}) {
-  if (!capsules.length || helixPitch < 1e-4) return [];
+  if (!capsules.length || ringSpacing < 1e-4) return [];
 
   const raw = [];
   for (const capsule of capsules) {
-    const coilsOnCapsule = THREE.MathUtils.clamp(
-      Math.floor(capsule.length / helixPitch),
+    const ringsOnRegion = THREE.MathUtils.clamp(
+      Math.floor(capsule.length / ringSpacing),
       1,
-      maxCoilsPerCapsule,
+      maxRingsPerRegion,
     );
-    for (let i = 0; i < coilsOnCapsule; i += 1) {
+    for (let i = 0; i < ringsOnRegion; i += 1) {
       raw.push({
         capsule,
-        coilIndex: i,
-        coilsOnCapsule,
-        uStart: THREE.MathUtils.clamp((i + 0.5) / coilsOnCapsule, 0.04, 0.96),
+        ringIndex: i,
+        ringsOnRegion,
+        station: THREE.MathUtils.clamp((i + 0.5) / ringsOnRegion, 0.04, 0.96),
       });
     }
   }

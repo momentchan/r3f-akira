@@ -4,220 +4,111 @@ import { CLIMB_DEFAULTS } from './climbDefaults';
 export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
   const d = defaults;
   return {
-    enabled: { value: d.enabled, label: 'enabled' },
-    region: {
-      value: d.region ?? 'all',
-      options: ['calf.r', 'calves', 'legs', 'arms', 'limbs', 'torso', 'all'],
-      label: 'region',
-    },
-    count: { value: d.count, min: 0, max: 512, step: 1, label: 'coil budget' },
-    bodyRatio: {
-      value: d.bodyRatio,
-      min: 0,
-      max: 1,
-      step: 0.01,
-      label: 'body vs pack',
-    },
-    arrangementSeed: {
-      value: d.arrangementSeed,
-      min: 0,
-      max: 100,
-      step: 1,
-      label: 'seed',
-    },
-    animMode: {
-      value: d.animMode,
-      options: ['settle', 'loop'],
-      label: 'anim mode',
-    },
-    phaseSpread: {
-      value: d.phaseSpread,
-      min: 0,
-      max: 1,
-      step: 0.05,
-      label: 'phase spread',
-    },
-    Path: folder({
-      sampleCount: {
-        value: d.sampleCount,
-        min: 24,
-        max: 96,
-        step: 1,
-        label: 'arc samples',
+    enabled: { value: d.enabled, label: 'Enabled' },
+
+    Target: folder({
+      region: {
+        value: d.region,
+        options: ['calf.r', 'calves', 'legs', 'arms', 'limbs', 'torso', 'all'],
+        label: 'Body Region',
       },
-      stepLength: {
-        value: d.stepLength,
-        min: 0.04,
+    }),
+
+    Distribution: folder({
+      layoutSeed: {
+        value: d.layoutSeed,
+        min: 0,
+        max: 100,
+        step: 1,
+        label: 'Layout Seed',
+      },
+      ringSpacing: {
+        value: d.ringSpacing,
+        min: 0.01,
         max: 0.25,
         step: 0.005,
-        label: 'station pitch',
+        label: 'Ring Spacing',
       },
-      stationJitter: {
-        value: d.stationJitter ?? 0.45,
+      spacingVariation: {
+        value: d.spacingVariation,
         min: 0,
         max: 1,
         step: 0.01,
-        label: 'station jitter',
+        label: 'Spacing Variation',
       },
-      turns: {
-        value: d.turns,
-        min: 0.5,
-        max: 3,
-        step: 0.05,
-        label: 'turns per coil',
-      },
-      ringArcDegrees: {
-        value: d.ringArcDegrees ?? 220,
+    }),
+
+    Shape: folder({
+      wrapAngleDegrees: {
+        value: d.wrapAngleDegrees,
         min: 90,
         max: 360,
         step: 5,
-        label: 'ring arc (degrees)',
+        label: 'Wrap Angle (deg)',
       },
-      rootBendStrength: {
-        value: d.rootBendStrength ?? 0.55,
+      entryBend: {
+        value: d.entryBend,
         min: 0.1,
         max: 1,
         step: 0.01,
-        label: 'bend strength',
+        label: 'Entry Bend',
       },
-      climbBias: {
-        value: d.climbBias,
-        min: 0.1,
-        max: 1,
-        step: 0.01,
-        label: 'climb bias',
-      },
-      clearGap: {
-        value: d.clearGap,
+      surfaceOffset: {
+        value: d.surfaceOffset,
         min: 0,
         max: 0.12,
         step: 0.001,
-        label: 'mesh surface offset',
+        label: 'Surface Offset',
       },
-      peelAt: {
-        value: d.peelAt,
-        min: 0.5,
-        max: 1,
-        step: 0.01,
-        label: 'peel tip',
-      },
-      maxCoilsPerCapsule: {
-        value: d.maxCoilsPerCapsule,
-        min: 1,
-        max: 12,
+      curveSamples: {
+        value: d.curveSamples,
+        min: 24,
+        max: 96,
         step: 1,
-        label: 'max coils / limb',
+        label: 'Curve Samples',
       },
     }, { collapsed: true }),
-    Tube: folder({
-      stemRadius: {
-        value: d.stemRadius,
+
+    Appearance: folder({
+      tendrilRadius: {
+        value: d.tendrilRadius,
         min: 0.001,
         max: 0.02,
         step: 0.0005,
-        label: 'radius',
+        label: 'Tendril Radius',
       },
-      radiusAttenuation: {
-        value: d.radiusAttenuation,
+    }),
+
+    Growth: folder({
+      growthTimeRange: {
+        value: d.growthTimeRange,
+        min: 0.2,
+        max: 20,
+        step: 0.1,
+        label: 'Growth Time Range (s)',
+      },
+      maxStartDelay: {
+        value: d.maxStartDelay,
         min: 0,
-        max: 1,
-        step: 0.01,
-        label: 'taper',
+        max: 20,
+        step: 0.1,
+        label: 'Max Start Delay (s)',
       },
-      baseFlare: {
-        value: d.baseFlare,
-        min: 0,
-        max: 1,
-        step: 0.01,
-        label: 'flare',
-      },
-      stemSegments: {
-        value: d.stemSegments,
-        min: 6,
-        max: 32,
-        step: 1,
-        label: 'segments',
-      },
-      radialSegs: {
-        value: d.radialSegs,
-        min: 3,
-        max: 6,
-        step: 1,
-        label: 'radial',
-      },
-    }, { collapsed: true }),
-    Lifecycle: folder({
-      delay: { value: d.lifecycle.delay, min: 0, max: 8, step: 0.1, label: 'delay' },
-      grow: { value: d.lifecycle.grow, min: 0.2, max: 20, step: 0.1, label: 'grow' },
-      keep: { value: d.lifecycle.keep, min: 0.5, max: 40, step: 0.1, label: 'keep' },
-      die: { value: d.lifecycle.die, min: 0.2, max: 12, step: 0.1, label: 'die' },
-    }, { collapsed: true }),
-    Wind: folder({
-      windStrength: {
-        value: d.wind.windStrength,
-        min: 0,
-        max: 0.2,
-        step: 0.001,
-        label: 'strength',
-      },
-      windAngle: {
-        value: d.wind.windAngle,
-        min: 0,
-        max: 360,
-        step: 1,
-        label: 'angle',
-      },
-      windScale: {
-        value: d.wind.windScale,
-        min: 0.1,
-        max: 6,
-        step: 0.05,
-        label: 'scale',
-      },
-      windSpeed: {
-        value: d.wind.windSpeed,
-        min: 0,
-        max: 3,
-        step: 0.01,
-        label: 'speed',
-      },
-    }, { collapsed: true }),
+    }),
+
     Debug: folder({
-      showDebug: { value: d.debug.showDebug, label: 'show debug (master)' },
-      showSeeds: { value: d.debug.showSeeds, label: 'ground roots' },
-      showPaths: { value: d.debug.showPaths, label: 'path polylines' },
-      showHitch: {
-        value: d.debug.showHitch ?? false,
-        label: 'surface hitch',
-      },
-      showDirs: { value: d.debug.showDirs, label: 'direction axes' },
-      showBounds: { value: d.debug.showBounds, label: 'host AABB' },
-      showCapsules: {
-        value: d.debug.showCapsules ?? false,
-        label: 'limb capsules',
-      },
-      showCapsuleLabels: {
-        value: d.debug.showCapsuleLabels ?? false,
-        label: 'labels',
-      },
-      showDiagnostics: {
-        value: d.debug.showDiagnostics ?? false,
-        label: 'diagnostics panel',
-      },
-      debugSingleHelix: {
-        value: d.debug.debugSingleHelix ?? false,
-        label: 'single helix debug',
-      },
-      debugCapsuleId: {
-        value: d.debug.debugCapsuleId ?? 'calf.r',
-        label: 'debug capsule id',
-      },
+      showDebug: { value: d.debug.showDebug, label: 'Show Debug' },
+      showPaths: { value: d.debug.showPaths, label: 'Paths' },
+      showSeeds: { value: d.debug.showSeeds, label: 'Ground Roots' },
+      showCapsules: { value: d.debug.showCapsules, label: 'Body Regions' },
+      showCapsuleLabels: { value: d.debug.showCapsuleLabels, label: 'Region Labels' },
+      showDiagnostics: { value: d.debug.showDiagnostics, label: 'Extraction Diagnostics' },
       pathCount: {
         value: d.debug.pathCount,
         min: 1,
-        max: 128,
+        max: 256,
         step: 1,
-        label: 'debug path count',
+        label: 'Max Debug Paths',
       },
     }, { collapsed: true }),
   };

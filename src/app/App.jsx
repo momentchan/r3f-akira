@@ -82,7 +82,7 @@ export default function App() {
           /> */}
           <ShadowCatcher groundColor={bgColor} />
           {/* <PlantField bodyBounds={bodyBounds} onStemBases={onStemBases} /> */}
-          <ClimbTendrils bodyBounds={bodyBounds} backpackBounds={backpackBounds} />
+          <ClimbTendrils bodyBounds={bodyBounds} />
         </group>
 
         <color attach="background" args={[bgColor]} />
