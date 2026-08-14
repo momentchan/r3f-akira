@@ -7,6 +7,7 @@ import {
   abs,
   attribute,
   cameraPosition,
+  ceil,
   clamp,
   cos,
   dot,
@@ -479,9 +480,16 @@ export function createBatchedStemMaterial(flowerUniforms, options = {}) {
     texWidth,
     maskPow = 2,
     startScale = 0.1,
+    growthSegments = 24,
   } = options;
   const stem = flowerUniforms.stem;
   const uTexWidth = uniform(texWidth);
+  const segmentCount = float(Math.max(1, growthSegments));
+  const quantizeGrowthFront = (grow) => clamp(
+    ceil(grow.mul(segmentCount)).div(segmentCount),
+    0.0,
+    1.0,
+  );
 
   const material = new THREE.MeshBasicNodeMaterial({
     toneMapped: false,
@@ -494,7 +502,8 @@ export function createBatchedStemMaterial(flowerUniforms, options = {}) {
     const plantId = attribute('plantId', 'float');
     const dataUV = vec2(plantId.add(0.5).div(uTexWidth), 0.5);
     const grow = texture(plantDataTexture, dataUV).r;
-    If(uv().x.greaterThan(grow), () => {
+    const growthFront = quantizeGrowthFront(grow);
+    If(uv().x.greaterThan(growthFront), () => {
       Discard();
     });
     const color = buildStemColor(stem, normalSource);
@@ -504,19 +513,35 @@ export function createBatchedStemMaterial(flowerUniforms, options = {}) {
   material.positionNode = Fn(() => {
     const plantId = attribute('plantId', 'float');
     const center = attribute('center', 'vec3');
+    const previousPosition = attribute('previousPosition', 'vec3');
+    const previousCenter = attribute('previousCenter', 'vec3');
     const dataUV = vec2(plantId.add(0.5).div(uTexWidth), 0.5);
     const data = texture(plantDataTexture, dataUV);
     const grow = data.r.toVar();
+    const growthFront = quantizeGrowthFront(grow).toVar();
     const sway = vec2(data.g, data.b);
 
     const s0 = float(startScale);
     const rScale = s0.add(grow.mul(1.0 - startScale));
     const along = uv().x.toVar();
-    // Collapse undrawn tip onto the ring center so shadows don't ghost.
-    const visible = step(along, grow);
+    const segmentSize = float(1.0).div(segmentCount);
+    const segmentStart = growthFront.sub(segmentSize);
+    const frontAlpha = clamp(grow.sub(segmentStart).mul(segmentCount), 0.0, 1.0);
+    const visible = step(along, growthFront);
     const grown = center.add(positionLocal.sub(center).mul(rScale));
-    const base = mix(center, grown, visible);
-    const mask = pow(along, float(maskPow));
+    const previousGrown = previousCenter.add(
+      previousPosition.sub(previousCenter).mul(rScale),
+    );
+    // Move only the boundary ring continuously through its active segment. The
+    // fragment cutoff stays on that complete ring, avoiding both wedge and step.
+    const isBoundary = float(1.0).sub(step(
+      segmentSize.mul(0.5),
+      abs(along.sub(growthFront)),
+    ));
+    const smoothFront = mix(grown, mix(previousGrown, grown, frontAlpha), isBoundary);
+    const base = mix(center, smoothFront, visible);
+    const motionAlong = mix(along, grow, isBoundary);
+    const mask = pow(motionAlong, float(maskPow));
     return base.add(vec3(sway.x, 0.0, sway.y).mul(mask.mul(visible)));
   })();
 

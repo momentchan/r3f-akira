@@ -106,17 +106,31 @@ export function buildStemTubeGeometry(curve, {
 
   const vertsPerRing = radialSegs + 1;
   const centers = new Float32Array(geo.attributes.position.count * 3);
+  const previousPositions = new Float32Array(geo.attributes.position.count * 3);
+  const previousCenters = new Float32Array(geo.attributes.position.count * 3);
   const rc = new THREE.Vector3();
+  const previousRc = new THREE.Vector3();
+  const position = geo.attributes.position;
   for (let i = 0; i <= stemSegments; i++) {
     curve.getPointAt(i / stemSegments, rc);
+    curve.getPointAt(Math.max(i - 1, 0) / stemSegments, previousRc);
     for (let j = 0; j <= radialSegs; j++) {
+      const previousVertexIndex = Math.max(i - 1, 0) * vertsPerRing + j;
       const k = (i * vertsPerRing + j) * 3;
       centers[k] = rc.x;
       centers[k + 1] = rc.y;
       centers[k + 2] = rc.z;
+      previousPositions[k] = position.getX(previousVertexIndex);
+      previousPositions[k + 1] = position.getY(previousVertexIndex);
+      previousPositions[k + 2] = position.getZ(previousVertexIndex);
+      previousCenters[k] = previousRc.x;
+      previousCenters[k + 1] = previousRc.y;
+      previousCenters[k + 2] = previousRc.z;
     }
   }
   geo.setAttribute('center', new THREE.BufferAttribute(centers, 3));
+  geo.setAttribute('previousPosition', new THREE.BufferAttribute(previousPositions, 3));
+  geo.setAttribute('previousCenter', new THREE.BufferAttribute(previousCenters, 3));
 
   if (plantId != null) {
     const ids = new Float32Array(geo.attributes.position.count);
@@ -127,10 +141,16 @@ export function buildStemTubeGeometry(curve, {
   if (offset) {
     geo.translate(offset[0], offset[1], offset[2]);
     const c = geo.attributes.center;
+    const pp = geo.attributes.previousPosition;
+    const pc = geo.attributes.previousCenter;
     for (let i = 0; i < c.count; i++) {
       c.setXYZ(i, c.getX(i) + offset[0], c.getY(i) + offset[1], c.getZ(i) + offset[2]);
+      pp.setXYZ(i, pp.getX(i) + offset[0], pp.getY(i) + offset[1], pp.getZ(i) + offset[2]);
+      pc.setXYZ(i, pc.getX(i) + offset[0], pc.getY(i) + offset[1], pc.getZ(i) + offset[2]);
     }
     c.needsUpdate = true;
+    pp.needsUpdate = true;
+    pc.needsUpdate = true;
   }
 
   return geo;
@@ -167,6 +187,8 @@ export function buildPackedStemTubes(curves, {
   const normals = new Float32Array(totalVerts * 3);
   const uvs = new Float32Array(totalVerts * 2);
   const centers = new Float32Array(totalVerts * 3);
+  const previousPositions = new Float32Array(totalVerts * 3);
+  const previousCenters = new Float32Array(totalVerts * 3);
   const plantIds = new Float32Array(totalVerts);
   const indices = new Uint32Array(totalIndices);
 
@@ -207,6 +229,14 @@ export function buildPackedStemTubes(curves, {
         centers[i3] = _packP.x;
         centers[i3 + 1] = _packP.y;
         centers[i3 + 2] = _packP.z;
+        const previousIdx = vOffset + Math.max(i - 1, 0) * vertsPerRing + j;
+        const previousI3 = previousIdx * 3;
+        previousPositions[i3] = positions[previousI3];
+        previousPositions[i3 + 1] = positions[previousI3 + 1];
+        previousPositions[i3 + 2] = positions[previousI3 + 2];
+        previousCenters[i3] = centers[previousI3];
+        previousCenters[i3 + 1] = centers[previousI3 + 1];
+        previousCenters[i3 + 2] = centers[previousI3 + 2];
         uvs[idx * 2] = t;
         uvs[idx * 2 + 1] = j / radialSegs;
         plantIds[idx] = plantId;
@@ -236,6 +266,8 @@ export function buildPackedStemTubes(curves, {
   geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   geo.setAttribute('center', new THREE.BufferAttribute(centers, 3));
+  geo.setAttribute('previousPosition', new THREE.BufferAttribute(previousPositions, 3));
+  geo.setAttribute('previousCenter', new THREE.BufferAttribute(previousCenters, 3));
   geo.setAttribute('plantId', new THREE.BufferAttribute(plantIds, 1));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;

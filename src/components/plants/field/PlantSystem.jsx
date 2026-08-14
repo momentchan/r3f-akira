@@ -310,6 +310,7 @@ export function PlantSystem({
       texWidth: stemBuild.plantData.width,
       maskPow: 2,
       startScale: GROWTH_START_SCALE,
+      growthSegments: stemSegments,
     });
   }, [stemBuild.plantData, stemFlowerUniforms]);
 

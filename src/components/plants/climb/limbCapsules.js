@@ -202,39 +202,78 @@ export function extractLimbCapsules(root, parent, options) {
   return extractLimbCapsulesWithDiagnostics(root, parent, options).capsules;
 }
 
+function stationRng(seed) {
+  let state = ((seed + 1) * 2654435761) >>> 0;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
+
 /**
- * Ordered ring stations per directed body region.
+ * Allocate one global tendril count proportionally by region length, then use
+ * bounded-random gaps inside each region. This preserves coverage without the
+ * mechanical look of identical spacing.
  * @returns {Array<{ capsule: LimbCapsule, ringIndex: number, ringsOnRegion: number, station: number }>}
  */
-export function allocateRingStations(capsules, ringSpacing, {
-  maxRingsPerRegion = 8,
+export function allocateRingStations(capsules, tendrilCount, {
+  layoutSeed = 0,
+  spacingVariation = 1,
   totalBudget = 512,
 } = {}) {
-  if (!capsules.length || ringSpacing < 1e-4) return [];
+  if (!capsules.length || tendrilCount < 1) return [];
 
-  const raw = [];
-  for (const capsule of capsules) {
-    const ringsOnRegion = THREE.MathUtils.clamp(
-      Math.floor(capsule.length / ringSpacing),
-      1,
-      maxRingsPerRegion,
-    );
+  const target = Math.min(Math.max(Math.floor(tendrilCount), 1), totalBudget);
+  const counts = new Array(capsules.length).fill(0);
+  let remaining = target;
+
+  // Reserve one tendril for every selected region whenever the budget allows it.
+  if (target >= capsules.length) {
+    counts.fill(1);
+    remaining -= capsules.length;
+  }
+
+  const totalLength = capsules.reduce((sum, capsule) => sum + capsule.length, 0);
+  const shares = capsules.map((capsule, index) => {
+    const exact = totalLength > 1e-6
+      ? (capsule.length / totalLength) * remaining
+      : remaining / capsules.length;
+    const whole = Math.floor(exact);
+    counts[index] += whole;
+    return { index, fraction: exact - whole, length: capsule.length };
+  });
+  let assigned = counts.reduce((sum, count) => sum + count, 0);
+  shares.sort((a, b) => b.fraction - a.fraction || b.length - a.length);
+  for (let i = 0; assigned < target; i += 1, assigned += 1) {
+    counts[shares[i % shares.length].index] += 1;
+  }
+
+  const variation = THREE.MathUtils.clamp(spacingVariation, 0, 1);
+  const out = [];
+  for (let regionIndex = 0; regionIndex < capsules.length; regionIndex += 1) {
+    const capsule = capsules[regionIndex];
+    const ringsOnRegion = counts[regionIndex];
+    if (ringsOnRegion < 1) continue;
+
+    const rng = stationRng(layoutSeed * 977 + regionIndex * 131 + 17);
+    const gaps = new Array(ringsOnRegion + 1);
+    let gapTotal = 0;
+    for (let i = 0; i < gaps.length; i += 1) {
+      const randomGap = THREE.MathUtils.lerp(0.18, 1.82, rng());
+      gaps[i] = THREE.MathUtils.lerp(1, randomGap, variation);
+      gapTotal += gaps[i];
+    }
+
+    let cursor = 0;
     for (let i = 0; i < ringsOnRegion; i += 1) {
-      raw.push({
+      cursor += gaps[i];
+      out.push({
         capsule,
         ringIndex: i,
         ringsOnRegion,
-        station: THREE.MathUtils.clamp((i + 0.5) / ringsOnRegion, 0.04, 0.96),
+        station: THREE.MathUtils.clamp(cursor / gapTotal, 0.02, 0.98),
       });
     }
-  }
-
-  if (raw.length <= totalBudget) return raw;
-
-  const out = [];
-  const step = raw.length / totalBudget;
-  for (let i = 0; i < totalBudget; i += 1) {
-    out.push(raw[Math.min(Math.floor(i * step), raw.length - 1)]);
   }
   return out;
 }

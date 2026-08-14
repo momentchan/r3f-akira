@@ -10,20 +10,20 @@ import {
   GROWTH_START_SCALE,
 } from '../stem/buildStemTube';
 import { computeDurations, computeLifecycle } from '../stem/flowerLifecycle';
+import { FieldLeaves } from '../stem/FieldLeaves';
 import { buildWrapCurves } from './buildWrapCurve';
 import { ClimbDebug } from './ClimbDebug';
 import { createClimbControlsSchema } from './climbControls';
 import { CLIMB_DEFAULTS } from './climbDefaults';
+import { sampleLivingMotionOffset } from './spatialNoise';
 
 const _lightWorld = new THREE.Vector3();
 const _lightTarget = new THREE.Vector3();
 const PATH_DEBOUNCE_MS = 120;
-const MAX_TOTAL_RINGS = 512;
-const MAX_RINGS_PER_REGION = 12;
-const TUBE_SEGMENTS = 30;
+const MAX_TOTAL_TENDRILS = 512;
+const TUBE_SEGMENTS = 60;
 const TUBE_RADIAL_SEGMENTS = 3;
-const TUBE_TIP_SCALE = 0.35;
-const TUBE_BASE_FLARE = 0.12;
+const GENERATION_SEED_STEP = 131;
 
 const REGION_CAPSULE_IDS = {
   'calf.r': ['calf.r'],
@@ -69,16 +69,29 @@ function applyStemLookDefaults(uniforms) {
   stem.edgeSoftness.value = d.edgeSoftness;
 }
 
+function lifecyclePhase(seed) {
+  const value = Math.sin((seed + 1) * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function lifecycleLength(durations) {
+  return durations.delay + durations.grow + durations.keep + durations.die;
+}
+
 function pathKeyFromControls(c) {
   return [
     c.region,
     c.layoutSeed,
     c.curveSamples,
-    c.ringSpacing,
+    c.tendrilCount,
     c.spacingVariation,
-    c.wrapAngleDegrees,
+    c.wrapAngleRange,
+    c.axialWeave,
     c.entryBend,
     c.surfaceOffset,
+    c.noiseAmount,
+    c.noiseFrequency,
+    c.noiseSeed,
   ].join(':');
 }
 
@@ -119,11 +132,15 @@ export function ClimbTendrils({
     region: controls.region,
     layoutSeed: controls.layoutSeed,
     curveSamples: controls.curveSamples,
-    ringSpacing: controls.ringSpacing,
+    tendrilCount: controls.tendrilCount,
     spacingVariation: controls.spacingVariation,
-    wrapAngleDegrees: controls.wrapAngleDegrees,
+    wrapAngleRange: controls.wrapAngleRange,
+    axialWeave: controls.axialWeave,
     entryBend: controls.entryBend,
     surfaceOffset: controls.surfaceOffset,
+    noiseAmount: controls.noiseAmount,
+    noiseFrequency: controls.noiseFrequency,
+    noiseSeed: controls.noiseSeed,
   }));
 
   useEffect(() => {
@@ -132,11 +149,15 @@ export function ClimbTendrils({
       region: controls.region,
       layoutSeed: controls.layoutSeed,
       curveSamples: controls.curveSamples,
-      ringSpacing: controls.ringSpacing,
+      tendrilCount: controls.tendrilCount,
       spacingVariation: controls.spacingVariation,
-      wrapAngleDegrees: controls.wrapAngleDegrees,
+      wrapAngleRange: controls.wrapAngleRange,
+      axialWeave: controls.axialWeave,
       entryBend: controls.entryBend,
       surfaceOffset: controls.surfaceOffset,
+      noiseAmount: controls.noiseAmount,
+      noiseFrequency: controls.noiseFrequency,
+      noiseSeed: controls.noiseSeed,
     };
     const id = window.setTimeout(() => setDebouncedPath(next), PATH_DEBOUNCE_MS);
     return () => window.clearTimeout(id);
@@ -145,11 +166,15 @@ export function ClimbTendrils({
     controls.region,
     controls.layoutSeed,
     controls.curveSamples,
-    controls.ringSpacing,
+    controls.tendrilCount,
     controls.spacingVariation,
-    controls.wrapAngleDegrees,
+    controls.wrapAngleRange,
+    controls.axialWeave,
     controls.entryBend,
     controls.surfaceOffset,
+    controls.noiseAmount,
+    controls.noiseFrequency,
+    controls.noiseSeed,
   ]);
 
   const flowerUniforms = useMemo(() => {
@@ -162,28 +187,34 @@ export function ClimbTendrils({
     if (!controls.enabled || !hosts.length) return [];
     return buildWrapCurves({
       hosts,
-      maxRings: MAX_TOTAL_RINGS,
+      tendrilCount: Math.min(debouncedPath.tendrilCount, MAX_TOTAL_TENDRILS),
       layoutSeed: debouncedPath.layoutSeed,
       curveSamples: debouncedPath.curveSamples,
-      ringSpacing: debouncedPath.ringSpacing,
       spacingVariation: debouncedPath.spacingVariation,
       surfaceOffset: debouncedPath.surfaceOffset,
-      maxRingsPerRegion: MAX_RINGS_PER_REGION,
       entrySide: 'random-lateral',
       entrySideBias: 1,
-      wrapAngleDegrees: debouncedPath.wrapAngleDegrees,
+      wrapAngleRange: debouncedPath.wrapAngleRange,
+      axialWeave: debouncedPath.axialWeave,
       entryBend: debouncedPath.entryBend,
+      noiseAmount: debouncedPath.noiseAmount,
+      noiseFrequency: debouncedPath.noiseFrequency,
+      noiseSeed: debouncedPath.noiseSeed,
       enabledCapsuleIds: REGION_CAPSULE_IDS[debouncedPath.region] ?? null,
     });
   }, [controls.enabled, hosts, debouncedPath]);
 
   const lifecycleRanges = useMemo(() => ({
-    delay: [0, controls.maxStartDelay],
+    delay: controls.restTimeRange,
     grow: controls.growthTimeRange,
-    // Settle mode stops at the end of growth; these phases are never played.
-    keep: [1, 1],
-    die: [1, 1],
-  }), [controls.maxStartDelay, controls.growthTimeRange]);
+    keep: controls.holdTimeRange,
+    die: controls.retractTimeRange,
+  }), [
+    controls.restTimeRange,
+    controls.growthTimeRange,
+    controls.holdTimeRange,
+    controls.retractTimeRange,
+  ]);
 
   const stemBuild = useMemo(() => {
     if (!wraps.length) {
@@ -200,24 +231,33 @@ export function ClimbTendrils({
       stemRadius: controls.tendrilRadius,
       stemSegments: TUBE_SEGMENTS,
       radialSegs: TUBE_RADIAL_SEGMENTS,
-      radiusAttenuation: TUBE_TIP_SCALE,
-      baseFlare: TUBE_BASE_FLARE,
+      radiusAttenuation: controls.radiusAttenuation,
+      baseFlare: controls.baseFlare,
     });
 
     if (!geometry) {
       return { geometry: null, plantData: null, plants: [] };
     }
 
+    const motionSample = new THREE.Vector3();
     const plants = wraps.map((wrap, plantId) => {
+      wrap.curve.getPointAt(0.5, motionSample);
       return {
         seed: wrap.seed,
         plantId,
         hostId: wrap.hostId,
         curve: wrap.curve,
+        motionPosition: [motionSample.x, motionSample.y, motionSample.z],
         position: [0, 0, 0],
+        params: {
+          stemLength: wrap.curve.getLength(),
+          stemRadius: controls.tendrilRadius,
+          radiusAttenuation: controls.radiusAttenuation,
+          baseFlare: controls.baseFlare,
+        },
         durations: null,
         age: 0,
-        settled: false,
+        generation: 0,
       };
     });
 
@@ -225,6 +265,8 @@ export function ClimbTendrils({
   }, [
     wraps,
     controls.tendrilRadius,
+    controls.radiusAttenuation,
+    controls.baseFlare,
   ]);
 
   const stemMaterial = useMemo(() => {
@@ -234,6 +276,7 @@ export function ClimbTendrils({
       texWidth: stemBuild.plantData.width,
       maskPow: 2,
       startScale: GROWTH_START_SCALE,
+      growthSegments: TUBE_SEGMENTS,
     });
   }, [stemBuild.plantData, flowerUniforms]);
 
@@ -242,6 +285,15 @@ export function ClimbTendrils({
   const lightRef = useRef(null);
   const lifecycleRef = useRef(lifecycleRanges);
   lifecycleRef.current = lifecycleRanges;
+  const phaseSpreadRef = useRef(controls.initialPhaseSpread);
+  phaseSpreadRef.current = controls.initialPhaseSpread;
+  const motionRef = useRef(null);
+  motionRef.current = {
+    amount: controls.motionAmount,
+    frequency: controls.motionFrequency,
+    speed: controls.motionSpeed,
+    seed: controls.layoutSeed,
+  };
 
   // Preserve ages across tube rebuilds when seeds align; assign durations.
   useEffect(() => {
@@ -253,25 +305,32 @@ export function ClimbTendrils({
       next[i].durations = durations;
       if (prev?.length === next.length && prev[i]?.seed === next[i].seed) {
         next[i].age = prev[i].age;
-        next[i].settled = prev[i].settled;
+        next[i].generation = prev[i].generation;
+        next[i].durations = prev[i].durations;
       } else {
-        next[i].age = 0;
-        next[i].settled = false;
+        const life = lifecycleLength(durations);
+        next[i].age = lifecyclePhase(next[i].seed)
+          * life
+          * phaseSpreadRef.current;
+        next[i].generation = 0;
       }
     }
     plantsRef.current = next;
     plantDataRef.current = stemBuild.plantData;
   }, [stemBuild]);
 
-  // Refresh durations when lifecycle ranges change (no geometry rebuild).
+  // Refresh and redistribute phases when lifecycle timing changes (no geometry rebuild).
   useEffect(() => {
     const plants = plantsRef.current;
     for (let i = 0; i < plants.length; i += 1) {
-      plants[i].durations = computeDurations(plants[i].seed, lifecycleRanges);
-      plants[i].age = 0;
-      plants[i].settled = false;
+      const plant = plants[i];
+      plant.generation = 0;
+      plant.durations = computeDurations(plant.seed, lifecycleRanges);
+      plant.age = lifecyclePhase(plant.seed)
+        * lifecycleLength(plant.durations)
+        * controls.initialPhaseSpread;
     }
-  }, [lifecycleRanges]);
+  }, [lifecycleRanges, controls.initialPhaseSpread]);
 
   useEffect(() => () => {
     stemBuild.geometry?.dispose();
@@ -279,7 +338,7 @@ export function ClimbTendrils({
     stemMaterial?.dispose();
   }, [stemBuild, stemMaterial]);
 
-  useFrame(({ scene }, delta) => {
+  useFrame(({ scene, clock }, delta) => {
     const plants = plantsRef.current;
     const plantData = plantDataRef.current;
     if (!plants.length || !plantData) return;
@@ -305,22 +364,31 @@ export function ClimbTendrils({
       const plant = plants[i];
       if (!plant.durations) continue;
 
-      const growEnd = plant.durations.delay + plant.durations.grow;
-
-      if (!plant.settled) {
-        plant.age += dt;
-        if (plant.age >= growEnd) {
-          plant.age = growEnd;
-          plant.settled = true;
-        }
+      plant.age += dt;
+      let life = lifecycleLength(plant.durations);
+      if (plant.age >= life) {
+        const overflow = plant.age - life;
+        plant.generation += 1;
+        plant.durations = computeDurations(
+          plant.seed + plant.generation * GENERATION_SEED_STEP,
+          lifecycleRef.current,
+        );
+        life = lifecycleLength(plant.durations);
+        plant.age = Math.min(overflow, Math.max(life - 1e-6, 0));
       }
 
       const { stemGrow } = computeLifecycle(plant.age, plant.durations, 0.3, 0.23);
-
+      const [motionX, motionZ] = sampleLivingMotionOffset(
+        plant.motionPosition[0],
+        plant.motionPosition[1],
+        plant.motionPosition[2],
+        clock.elapsedTime,
+        motionRef.current,
+      );
       const o = i * 4;
       data[o] = stemGrow;
-      data[o + 1] = 0;
-      data[o + 2] = 0;
+      data[o + 1] = motionX;
+      data[o + 2] = motionZ;
       data[o + 3] = 0;
     }
     for (let i = plants.length; i < width; i += 1) {
@@ -341,14 +409,34 @@ export function ClimbTendrils({
   return (
     <group name="ClimbTendrils">
       {showStems && (
-        <AsyncCompile id={`climb-tendrils-${stemBuild.plants.length}`}>
-          <mesh
-            geometry={stemBuild.geometry}
-            material={stemMaterial}
-            frustumCulled={false}
-            castShadow
-            receiveShadow
-          />
+        <AsyncCompile id={`climb-tendrils-${stemBuild.plants.length}-${controls.leafCount}`}>
+          <group>
+            <mesh
+              geometry={stemBuild.geometry}
+              material={stemMaterial}
+              frustumCulled={false}
+              castShadow
+              receiveShadow
+            />
+            {controls.leafCount > 0 && (
+              <FieldLeaves
+                plants={stemBuild.plants}
+                plantData={stemBuild.plantData}
+                flowerUniforms={flowerUniforms}
+                leafCount={controls.leafCount}
+                leafSpan={controls.leafSpan}
+                leafScale={controls.leafScale}
+                scaleVariance={controls.leafScaleVariation}
+                droop={controls.leafDroop}
+                leafBend={controls.leafCurl}
+                curlStrength={[4, 1]}
+                curlPower={[6, 1]}
+                bendStrength={0}
+                bendVariance={controls.leafCurlVariation}
+                colorLevels={controls.leafColorLevels}
+              />
+            )}
+          </group>
         </AsyncCompile>
       )}
       <ClimbDebug

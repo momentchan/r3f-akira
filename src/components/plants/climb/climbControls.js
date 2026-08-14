@@ -22,12 +22,12 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
         step: 1,
         label: 'Layout Seed',
       },
-      ringSpacing: {
-        value: d.ringSpacing,
-        min: 0.01,
-        max: 0.25,
-        step: 0.005,
-        label: 'Ring Spacing',
+      tendrilCount: {
+        value: d.tendrilCount,
+        min: 1,
+        max: 512,
+        step: 1,
+        label: 'Tendril Count',
       },
       spacingVariation: {
         value: d.spacingVariation,
@@ -39,12 +39,19 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
     }),
 
     Shape: folder({
-      wrapAngleDegrees: {
-        value: d.wrapAngleDegrees,
+      wrapAngleRange: {
+        value: d.wrapAngleRange,
         min: 90,
         max: 360,
         step: 5,
-        label: 'Wrap Angle (deg)',
+        label: 'Wrap Angle Range (deg)',
+      },
+      axialWeave: {
+        value: d.axialWeave,
+        min: 0,
+        max: 2,
+        step: 0.05,
+        label: 'Axial Weave',
       },
       entryBend: {
         value: d.entryBend,
@@ -77,9 +84,137 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
         step: 0.0005,
         label: 'Tendril Radius',
       },
+      radiusAttenuation: {
+        value: d.radiusAttenuation,
+        min: 0,
+        max: 1,
+        step: 0.01,
+        label: 'Taper',
+      },
+      baseFlare: {
+        value: d.baseFlare,
+        min: 0,
+        max: 1,
+        step: 0.01,
+        label: 'Base Flare',
+      },
     }),
 
+    'Noise Field': folder({
+      noiseAmount: {
+        value: d.noiseAmount,
+        min: 0,
+        max: 0.08,
+        step: 0.001,
+        label: 'Noise Amount',
+      },
+      noiseFrequency: {
+        value: d.noiseFrequency,
+        min: 0.1,
+        max: 20,
+        step: 0.1,
+        label: 'Noise Frequency',
+      },
+      noiseSeed: {
+        value: d.noiseSeed,
+        min: 0,
+        max: 100,
+        step: 1,
+        label: 'Noise Seed',
+      },
+    }),
+
+    'Living Motion': folder({
+      motionAmount: {
+        value: d.motionAmount,
+        min: 0,
+        max: 0.03,
+        step: 0.001,
+        label: 'Motion Amount',
+      },
+      motionFrequency: {
+        value: d.motionFrequency,
+        min: 0.1,
+        max: 10,
+        step: 0.1,
+        label: 'Motion Frequency',
+      },
+      motionSpeed: {
+        value: d.motionSpeed,
+        min: 0,
+        max: 2.5,
+        step: 0.05,
+        label: 'Motion Speed',
+      },
+    }),
+
+    Leaves: folder({
+      leafCount: {
+        value: d.leafCount,
+        min: 0,
+        max: 4,
+        step: 1,
+        label: 'Leaves Per Tendril',
+      },
+      leafSpan: {
+        value: d.leafSpan,
+        min: 0.1,
+        max: 0.9,
+        step: 0.01,
+        label: 'Leaf Growth Range',
+      },
+      leafScale: {
+        value: d.leafScale,
+        min: 0.02,
+        max: 0.5,
+        step: 0.01,
+        label: 'Leaf Size',
+      },
+      leafScaleVariation: {
+        value: d.leafScaleVariation,
+        min: 0,
+        max: 1,
+        step: 0.05,
+        label: 'Size Variation',
+      },
+      leafDroop: {
+        value: d.leafDroop,
+        min: -1.2,
+        max: 1.2,
+        step: 0.01,
+        label: 'Leaf Droop',
+      },
+      leafCurl: {
+        value: d.leafCurl,
+        min: -2,
+        max: 2,
+        step: 0.05,
+        label: 'Leaf Curl',
+      },
+      leafCurlVariation: {
+        value: d.leafCurlVariation,
+        min: 0,
+        max: 1,
+        step: 0.05,
+        label: 'Curl Variation',
+      },
+      leafColorLevels: {
+        value: d.leafColorLevels,
+        min: 1,
+        max: 16,
+        step: 1,
+        label: 'Leaf Color Levels',
+      },
+    }, { collapsed: true }),
+
     Growth: folder({
+      restTimeRange: {
+        value: d.restTimeRange,
+        min: 0,
+        max: 20,
+        step: 0.1,
+        label: 'Rest Time Range (s)',
+      },
       growthTimeRange: {
         value: d.growthTimeRange,
         min: 0.2,
@@ -87,12 +222,26 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
         step: 0.1,
         label: 'Growth Time Range (s)',
       },
-      maxStartDelay: {
-        value: d.maxStartDelay,
+      holdTimeRange: {
+        value: d.holdTimeRange,
         min: 0,
+        max: 60,
+        step: 0.1,
+        label: 'Hold Time Range (s)',
+      },
+      retractTimeRange: {
+        value: d.retractTimeRange,
+        min: 0.2,
         max: 20,
         step: 0.1,
-        label: 'Max Start Delay (s)',
+        label: 'Retract Time Range (s)',
+      },
+      initialPhaseSpread: {
+        value: d.initialPhaseSpread,
+        min: 0,
+        max: 1,
+        step: 0.01,
+        label: 'Initial Phase Spread',
       },
     }),
 

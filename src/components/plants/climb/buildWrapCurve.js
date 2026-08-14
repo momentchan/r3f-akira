@@ -3,6 +3,7 @@ import { seededRng } from '../stem/buildStemTube.js';
 import {
   allocateRingStations,
 } from './limbCapsules.js';
+import { distortCurveWithSpatialNoise } from './spatialNoise.js';
 
 const _hit = {};
 const _closest = new THREE.Vector3();
@@ -134,6 +135,7 @@ export function buildIndependentRingCurve({
   entrySide = 'underside',
   entrySideBias = 1,
   wrapAngleDegrees = 360,
+  axialWeave = 0,
   entryBend = 0.55,
 }) {
   const rng = seededRng(seed);
@@ -178,6 +180,10 @@ export function buildIndependentRingCurve({
   // top of the limb. This keeps partial arcs visible instead of routing under it.
   const arcDirection = positiveTopError <= negativeTopError ? 1 : -1;
   const station = THREE.MathUtils.clamp(u, 0.02, 0.98);
+  const weaveAmplitude = THREE.MathUtils.clamp(axialWeave, 0, 2)
+    / Math.max(ringsOnRegion, 1);
+  const weavePhase = rng() * Math.PI * 2;
+  const weaveCycles = THREE.MathUtils.lerp(0.55, 1.15, rng());
   const surfacePoints = [];
   let surfaceSnapCount = 0;
   let axis = null;
@@ -185,16 +191,21 @@ export function buildIndependentRingCurve({
 
   for (let i = 0; i < count; i += 1) {
     const phase = i / (count - 1);
+    const weaveEnvelope = Math.sin(phase * Math.PI);
+    const stationOffset = Math.sin(
+      phase * Math.PI * 2 * weaveCycles + weavePhase,
+    ) * weaveEnvelope * weaveAmplitude;
+    const sampleStation = THREE.MathUtils.clamp(station + stationOffset, 0.02, 0.98);
     const shell = new THREE.Vector3();
     const info = pointOnCapsule(
       capsule,
-      station,
+      sampleStation,
       angleStart + phase * arcRadians * arcDirection,
       _bodyRight,
       shell,
     );
     axis = info.axis.clone();
-    const center = capsule.a.clone().addScaledVector(info.axis, station * info.len);
+    const center = capsule.a.clone().addScaledVector(info.axis, sampleStation * info.len);
     const outward = shell.clone().sub(center).normalize();
     const pos = shell.clone();
     if (snapToSurface(
@@ -253,6 +264,7 @@ export function buildIndependentRingCurve({
       ringsOnRegion,
       entrySide: resolvedEntrySide,
       wrapAngleDegrees,
+      axialWeave,
       arcDirection,
       entryBend: bendStrength,
       wrapStyle: 'independent-ring',
@@ -265,29 +277,32 @@ export function buildIndependentRingCurve({
 /** Build independent partial-ring tendrils across directed body regions. */
 export function buildWrapCurves({
   hosts,
-  maxRings = 512,
+  tendrilCount = 108,
   layoutSeed = 0,
   curveSamples = 48,
-  ringSpacing = 0.075,
   spacingVariation = 0.45,
   surfaceOffset = 0.007,
-  maxRingsPerRegion = 12,
   enabledCapsuleIds = null,
   entrySide = 'random-lateral',
   entrySideBias = 1,
-  wrapAngleDegrees = 220,
+  wrapAngleRange = [180, 260],
+  axialWeave = 0,
   entryBend = 0.55,
+  noiseAmount = 0,
+  noiseFrequency = 3,
+  noiseSeed = 0,
 } = {}) {
   const bodyHost = hosts.find((host) => host.id === 'body');
-  if (!bodyHost?.bvh || !bodyHost.capsules?.length || maxRings < 1) return [];
+  if (!bodyHost?.bvh || !bodyHost.capsules?.length || tendrilCount < 1) return [];
 
   const enabled = enabledCapsuleIds ? new Set(enabledCapsuleIds) : null;
   const regions = bodyHost.capsules.filter((capsule) => (
     !enabled || enabled.has(capsule.id)
   ));
-  const stations = allocateRingStations(regions, ringSpacing, {
-    maxRingsPerRegion,
-    totalBudget: maxRings,
+  const stations = allocateRingStations(regions, tendrilCount, {
+    layoutSeed,
+    spacingVariation,
+    totalBudget: 512,
   });
   const bodyRight = bodyHost.bodyRight ?? new THREE.Vector3(1, 0, 0);
   const out = [];
@@ -296,34 +311,51 @@ export function buildWrapCurves({
     const slot = stations[i];
     const tendrilSeed = layoutSeed * 97 + i * 17 + 3;
     const stationRng = seededRng(tendrilSeed + 7919);
-    const cellHalfWidth = 0.45 / Math.max(slot.ringsOnRegion, 1);
-    const stationOffset = (stationRng() * 2 - 1)
-      * cellHalfWidth
-      * THREE.MathUtils.clamp(spacingVariation, 0, 1);
-    const station = THREE.MathUtils.clamp(slot.station + stationOffset, 0.04, 0.96);
-    const built = buildIndependentRingCurve({
-      capsule: slot.capsule,
-      bvh: bodyHost.bvh,
-      bodyRight,
-      groundY: 0,
-      seed: tendrilSeed,
-      u: station,
-      curveSamples,
-      surfaceOffset,
-      ringIndex: slot.ringIndex,
-      ringsOnRegion: slot.ringsOnRegion,
-      entrySide,
-      entrySideBias,
-      wrapAngleDegrees,
-      entryBend,
-    });
+    const angleMin = Math.min(wrapAngleRange[0], wrapAngleRange[1]);
+    const angleMax = Math.max(wrapAngleRange[0], wrapAngleRange[1]);
+    const wrapAngleDegrees = THREE.MathUtils.lerp(angleMin, angleMax, stationRng());
+    let built = null;
+    // A lateral entry can occasionally land too close to the ground. Retry the
+    // alternate seeded side and a tiny station shift instead of leaving a hole.
+    for (let attempt = 0; attempt < 3 && !built; attempt += 1) {
+      const retryWidth = Math.min(0.03, 0.3 / Math.max(slot.ringsOnRegion, 1));
+      const station = THREE.MathUtils.clamp(
+        slot.station + (attempt === 0 ? 0 : (stationRng() * 2 - 1) * retryWidth),
+        0.02,
+        0.98,
+      );
+      built = buildIndependentRingCurve({
+        capsule: slot.capsule,
+        bvh: bodyHost.bvh,
+        bodyRight,
+        groundY: 0,
+        seed: tendrilSeed + attempt * 1009,
+        u: station,
+        curveSamples,
+        surfaceOffset,
+        ringIndex: slot.ringIndex,
+        ringsOnRegion: slot.ringsOnRegion,
+        entrySide,
+        entrySideBias,
+        wrapAngleDegrees,
+        axialWeave,
+        entryBend,
+      });
+    }
     if (!built) continue;
+    const noisy = distortCurveWithSpatialNoise(built.curve, {
+      amount: noiseAmount,
+      frequency: noiseFrequency,
+      seed: noiseSeed,
+      samples: curveSamples,
+    });
+    if (noisy.points) built.debug.points = noisy.points;
     out.push({
       seed: tendrilSeed,
       hostId: bodyHost.id,
       capsuleId: slot.capsule.id,
       ringIndex: slot.ringIndex,
-      curve: built.curve,
+      curve: noisy.curve,
       debug: built.debug,
     });
   }
