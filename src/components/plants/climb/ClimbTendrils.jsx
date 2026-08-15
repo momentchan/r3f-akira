@@ -9,40 +9,33 @@ import {
   buildPackedStemTubes,
   GROWTH_START_SCALE,
 } from '../stem/buildStemTube';
-import { computeDurations, computeLifecycle } from '../stem/flowerLifecycle';
+import {
+  advanceLifecycleState,
+  createLifecycleState,
+  hashLifecycleIdentity,
+} from '../lifecycle/plantLifecycle';
 import { FieldLeaves } from '../stem/FieldLeaves';
-import { buildWrapCurves } from './buildWrapCurve';
+import {
+  buildWrapCurves,
+  WRAP_PATH_ALGORITHM_VERSION,
+} from './buildWrapCurve';
 import { ClimbDebug } from './ClimbDebug';
+import { treeSegmentGrowth } from './climbLifecycle';
 import { createClimbControlsSchema } from './climbControls';
-import { CLIMB_DEFAULTS } from './climbDefaults';
+import {
+  CLIMB_DEFAULTS,
+  CLIMB_HOST_PROFILES,
+  CLIMB_INTERNALS,
+} from './climbDefaults';
 import { sampleLivingMotionOffset } from './spatialNoise';
+import { derivePrincipalSurfaceGuides } from './surfaceCoverage';
 
 const _lightWorld = new THREE.Vector3();
 const _lightTarget = new THREE.Vector3();
 const PATH_DEBOUNCE_MS = 120;
 const MAX_TOTAL_TENDRILS = 512;
 const TUBE_SEGMENTS = 60;
-const TUBE_RADIAL_SEGMENTS = 3;
-const GENERATION_SEED_STEP = 131;
-
-const REGION_CAPSULE_IDS = {
-  'calf.r': ['calf.r'],
-  calves: ['calf.l', 'calf.r'],
-  legs: ['calf.l', 'calf.r', 'thigh.l', 'thigh.r'],
-  arms: ['forearm.l', 'forearm.r', 'upperarm.l', 'upperarm.r'],
-  limbs: [
-    'calf.l',
-    'calf.r',
-    'thigh.l',
-    'thigh.r',
-    'forearm.l',
-    'forearm.r',
-    'upperarm.l',
-    'upperarm.r',
-  ],
-  torso: ['torso'],
-  all: null,
-};
+const TUBE_RADIAL_SEGMENTS = 5;
 
 function createPlantDataTexture(count) {
   const width = Math.max(1, THREE.MathUtils.ceilPowerOfTwo(count));
@@ -69,30 +62,37 @@ function applyStemLookDefaults(uniforms) {
   stem.edgeSoftness.value = d.edgeSoftness;
 }
 
-function lifecyclePhase(seed) {
-  const value = Math.sin((seed + 1) * 12.9898) * 43758.5453;
-  return value - Math.floor(value);
-}
-
-function lifecycleLength(durations) {
-  return durations.delay + durations.grow + durations.keep + durations.die;
-}
-
 function pathKeyFromControls(c) {
   return [
-    c.region,
-    c.layoutSeed,
-    c.curveSamples,
+    WRAP_PATH_ALGORITHM_VERSION,
     c.tendrilCount,
-    c.spacingVariation,
+    c.headDensity,
     c.wrapAngleRange,
     c.axialWeave,
-    c.entryBend,
     c.surfaceOffset,
     c.noiseAmount,
     c.noiseFrequency,
-    c.noiseSeed,
   ].join(':');
+}
+
+function allocateHostBudgets(hosts, total) {
+  if (!hosts.length || total < 1) return [];
+  const weights = hosts.map((host) => Math.max(host.profile?.countShare ?? 1, 0));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  const exact = weights.map((weight) => (
+    totalWeight > 0 ? total * weight / totalWeight : total / hosts.length
+  ));
+  const counts = exact.map(Math.floor);
+  let remaining = total - counts.reduce((sum, count) => sum + count, 0);
+  const order = exact.map((value, index) => ({
+    index,
+    remainder: value - counts[index],
+  })).sort((left, right) => right.remainder - left.remainder);
+  for (let i = 0; remaining > 0; i += 1, remaining -= 1) {
+    counts[order[i % order.length].index] += 1;
+  }
+  return hosts.map((host, index) => ({ host, count: counts[index] }))
+    .filter((entry) => entry.count > 0);
 }
 
 /**
@@ -100,9 +100,10 @@ function pathKeyFromControls(c) {
  */
 export function ClimbTendrils({
   bodyBounds = null,
+  backpackBounds = null,
 }) {
   const schema = useMemo(() => createClimbControlsSchema(CLIMB_DEFAULTS), []);
-  const controls = useControls('Climb', schema, { collapsed: true });
+  const controls = useControls('Climbing Tendrils', schema, { collapsed: true });
 
   const hosts = useMemo(() => {
     const list = [];
@@ -110,71 +111,81 @@ export function ClimbTendrils({
       list.push({
         id: 'body',
         bvh: bodyBounds.bvh,
+        geometry: bodyBounds.geometry,
         localBox: bodyBounds.localBox,
         capsules: bodyBounds.capsules ?? [],
         capsuleDiagnostics: bodyBounds.capsuleDiagnostics ?? null,
         bodyRight: bodyBounds.bodyRight ?? null,
+        profile: CLIMB_HOST_PROFILES.body,
       });
+    }
+    if (backpackBounds?.bvh && backpackBounds?.localBox && backpackBounds?.geometry) {
+      const guides = derivePrincipalSurfaceGuides(
+        backpackBounds.geometry,
+        'backpack.surface',
+      );
+      if (guides.length) {
+        list.push({
+          id: 'backpack',
+          bvh: backpackBounds.bvh,
+          geometry: backpackBounds.geometry,
+          localBox: backpackBounds.localBox,
+          capsules: guides,
+          capsuleDiagnostics: null,
+          bodyRight: new THREE.Vector3(1, 0, 0),
+          profile: CLIMB_HOST_PROFILES.backpack,
+        });
+      }
     }
     return list;
   }, [
     bodyBounds?.version,
     bodyBounds?.bvh,
+    bodyBounds?.geometry,
     bodyBounds?.capsules,
     bodyBounds?.capsuleDiagnostics,
     bodyBounds?.bodyRight,
+    backpackBounds?.version,
+    backpackBounds?.bvh,
+    backpackBounds?.geometry,
+    backpackBounds?.localBox,
   ]);
 
   // Debounce expensive wrap-path params so Leva drags don't rebuild every frame.
   const livePathKey = pathKeyFromControls(controls);
   const [debouncedPath, setDebouncedPath] = useState(() => ({
     key: livePathKey,
-    region: controls.region,
-    layoutSeed: controls.layoutSeed,
-    curveSamples: controls.curveSamples,
     tendrilCount: controls.tendrilCount,
-    spacingVariation: controls.spacingVariation,
+    headDensity: controls.headDensity,
     wrapAngleRange: controls.wrapAngleRange,
     axialWeave: controls.axialWeave,
-    entryBend: controls.entryBend,
     surfaceOffset: controls.surfaceOffset,
     noiseAmount: controls.noiseAmount,
     noiseFrequency: controls.noiseFrequency,
-    noiseSeed: controls.noiseSeed,
   }));
 
   useEffect(() => {
     const next = {
       key: livePathKey,
-      region: controls.region,
-      layoutSeed: controls.layoutSeed,
-      curveSamples: controls.curveSamples,
       tendrilCount: controls.tendrilCount,
-      spacingVariation: controls.spacingVariation,
+      headDensity: controls.headDensity,
       wrapAngleRange: controls.wrapAngleRange,
       axialWeave: controls.axialWeave,
-      entryBend: controls.entryBend,
       surfaceOffset: controls.surfaceOffset,
       noiseAmount: controls.noiseAmount,
       noiseFrequency: controls.noiseFrequency,
-      noiseSeed: controls.noiseSeed,
     };
     const id = window.setTimeout(() => setDebouncedPath(next), PATH_DEBOUNCE_MS);
     return () => window.clearTimeout(id);
   }, [
     livePathKey,
-    controls.region,
-    controls.layoutSeed,
-    controls.curveSamples,
     controls.tendrilCount,
-    controls.spacingVariation,
+    controls.headDensity,
     controls.wrapAngleRange,
     controls.axialWeave,
-    controls.entryBend,
     controls.surfaceOffset,
     controls.noiseAmount,
     controls.noiseFrequency,
-    controls.noiseSeed,
   ]);
 
   const flowerUniforms = useMemo(() => {
@@ -185,22 +196,36 @@ export function ClimbTendrils({
 
   const wraps = useMemo(() => {
     if (!controls.enabled || !hosts.length) return [];
-    return buildWrapCurves({
-      hosts,
-      tendrilCount: Math.min(debouncedPath.tendrilCount, MAX_TOTAL_TENDRILS),
-      layoutSeed: debouncedPath.layoutSeed,
-      curveSamples: debouncedPath.curveSamples,
-      spacingVariation: debouncedPath.spacingVariation,
-      surfaceOffset: debouncedPath.surfaceOffset,
-      entrySide: 'random-lateral',
-      entrySideBias: 1,
-      wrapAngleRange: debouncedPath.wrapAngleRange,
-      axialWeave: debouncedPath.axialWeave,
-      entryBend: debouncedPath.entryBend,
-      noiseAmount: debouncedPath.noiseAmount,
-      noiseFrequency: debouncedPath.noiseFrequency,
-      noiseSeed: debouncedPath.noiseSeed,
-      enabledCapsuleIds: REGION_CAPSULE_IDS[debouncedPath.region] ?? null,
+    const total = Math.min(debouncedPath.tendrilCount, MAX_TOTAL_TENDRILS);
+    const budgets = allocateHostBudgets(hosts, total);
+    return budgets.flatMap(({ host, count }) => {
+      const configuredHost = host.id === 'body'
+        ? {
+            ...host,
+            capsules: host.capsules.map((capsule) => (
+              capsule.id === 'helmet'
+                ? { ...capsule, densityScale: debouncedPath.headDensity }
+                : capsule
+            )),
+          }
+        : host;
+      return buildWrapCurves({
+        hosts: [configuredHost],
+        tendrilCount: count,
+        layoutSeed: CLIMB_INTERNALS.layoutSeed
+          + (host.profile?.layoutSeedOffset ?? 0),
+        curveSamples: CLIMB_INTERNALS.curveSamples,
+        spacingVariation: CLIMB_INTERNALS.spacingVariation,
+        surfaceOffset: debouncedPath.surfaceOffset,
+        entrySide: 'random-lateral',
+        entrySideBias: 1,
+        wrapAngleRange: debouncedPath.wrapAngleRange,
+        axialWeave: debouncedPath.axialWeave,
+        entryBend: CLIMB_INTERNALS.entryBend,
+        noiseAmount: debouncedPath.noiseAmount,
+        noiseFrequency: debouncedPath.noiseFrequency,
+        noiseSeed: CLIMB_INTERNALS.layoutSeed,
+      });
     });
   }, [controls.enabled, hosts, debouncedPath]);
 
@@ -218,14 +243,22 @@ export function ClimbTendrils({
 
   const stemBuild = useMemo(() => {
     if (!wraps.length) {
-      return { geometry: null, plantData: null, plants: [] };
+      return { geometry: null, plantData: null, plants: [], treeLengths: new Map() };
     }
 
     const plantData = createPlantDataTexture(wraps.length);
-    const packed = wraps.map((wrap, plantId) => ({
-      curve: wrap.curve,
-      plantId,
-    }));
+    const packed = wraps.map((wrap, plantId) => {
+      const hasBranchStart = Number.isFinite(wrap.radiusStartScale);
+      return {
+        curve: wrap.curve,
+        plantId,
+        radiusStartScale: wrap.radiusStartScale,
+        radiusEndScale: Number.isFinite(wrap.radiusEndScale)
+          ? wrap.radiusEndScale
+          : hasBranchStart ? controls.radiusAttenuation : undefined,
+        baseFlareScale: wrap.baseFlareScale,
+      };
+    });
 
     const geometry = buildPackedStemTubes(packed, {
       stemRadius: controls.tendrilRadius,
@@ -236,16 +269,21 @@ export function ClimbTendrils({
     });
 
     if (!geometry) {
-      return { geometry: null, plantData: null, plants: [] };
+      return { geometry: null, plantData: null, plants: [], treeLengths: new Map() };
     }
 
     const motionSample = new THREE.Vector3();
     const plants = wraps.map((wrap, plantId) => {
       wrap.curve.getPointAt(0.5, motionSample);
+      const hasBranchStart = Number.isFinite(wrap.radiusStartScale);
       return {
         seed: wrap.seed,
         plantId,
         hostId: wrap.hostId,
+        treeId: wrap.treeId ?? `${wrap.hostId}:independent:${wrap.seed}`,
+        role: wrap.role ?? 'ring',
+        pathStartDistance: wrap.pathStartDistance ?? 0,
+        pathEndDistance: wrap.pathEndDistance ?? wrap.curve.getLength(),
         curve: wrap.curve,
         motionPosition: [motionSample.x, motionSample.y, motionSample.z],
         position: [0, 0, 0],
@@ -254,14 +292,23 @@ export function ClimbTendrils({
           stemRadius: controls.tendrilRadius,
           radiusAttenuation: controls.radiusAttenuation,
           baseFlare: controls.baseFlare,
+          radiusStartScale: wrap.radiusStartScale,
+          radiusEndScale: Number.isFinite(wrap.radiusEndScale)
+            ? wrap.radiusEndScale
+            : hasBranchStart ? controls.radiusAttenuation : undefined,
+          baseFlareScale: wrap.baseFlareScale,
         },
-        durations: null,
-        age: 0,
-        generation: 0,
       };
     });
 
-    return { geometry, plantData, plants };
+    const treeLengths = new Map();
+    for (const plant of plants) {
+      treeLengths.set(
+        plant.treeId,
+        Math.max(treeLengths.get(plant.treeId) ?? 0, plant.pathEndDistance),
+      );
+    }
+    return { geometry, plantData, plants, treeLengths };
   }, [
     wraps,
     controls.tendrilRadius,
@@ -285,52 +332,41 @@ export function ClimbTendrils({
   const lightRef = useRef(null);
   const lifecycleRef = useRef(lifecycleRanges);
   lifecycleRef.current = lifecycleRanges;
-  const phaseSpreadRef = useRef(controls.initialPhaseSpread);
-  phaseSpreadRef.current = controls.initialPhaseSpread;
+  const treeLifecyclesRef = useRef(new Map());
+  const treeGrowthFrontsRef = useRef(new Map());
   const motionRef = useRef(null);
   motionRef.current = {
     amount: controls.motionAmount,
-    frequency: controls.motionFrequency,
+    frequency: CLIMB_INTERNALS.motionFrequency,
     speed: controls.motionSpeed,
-    seed: controls.layoutSeed,
+    seed: CLIMB_INTERNALS.layoutSeed,
   };
 
-  // Preserve ages across tube rebuilds when seeds align; assign durations.
+  // Geometry stays packed, while every grounded tree owns one lifecycle.
   useEffect(() => {
-    const prev = plantsRef.current;
-    const next = stemBuild.plants;
-    const ranges = lifecycleRef.current;
-    for (let i = 0; i < next.length; i += 1) {
-      const durations = computeDurations(next[i].seed, ranges);
-      next[i].durations = durations;
-      if (prev?.length === next.length && prev[i]?.seed === next[i].seed) {
-        next[i].age = prev[i].age;
-        next[i].generation = prev[i].generation;
-        next[i].durations = prev[i].durations;
-      } else {
-        const life = lifecycleLength(durations);
-        next[i].age = lifecyclePhase(next[i].seed)
-          * life
-          * phaseSpreadRef.current;
-        next[i].generation = 0;
-      }
-    }
-    plantsRef.current = next;
+    plantsRef.current = stemBuild.plants;
     plantDataRef.current = stemBuild.plantData;
   }, [stemBuild]);
 
-  // Refresh and redistribute phases when lifecycle timing changes (no geometry rebuild).
+  // Timing/path edits restart every tree from zero. Segments in the same tree
+  // still share one distance front, so children can never precede parents.
   useEffect(() => {
-    const plants = plantsRef.current;
-    for (let i = 0; i < plants.length; i += 1) {
-      const plant = plants[i];
-      plant.generation = 0;
-      plant.durations = computeDurations(plant.seed, lifecycleRanges);
-      plant.age = lifecyclePhase(plant.seed)
-        * lifecycleLength(plant.durations)
-        * controls.initialPhaseSpread;
+    const lifecycles = new Map();
+    for (const [treeId, length] of stemBuild.treeLengths) {
+      const seed = CLIMB_INTERNALS.layoutSeed + hashLifecycleIdentity(treeId);
+      lifecycles.set(treeId, {
+        ...createLifecycleState({
+          seed,
+          ranges: lifecycleRanges,
+          initialStagger: 0,
+          rerollEachGeneration: true,
+        }),
+        length,
+      });
     }
-  }, [lifecycleRanges, controls.initialPhaseSpread]);
+    treeLifecyclesRef.current = lifecycles;
+    treeGrowthFrontsRef.current.clear();
+  }, [lifecycleRanges, stemBuild.treeLengths]);
 
   useEffect(() => () => {
     stemBuild.geometry?.dispose();
@@ -359,32 +395,36 @@ export function ClimbTendrils({
 
     const { data, width, tex } = plantData;
     const dt = Math.min(delta, 0.1);
+    const treeGrowthFronts = treeGrowthFrontsRef.current;
+    treeGrowthFronts.clear();
+    for (const [treeId, lifecycle] of treeLifecyclesRef.current) {
+      const { growth } = advanceLifecycleState(
+        lifecycle,
+        dt,
+        lifecycleRef.current,
+      );
+      treeGrowthFronts.set(
+        treeId,
+        growth * Math.max(lifecycle.length, 1e-6),
+      );
+    }
 
     for (let i = 0; i < plants.length; i += 1) {
       const plant = plants[i];
-      if (!plant.durations) continue;
-
-      plant.age += dt;
-      let life = lifecycleLength(plant.durations);
-      if (plant.age >= life) {
-        const overflow = plant.age - life;
-        plant.generation += 1;
-        plant.durations = computeDurations(
-          plant.seed + plant.generation * GENERATION_SEED_STEP,
-          lifecycleRef.current,
-        );
-        life = lifecycleLength(plant.durations);
-        plant.age = Math.min(overflow, Math.max(life - 1e-6, 0));
-      }
-
-      const { stemGrow } = computeLifecycle(plant.age, plant.durations, 0.3, 0.23);
-      const [motionX, motionZ] = sampleLivingMotionOffset(
-        plant.motionPosition[0],
-        plant.motionPosition[1],
-        plant.motionPosition[2],
-        clock.elapsedTime,
-        motionRef.current,
+      const stemGrow = treeSegmentGrowth(
+        treeGrowthFronts.get(plant.treeId) ?? 0,
+        plant.pathStartDistance,
+        plant.pathEndDistance,
       );
+      const [motionX, motionZ] = plant.role === 'feeder'
+        ? [0, 0]
+        : sampleLivingMotionOffset(
+          plant.motionPosition[0],
+          plant.motionPosition[1],
+          plant.motionPosition[2],
+          clock.elapsedTime,
+          motionRef.current,
+        );
       const o = i * 4;
       data[o] = stemGrow;
       data[o + 1] = motionX;
@@ -408,7 +448,7 @@ export function ClimbTendrils({
 
   return (
     <group name="ClimbTendrils">
-      {showStems && (
+      {showStems && !controls.hideRenderedTendrils && (
         <AsyncCompile id={`climb-tendrils-${stemBuild.plants.length}-${controls.leafCount}`}>
           <group>
             <mesh
@@ -426,14 +466,14 @@ export function ClimbTendrils({
                 leafCount={controls.leafCount}
                 leafSpan={controls.leafSpan}
                 leafScale={controls.leafScale}
-                scaleVariance={controls.leafScaleVariation}
+                scaleVariance={CLIMB_INTERNALS.leafScaleVariation}
                 droop={controls.leafDroop}
                 leafBend={controls.leafCurl}
                 curlStrength={[4, 1]}
                 curlPower={[6, 1]}
                 bendStrength={0}
-                bendVariance={controls.leafCurlVariation}
-                colorLevels={controls.leafColorLevels}
+                bendVariance={CLIMB_INTERNALS.leafCurlVariation}
+                colorLevels={CLIMB_INTERNALS.leafColorLevels}
               />
             )}
           </group>
@@ -443,6 +483,10 @@ export function ClimbTendrils({
         visible={debugVisible}
         wraps={wraps}
         hosts={hosts}
+        requestedTendrilCount={Math.min(
+          debouncedPath.tendrilCount,
+          MAX_TOTAL_TENDRILS,
+        )}
         showSeeds={controls.showSeeds}
         showHitch={false}
         showPaths={controls.showPaths}
@@ -451,6 +495,8 @@ export function ClimbTendrils({
         showCapsules={controls.showCapsules}
         showCapsuleLabels={controls.showCapsuleLabels}
         showDiagnostics={controls.showDiagnostics}
+        diagnosticMode={CLIMB_INTERNALS.diagnosticMode}
+        showClearanceMarkers={CLIMB_INTERNALS.showClearanceMarkers}
         showPathLabels={controls.showCapsuleLabels}
         capsuleFilterId={null}
         pathCount={controls.pathCount}

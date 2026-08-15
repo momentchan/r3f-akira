@@ -17,20 +17,17 @@ import {
   createToonNodeMaterial,
   type CharacterOutlineMaterial,
 } from './materials/createToonNodeMaterial';
-import { bakeContactDirt } from './utils/bakeContactDirt';
+import { bakeGroundContactDirt } from './utils/bakeGroundContactDirt';
 import {
   useWrapHostBounds,
   type WrapHostBoundsPayload,
 } from './hooks/useWrapHostBounds';
-
-type StemBaseXZ = { x: number; z: number };
 
 type Props = {
   position?: [number, number, number];
   rotation?: [number, number, number];
   scale?: number;
   fieldParentRef?: RefObject<THREE.Object3D | null>;
-  contactPoints?: StemBaseXZ[];
   onBounds?: (bounds: WrapHostBoundsPayload | null) => void;
 };
 
@@ -63,7 +60,6 @@ export function Backpack({
   rotation = [0, 0.6, 0],
   scale = 1,
   fieldParentRef,
-  contactPoints,
   onBounds,
 }: Props) {
   const groupRef = useRef<THREE.Group>(null);
@@ -141,13 +137,12 @@ export function Backpack({
 
   useEffect(() => {
     if (!groupRef.current || !fieldParentRef?.current || !scene) return;
-    bakeContactDirt(
+    bakeGroundContactDirt(
       groupRef.current,
       fieldParentRef.current,
-      contactPoints ?? [],
-      { inner: 0.1, outer: 0.55 },
+      { groundY: 0, fullHeight: 0.06, fadeHeight: 0.42 },
     );
-  }, [contactPoints, fieldParentRef, scene]);
+  }, [fieldParentRef, scene]);
 
   useEffect(() => () => {
     lookMat?.dispose();

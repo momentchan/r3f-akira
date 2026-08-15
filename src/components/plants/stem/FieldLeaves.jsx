@@ -225,6 +225,9 @@ export function FieldLeaves({
         stemRadius,
         radiusAttenuation,
         baseFlare,
+        radiusStartScale,
+        radiusEndScale,
+        baseFlareScale = 1,
       } = plant.params;
       const baseScale = (leafScale * stemLength) / leafLocalLen;
       const [ox, oy, oz] = plant.position;
@@ -271,8 +274,15 @@ export function FieldLeaves({
         aBz.array[leafIndex * 3 + 1] = col.y;
         aBz.array[leafIndex * 3 + 2] = col.z;
 
-        const surf = ((1 - (1 - radiusAttenuation) * t) + baseFlare * Math.pow(1 - t, 3))
-          * stemRadius;
+        const hasBranchRadiusProfile = Number.isFinite(radiusStartScale)
+          && Number.isFinite(radiusEndScale);
+        const smoothT = t * t * (3 - 2 * t);
+        const radiusScale = hasBranchRadiusProfile
+          ? radiusStartScale
+            + (radiusEndScale - radiusStartScale) * smoothT
+            + baseFlare * baseFlareScale * Math.pow(1 - t, 3)
+          : (1 - (1 - radiusAttenuation) * t) + baseFlare * Math.pow(1 - t, 3);
+        const surf = radiusScale * stemRadius;
         pos.copy(P).addScaledVector(outward, surf);
         aPack.array[leafIndex * 4] = pos.x + ox;
         aPack.array[leafIndex * 4 + 1] = pos.y + oy;

@@ -16,6 +16,13 @@ export type LimbCapsule = {
   radius: number;
   weight: number;
   length: number;
+  uMin?: number;
+  uMax?: number;
+  coverageRadiusScale?: number;
+  radiusExpansionLimit?: number;
+  densityScale?: number;
+  wrapAngleScale?: number;
+  derivedFromHelmetMesh?: boolean;
 };
 
 export type CapsuleDiagnostics = {
@@ -101,7 +108,7 @@ export function useCharacterBodyBounds({
     if (!parent) return;
 
     // Rebuild once per pose — bump key if capsule/head lookup changes.
-    const key = `${pose ?? 'none'}:directed-wrap-regions-v2`;
+    const key = `${pose ?? 'none'}:directed-wrap-regions-v3`;
     if (key === builtKey.current && latestRef.current) return;
 
     const built = buildCharacterMeshBVH(root, parent);

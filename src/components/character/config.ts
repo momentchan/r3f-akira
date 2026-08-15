@@ -91,8 +91,6 @@ export interface CharacterProps {
   fieldParentRef?: RefObject<Object3D | null>;
   /** Receives measured bounds after Lay pose settles. */
   onBodyBounds?: (bounds: BodyBoundsPayload | null) => void;
-  /** Stem bases in field-parent XZ — drives contact-only suit dirt. */
-  contactPoints?: { x: number; z: number }[];
 }
 
 export interface CharacterState {

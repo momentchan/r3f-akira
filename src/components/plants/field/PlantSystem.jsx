@@ -25,7 +25,13 @@ import {
   buildStemTubeGeometry,
   GROWTH_START_SCALE,
 } from '../stem/buildStemTube';
-import { computeDurations, computeLifecycle } from '../stem/flowerLifecycle';
+import {
+  advanceLifecycleState,
+  computeBloomLifecycle,
+  computeGrowthLifecycle,
+  createLifecycleState,
+  restoreLifecycleProgress,
+} from '../lifecycle/plantLifecycle';
 import { computeWindSway, windMask } from '../stem/wind';
 import {
   configureVatTexture,
@@ -50,11 +56,6 @@ function createPlantDataTexture(count) {
   tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.needsUpdate = true;
   return { tex, data, width };
-}
-
-function phaseFrac(seed) {
-  const s = Math.sin((seed + 1) * 12.9898) * 43758.5453;
-  return s - Math.floor(s);
 }
 
 function FlowerTypeBatch({
@@ -284,14 +285,16 @@ export function PlantSystem({
       });
       geos.push(geo);
 
-      const durations = computeDurations(stem.seed, lifecycleRanges);
-      const lifetime = durations.delay + durations.grow + durations.keep + durations.die;
       return {
         ...stem,
         plantId,
         curve,
-        durations,
-        age: -phaseFrac(stem.seed) * lifetime * phaseSpread,
+        lifecycle: createLifecycleState({
+          seed: stem.seed,
+          ranges: lifecycleRanges,
+          initialStagger: phaseSpread,
+          rerollEachGeneration: true,
+        }),
       };
     });
 
@@ -317,10 +320,16 @@ export function PlantSystem({
   useEffect(() => {
     const prev = runtimeRef.current.plants;
     const next = stemBuild.plants;
-    // Keep lifecycle ages across layout rebuilds with the same seeds.
+    // Keep lifecycle progress across layout rebuilds with the same seeds.
     if (prev?.length && next.length === prev.length) {
       for (let i = 0; i < next.length; i += 1) {
-        if (prev[i]?.seed === next[i].seed) next[i].age = prev[i].age;
+        if (prev[i]?.seed === next[i].seed) {
+          restoreLifecycleProgress(
+            next[i].lifecycle,
+            prev[i].lifecycle,
+            lifecycleRanges,
+          );
+        }
       }
     }
     runtimeRef.current.plants = next;
@@ -383,19 +392,16 @@ export function PlantSystem({
         { windAngle, windStrength, windScale, windSpeed },
       );
 
-      if (!paused) {
-        const life = plant.durations.delay + plant.durations.grow
-          + plant.durations.keep + plant.durations.die;
-        plant.age += dt;
-        if (plant.age >= life) plant.age -= life;
-      }
-
-      const { stemGrow, flowerFrame, flowerScale } = computeLifecycle(
-        plant.age,
-        plant.durations,
+      const growthState = paused
+        ? computeGrowthLifecycle(plant.lifecycle.age, plant.lifecycle.durations)
+        : advanceLifecycleState(plant.lifecycle, dt, lifecycleRanges);
+      const { flowerFrame, flowerScale } = computeBloomLifecycle(
+        plant.lifecycle.age,
+        plant.lifecycle.durations,
         bloomFrac,
         bloomStart,
       );
+      const stemGrow = growthState.growth;
 
       plant.stemGrow = stemGrow;
       plant.flowerFrame = flowerFrame;

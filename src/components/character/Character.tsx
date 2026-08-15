@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAnimations } from '@react-three/drei';
 import { useControls } from 'leva';
 import { KeyboardMapper } from '@core';
@@ -14,7 +14,7 @@ import {
   createCharacterControlsSchema,
   syncCharacterControls,
 } from './look/characterControls';
-import { bakeContactDirt } from './utils/bakeContactDirt';
+import { bakeGroundContactDirt } from './utils/bakeGroundContactDirt';
 
 export const Character = ({
   position = [0, 0, 0],
@@ -25,26 +25,37 @@ export const Character = ({
   pose = 'Lay',
   fieldParentRef,
   onBodyBounds,
-  contactPoints,
 }: CharacterProps) => {
   const groupRef = useRef<Group>(null);
   const { scene, animations, bodyMat, detailMat, outlineMat } =
     useCharacterAssets();
 
   const isTableau = mode === 'tableau';
+  const [settledBoundsVersion, setSettledBoundsVersion] = useState(0);
   const sceneRef = useRef<Object3D | null>(null);
   sceneRef.current = scene;
   const { actions, names } = useAnimations(animations, sceneRef);
 
   useCharacterTableau(actions, names, pose, isTableau);
   useCharacterPhysics(groupRef, actions, 'camera', !isTableau);
+  const handleBodyBounds = useCallback(
+    (bounds: Parameters<NonNullable<CharacterProps['onBodyBounds']>>[0]) => {
+      setSettledBoundsVersion(bounds?.version ?? 0);
+      onBodyBounds?.(bounds);
+    },
+    [onBodyBounds],
+  );
   useCharacterBodyBounds({
     groupRef,
     fieldParentRef,
     enabled: isTableau,
     pose,
-    onBodyBounds,
+    onBodyBounds: handleBodyBounds,
   });
+
+  useEffect(() => {
+    setSettledBoundsVersion(0);
+  }, [isTableau, pose, scene]);
 
   const schema = useMemo(
     () => createCharacterControlsSchema(CHARACTER_LOOK_DEFAULTS),
@@ -63,16 +74,20 @@ export const Character = ({
     );
   }, [bodyMat, detailMat, outlineMat, controls]);
 
-  // Light dirt only where stems meet the suit (subtle lived-in wear).
+  // Bake only after the animation has settled, using the shared ground plane.
   useEffect(() => {
-    if (!isTableau || !groupRef.current || !fieldParentRef?.current) return;
-    bakeContactDirt(
+    if (
+      !isTableau ||
+      settledBoundsVersion === 0 ||
+      !groupRef.current ||
+      !fieldParentRef?.current
+    ) return;
+    bakeGroundContactDirt(
       groupRef.current,
       fieldParentRef.current,
-      contactPoints ?? [],
-      { inner: 0.1, outer: 0.45 },
+      { groundY: 0, fullHeight: 0.06, fadeHeight: 0.42 },
     );
-  }, [isTableau, contactPoints, fieldParentRef, scene, pose]);
+  }, [isTableau, settledBoundsVersion, fieldParentRef, scene]);
 
   if (!scene) return null;
 

@@ -57,11 +57,24 @@ function DirArrow({ from, dir, length, color }) {
   return <SegmentLine a={from} b={to} color={color} opacity={0.95} />;
 }
 
-function PathPolyline({ points, peelStartIndex = -1 }) {
+function PathPolyline({
+  points,
+  peelStartIndex = -1,
+  color = '#2ec4b6',
+  linear = false,
+  opacity = 0.9,
+}) {
   const curve = useMemo(() => {
     if (!points || points.length < 2) return null;
+    if (linear) {
+      const path = new THREE.CurvePath();
+      for (let i = 1; i < points.length; i += 1) {
+        path.add(new THREE.LineCurve3(points[i - 1], points[i]));
+      }
+      return path;
+    }
     return new THREE.CatmullRomCurve3(points, false, 'centripetal');
-  }, [points]);
+  }, [points, linear]);
 
   void peelStartIndex;
   if (!curve) return null;
@@ -70,14 +83,61 @@ function PathPolyline({ points, peelStartIndex = -1 }) {
     <mesh frustumCulled={false}>
       <tubeGeometry args={[curve, Math.max(points.length - 1, 8), 0.0015, 3, false]} />
       <meshBasicMaterial
-        color="#2ec4b6"
+        color={color}
         depthTest
         depthWrite={false}
         transparent
-        opacity={0.9}
+        opacity={opacity}
       />
     </mesh>
   );
+}
+
+function matchesDiagnosticMode(wrap, mode) {
+  const style = wrap.debug?.wrapStyle;
+  if (mode === 'invalid') return Boolean(wrap.debug?.clearanceExceeded);
+  if (mode === 'rings') return wrap.role === 'ring';
+  if (mode === 'attachments') {
+    return wrap.role === 'ring' && (wrap.debug?.attachmentPointCount ?? 0) > 1;
+  }
+  if (mode === 'surface-trunks') return style === 'surface-trunk';
+  if (mode === 'ground-entries') return style === 'ground-entry';
+  return true;
+}
+
+function diagnosticSegments(wrap, mode) {
+  const debug = wrap.debug;
+  if (!debug?.points?.length) return [];
+  if (mode === 'invalid') {
+    return [{ points: debug.points, color: '#ff1744', linear: true }];
+  }
+  if (debug.wrapStyle === 'ground-entry') {
+    return mode === 'all' || mode === 'ground-entries'
+      ? [{ points: debug.points, color: '#ffd166', linear: true }]
+      : [];
+  }
+  if (debug.wrapStyle === 'surface-trunk') {
+    return mode === 'all' || mode === 'surface-trunks'
+      ? [{ points: debug.points, color: '#c77dff', linear: true }]
+      : [];
+  }
+  if (wrap.role !== 'ring') return [];
+
+  const attachmentCount = debug.attachmentPointCount ?? 0;
+  const attachmentPoints = attachmentCount > 1
+    ? debug.points.slice(0, attachmentCount)
+    : [];
+  const ringPoints = attachmentCount > 1
+    ? debug.points.slice(attachmentCount - 1)
+    : debug.points;
+  const segments = [];
+  if ((mode === 'all' || mode === 'attachments') && attachmentPoints.length > 1) {
+    segments.push({ points: attachmentPoints, color: '#ff9f1c', linear: true });
+  }
+  if ((mode === 'all' || mode === 'rings') && ringPoints.length > 1) {
+    segments.push({ points: ringPoints, color: '#2ec4b6', linear: false });
+  }
+  return segments;
 }
 
 function HostBounds({ localBox, color }) {
@@ -190,6 +250,7 @@ export function ClimbDebug({
   visible = false,
   wraps = [],
   hosts = [],
+  requestedTendrilCount = 0,
   showSeeds = true,
   showHitch = true,
   showPaths = true,
@@ -198,21 +259,24 @@ export function ClimbDebug({
   showCapsules = true,
   showCapsuleLabels = true,
   showDiagnostics = true,
+  diagnosticMode = 'all',
+  showClearanceMarkers = true,
   showPathLabels = true,
   capsuleFilterId = null,
   pathCount = 24,
 }) {
   const subset = useMemo(() => {
     if (!wraps.length) return [];
-    const n = Math.min(Math.max(pathCount, 0), wraps.length);
-    if (n >= wraps.length) return wraps;
-    const step = wraps.length / n;
+    const filtered = wraps.filter((wrap) => matchesDiagnosticMode(wrap, diagnosticMode));
+    const n = Math.min(Math.max(pathCount, 0), filtered.length);
+    if (n >= filtered.length) return filtered;
+    const step = filtered.length / n;
     const list = [];
     for (let i = 0; i < n; i += 1) {
-      list.push(wraps[Math.min(Math.floor(i * step), wraps.length - 1)]);
+      list.push(filtered[Math.min(Math.floor(i * step), filtered.length - 1)]);
     }
     return list;
-  }, [wraps, pathCount]);
+  }, [wraps, pathCount, diagnosticMode]);
 
   const debugCapsules = useMemo(() => {
     const list = [];
@@ -231,6 +295,20 @@ export function ClimbDebug({
 
   const bodyHost = hosts.find((host) => host.id === 'body');
   const diagnostics = bodyHost?.capsuleDiagnostics ?? null;
+  const wrapStats = useMemo(() => {
+    const ringsByHost = {};
+    let rings = 0;
+    let feeders = 0;
+    for (const wrap of wraps) {
+      if (wrap.role === 'feeder') {
+        feeders += 1;
+        continue;
+      }
+      rings += 1;
+      ringsByHost[wrap.hostId] = (ringsByHost[wrap.hostId] ?? 0) + 1;
+    }
+    return { rings, feeders, ringsByHost };
+  }, [wraps]);
   const diagnosticPosition = useMemo(() => {
     if (!bodyHost?.localBox) return new THREE.Vector3(0, 0.8, 0);
     const point = new THREE.Vector3();
@@ -245,7 +323,7 @@ export function ClimbDebug({
 
   return (
     <group name="ClimbDebug">
-      {showCapsules && showDiagnostics && (
+      {showDiagnostics && (
         <Html
           center
           position={diagnosticPosition.toArray()}
@@ -266,6 +344,12 @@ export function ClimbDebug({
           {bodyHost && !diagnostics && `No wrap diagnostics (${capsuleCount} regions)`}
           {diagnostics && (
             <>
+              <div style={{ color: '#f8f9fa' }}>
+                rings {wrapStats.rings}/{requestedTendrilCount}
+                {' | '}body {wrapStats.ringsByHost.body ?? 0}
+                {' | '}backpack {wrapStats.ringsByHost.backpack ?? 0}
+                {' | '}feeders {wrapStats.feeders}
+              </div>
               Wrap regions {diagnostics.found}/{diagnostics.expected}
               {' | '}bones {diagnostics.boneCount}
               {diagnostics.issues.length > 0 && (
@@ -306,6 +390,7 @@ export function ClimbDebug({
         const d = wrap.debug;
         if (!d) return null;
         const hitch = d.hitch;
+        const segments = diagnosticSegments(wrap, diagnosticMode);
         return (
           <group key={`dbg-${wrap.hostId}-${wrap.seed}-${i}`}>
             {showSeeds && d.hitchPre && (
@@ -333,11 +418,24 @@ export function ClimbDebug({
             {showSeeds && showHitch && d.hitchPre && hitch && (
               <SegmentLine a={d.hitchPre} b={hitch} color="#ffd166" opacity={0.5} />
             )}
-            {showPaths && d.points && (
+            {showPaths && segments.map((segment, segmentIndex) => (
               <PathPolyline
-                points={d.points}
+                key={`segment-${segmentIndex}`}
+                points={segment.points}
                 peelStartIndex={d.peelStartIndex}
+                color={segment.color}
+                linear={segment.linear}
               />
+            ))}
+            {showClearanceMarkers && d.clearanceExceeded && d.clearancePoint && (
+              <mesh position={d.clearancePoint.toArray()} frustumCulled={false}>
+                <sphereGeometry args={[0.018, 10, 10]} />
+                <meshBasicMaterial
+                  color="#ff1744"
+                  depthTest={false}
+                  depthWrite={false}
+                />
+              </mesh>
             )}
             {showDirs && hitch && d.bodyRight && (
               <DirArrow from={hitch} dir={d.bodyRight} length={AXIS_LEN * 1.1} color="#ffffff" />

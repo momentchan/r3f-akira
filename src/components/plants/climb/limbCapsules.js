@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 /**
  * Auto-Rig Pro wrap regions.
- * `a -> b` is always the intended growth direction: distal/lower -> torso/upper.
+ * `a -> b` is always the intended anatomical growth direction.
  * Bone candidates are ordered by preference (first match wins).
  */
 export const LIMB_CAPSULE_DEFS = [
@@ -74,6 +74,8 @@ export const LIMB_CAPSULE_DEFS = [
 
 const _world = new THREE.Vector3();
 const _tmp = new THREE.Vector3();
+const _helmetVertex = new THREE.Vector3();
+const HELMET_SHELL_RE = /helmet/i;
 
 /**
  * @typedef {{ id: string, a: THREE.Vector3, b: THREE.Vector3, radius: number, weight: number, length: number }} LimbCapsule
@@ -126,6 +128,133 @@ function boneLocalPoint(bone, parent, target) {
   bone.getWorldPosition(_world);
   parent.worldToLocal(_world);
   return target.copy(_world);
+}
+
+function quantile(sorted, q) {
+  if (!sorted.length) return 0;
+  const index = THREE.MathUtils.clamp(q, 0, 1) * (sorted.length - 1);
+  const lo = Math.floor(index);
+  const hi = Math.min(lo + 1, sorted.length - 1);
+  return THREE.MathUtils.lerp(sorted[lo], sorted[hi], index - lo);
+}
+
+function helmetMeshScore(name) {
+  if (/Helmet_Mesh$/i.test(name) && !/Details|Glass/i.test(name)) return 10;
+  if (/Helmet_Mesh/i.test(name) && !/Details|Glass/i.test(name)) return 8;
+  if (/Glass/i.test(name)) return 3;
+  return 1;
+}
+
+/**
+ * Derive the helmet guide from its posed shell, while using neck -> head only
+ * to give the guide an anatomical direction. This reaches the crown without
+ * inflating the neck capsule or relying on the whole-character AABB.
+ */
+function extractHelmetCapsule(root, parent, boneMap, radiusScale) {
+  const neck = findBone(boneMap, ['c_neck.x', 'neck.x', 'neck', 'c_p_neck.x']);
+  const head = findBone(boneMap, ['c_head.x', 'head.x', 'head']);
+  if (!neck || !head) return { capsule: null, reason: 'missing-bone' };
+
+  neck.updateWorldMatrix(true, false);
+  head.updateWorldMatrix(true, false);
+  const neckPoint = boneLocalPoint(neck, parent, new THREE.Vector3());
+  const headPoint = boneLocalPoint(head, parent, new THREE.Vector3());
+  const axis = headPoint.clone().sub(neckPoint);
+  if (axis.lengthSq() < 1e-8) return { capsule: null, reason: 'zero-length' };
+  axis.normalize();
+
+  const meshes = [];
+  let bestScore = -1;
+  root.traverse((obj) => {
+    if (!obj.isMesh || !obj.visible || !HELMET_SHELL_RE.test(obj.name || '')) return;
+    const position = obj.geometry?.getAttribute?.('position');
+    if (!position || position.count < 3) return;
+    const score = helmetMeshScore(obj.name || '');
+    if (score > bestScore) {
+      meshes.length = 0;
+      bestScore = score;
+    }
+    if (score === bestScore) meshes.push(obj);
+  });
+  if (!meshes.length) return { capsule: null, reason: 'missing-mesh' };
+
+  const points = [];
+  for (const mesh of meshes) {
+    const position = mesh.geometry.getAttribute('position');
+    const step = Math.max(1, Math.floor(position.count / 1024));
+    for (let i = 0; i < position.count; i += step) {
+      if (mesh.isSkinnedMesh) mesh.getVertexPosition(i, _helmetVertex);
+      else _helmetVertex.fromBufferAttribute(position, i);
+      _helmetVertex.applyMatrix4(mesh.matrixWorld);
+      parent.worldToLocal(_helmetVertex);
+      points.push(_helmetVertex.clone());
+    }
+  }
+  if (points.length < 8) return { capsule: null, reason: 'missing-mesh' };
+
+  // Control bones in this asset are not guaranteed to sit at the skinned
+  // shell's center after every exported pose. Keep their direction, but place
+  // the guide line through the measured helmet centroid.
+  const helmetCenter = new THREE.Vector3();
+  for (const point of points) helmetCenter.add(point);
+  helmetCenter.multiplyScalar(1 / points.length);
+
+  const axial = [];
+  for (const point of points) axial.push(point.clone().sub(helmetCenter).dot(axis));
+  axial.sort((left, right) => left - right);
+  const axialMin = quantile(axial, 0.04);
+  const axialMax = quantile(axial, 0.96);
+  if (!(axialMax - axialMin > 1e-4)) {
+    return { capsule: null, reason: 'zero-length' };
+  }
+
+  const a = helmetCenter.clone().addScaledVector(axis, axialMin);
+  const b = helmetCenter.clone().addScaledVector(axis, axialMax);
+  const radial = points.map((point) => {
+    const along = point.clone().sub(a).dot(axis);
+    const center = a.clone().addScaledVector(axis, along);
+    return point.distanceTo(center);
+  }).sort((left, right) => left - right);
+  const radius = Math.max(quantile(radial, 0.82), 0.08) * radiusScale;
+
+  const helmetCapsule = {
+      id: 'helmet',
+      a,
+      b,
+      radius,
+      weight: 0.65,
+      length: a.distanceTo(b),
+      uMin: 0.02,
+      uMax: 0.98,
+      coverageRadiusScale: 1.45,
+      radiusExpansionLimit: 1.25,
+      wrapAngleScale: 0.2,
+      derivedFromHelmetMesh: true,
+  };
+  const neckLength = THREE.MathUtils.clamp(helmetCapsule.length * 0.42, 0.14, 0.3);
+  const neckRadius = THREE.MathUtils.clamp(radius * 0.55, 0.09, 0.24);
+  const neckA = a.clone().addScaledVector(axis, -neckLength);
+  const neckB = a.clone().addScaledVector(axis, neckLength * 0.16);
+  const neckCapsule = {
+    id: 'neck',
+    a: neckA,
+    b: neckB,
+    radius: neckRadius,
+    weight: 0.35,
+    length: neckA.distanceTo(neckB),
+    uMin: 0.05,
+    uMax: 0.98,
+    coverageRadiusScale: 1.7,
+    radiusExpansionLimit: 1.35,
+    wrapAngleScale: 0.3,
+    derivedFromHelmetMesh: true,
+  };
+
+  return {
+    capsule: helmetCapsule,
+    neckCapsule,
+    reason: null,
+  };
 }
 
 /**
@@ -182,13 +311,29 @@ export function extractLimbCapsulesWithDiagnostics(root, parent, {
       radius: def.radius * radiusScale,
       weight: def.weight,
       length,
+      ...(def.uMin == null ? {} : { uMin: def.uMin }),
+      ...(def.uMax == null ? {} : { uMax: def.uMax }),
+      ...(def.coverageRadiusScale == null
+        ? {}
+        : { coverageRadiusScale: def.coverageRadiusScale }),
+      ...(def.radiusExpansionLimit == null
+        ? {}
+        : { radiusExpansionLimit: def.radiusExpansionLimit }),
     });
+  }
+
+  const helmet = extractHelmetCapsule(root, parent, map, radiusScale);
+  if (helmet.capsule) {
+    out.push(helmet.neckCapsule, helmet.capsule);
+  } else {
+    issues.push({ id: 'neck', reason: helmet.reason });
+    issues.push({ id: 'helmet', reason: helmet.reason });
   }
 
   return {
     capsules: out,
     diagnostics: {
-      expected: defs.length,
+      expected: defs.length + 2,
       found: out.length,
       boneCount: map.size,
       validIds: out.map((capsule) => capsule.id),

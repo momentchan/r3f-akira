@@ -196,12 +196,25 @@ export function buildPackedStemTubes(curves, {
   let vOffset = 0;
 
   for (let s = 0; s < n; s += 1) {
-    const { curve, plantId } = curves[s];
+    const {
+      curve,
+      plantId,
+      radiusStartScale,
+      radiusEndScale,
+      baseFlareScale = 1,
+    } = curves[s];
+    const hasBranchRadiusProfile = Number.isFinite(radiusStartScale)
+      && Number.isFinite(radiusEndScale);
     const frames = curve.computeFrenetFrames(stemSegments, false);
 
     for (let i = 0; i <= stemSegments; i += 1) {
       const t = i / stemSegments;
-      const radiusScale = (1 - (1 - radiusAttenuation) * t) + baseFlare * (1 - t) ** 3;
+      const smoothT = t * t * (3 - 2 * t);
+      const radiusScale = hasBranchRadiusProfile
+        ? radiusStartScale
+          + (radiusEndScale - radiusStartScale) * smoothT
+          + baseFlare * baseFlareScale * (1 - t) ** 3
+        : (1 - (1 - radiusAttenuation) * t) + baseFlare * (1 - t) ** 3;
       const r = stemRadius * radiusScale;
       curve.getPointAt(t, _packP);
       _packN.copy(frames.normals[i]);
