@@ -1,99 +1,62 @@
-import { useCallback, useRef, useState } from "react";
-import { AdaptiveDpr, CameraControls, Environment } from "@react-three/drei";
-import { CanvasCapture, LevaWrapper } from "@core";
-import { Canvas } from "@react-three/fiber";
-import { useControls } from "leva";
-import * as THREE from "three/webgpu";
-import { Character } from "../components/character/Character";
-import { Backpack } from "../components/character/Backpack.tsx";
-import { ClimbTendrils } from "../components/plants/climb/ClimbTendrils";
-import { PlantField } from "../components/plants/field/PlantField";
-import { DirectionalLight } from "../components/scene/DirectionalLight";
-import Effects from "../components/scene/Effects";
-import { ShadowCatcher } from "../components/scene/ShadowCatcher";
-import { SCENE_DEFAULTS } from "../components/scene/sceneDefaults";
+import { useEffect } from 'react';
+import { LevaWrapper, useDeviceDetection } from '@core';
+import { ExperienceCanvas } from './ExperienceCanvas';
+import { isDebugRoute } from '../core/debugRoute';
+import { useExperienceStore } from '../core/experienceStore';
+import { useExperienceReady } from '../core/useExperienceReady';
+import { ChapterIntro } from '../ui/chapterIntro/ChapterIntro';
+import { CHAPTER_CONTENT } from '../ui/chapterIntro/chapterContent';
 
 export default function App() {
-  const fieldParentRef = useRef(null);
-  const [bodyBounds, setBodyBounds] = useState(null);
-  const [backpackBounds, setBackpackBounds] = useState(null);
-  const [contactPoints, setContactPoints] = useState([]);
-  const onBodyBounds = useCallback((bounds) => {
-    setBodyBounds(bounds);
-  }, []);
-  const onBackpackBounds = useCallback((bounds) => {
-    setBackpackBounds(bounds);
-  }, []);
-  const onStemBases = useCallback((bases) => {
-    setContactPoints(bases);
-  }, []);
+  const isStarted = useExperienceStore((state) => state.isStarted);
+  const setStarted = useExperienceStore((state) => state.setStarted);
+  const gpuError = useExperienceStore((state) => state.gpuError);
+  const setGpuError = useExperienceStore((state) => state.setGpuError);
+  const setIsMobile = useExperienceStore((state) => state.setIsMobile);
+  const isMobile = useDeviceDetection();
+  const { status } = useExperienceReady();
 
-  const { bgColor } = useControls("Scene", {
-    bgColor: { value: SCENE_DEFAULTS.bgColor, label: "background" },
-  });
+  useEffect(() => {
+    setIsMobile(isMobile);
+  }, [isMobile, setIsMobile]);
+
+  useEffect(() => {
+    const checkWebGPU = async () => {
+      if (!navigator.gpu) {
+        setGpuError('WEBGPU NOT SUPPORTED');
+        return;
+      }
+      try {
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) {
+          setGpuError('NO GPU ADAPTER FOUND');
+        }
+      } catch {
+        setGpuError('GPU INIT FAILED');
+      }
+    };
+    checkWebGPU();
+  }, [setGpuError]);
 
   return (
     <>
       <LevaWrapper />
 
-      <Canvas
-        shadows
-        camera={{
-          fov: 45,
-          near: 0.1,
-          far: 200,
-          // Slight overhead three-quarter on the flower bed
-          position: [1.4, 1.6, 2.2],
-        }}
-        gl={(canvas) => {
-          const renderer = new THREE.WebGPURenderer({
-            ...canvas,
-            powerPreference: "high-performance",
-            antialias: true,
-            alpha: false,
-            stencil: false,
-            shadowMap: true,
-            preserveDrawingBuffer: true,
-          });
-          renderer.outputColorSpace = THREE.SRGBColorSpace;
-          renderer.toneMapping = THREE.NoToneMapping;
-          return renderer.init().then(() => renderer);
-        }}
-        dpr={[1, 2]}
-        performance={{ min: 0.5, max: 1 }}
-      >
-        <group ref={fieldParentRef} position={[0, -1, 0]}>
-          <Character
-            mode="tableau"
-            pose="Lay"
-            position={[0, 0.6, 0]}
-            scale={1.5}
-            fieldParentRef={fieldParentRef}
-            onBodyBounds={onBodyBounds}
-            contactPoints={contactPoints}
-          />
-          {/* <Backpack
-            position={[-1.8, 0.1, -0.5]}
-            rotation={[THREE.MathUtils.degToRad(0), THREE.MathUtils.degToRad(200), THREE.MathUtils.degToRad(-5)]}
-            scale={1.5}
-            fieldParentRef={fieldParentRef}
-            contactPoints={contactPoints}
-            onBounds={onBackpackBounds}
-          /> */}
-          <ShadowCatcher groundColor={bgColor} />
-          <PlantField bodyBounds={bodyBounds} onStemBases={onStemBases} />
-          <ClimbTendrils bodyBounds={bodyBounds} />
-        </group>
+      {!isStarted && !isDebugRoute() && (
+        <ChapterIntro
+          chapter={CHAPTER_CONTENT.chapter}
+          title={CHAPTER_CONTENT.title}
+          paragraphs={CHAPTER_CONTENT.paragraphs}
+          interactionHint={CHAPTER_CONTENT.interactionHint}
+          ctaLabel={CHAPTER_CONTENT.ctaLabel}
+          loadingLabel={CHAPTER_CONTENT.loadingLabel}
+          isMobile={isMobile}
+          status={status}
+          onExited={() => setStarted(true)}
+        />
+      )}
 
-        <color attach="background" args={[bgColor]} />
-        <Environment preset="sunset" />
-
-        <AdaptiveDpr pixelated />
-        <CameraControls makeDefault maxPolarAngle={Math.PI / 2.5} />
-        <CanvasCapture />
-        <DirectionalLight />
-        <Effects />
-      </Canvas>
+      {!gpuError && <ExperienceCanvas />}
     </>
   );
 }

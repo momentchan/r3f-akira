@@ -1,0 +1,180 @@
+@font-face {
+  font-family: 'Cousine';
+  src: url('/fonts/Cousine-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  font-feature-settings: normal;
+  font-variant-ligatures: none;
+  text-rendering: optimizeSpeed;
+}
+
+@keyframes chapter-intro-breathe {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+@keyframes chapter-intro-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.chapter-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  font-family: Cousine, Arial, Helvetica, sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  pointer-events: auto;
+  opacity: 1;
+  transition: opacity 1s ease-in-out;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.chapter-intro--exiting {
+  opacity: 0;
+  pointer-events: auto;
+}
+
+.chapter-intro--mobile {
+  font-size: 0.8rem;
+}
+
+.chapter-intro__entry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-width: 600px;
+  padding: 40px;
+  animation: chapter-intro-fade-in 2s ease;
+}
+
+.chapter-intro--mobile .chapter-intro__entry {
+  max-width: 100%;
+}
+
+.chapter-intro--landscape .chapter-intro__entry {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  max-width: 80%;
+  height: 100%;
+  padding: 20px;
+}
+
+.chapter-intro__copy {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+.chapter-intro--landscape .chapter-intro__copy {
+  flex: 1;
+  text-align: left;
+  justify-content: center;
+}
+
+.chapter-intro__chapter {
+  font-size: 0.7rem;
+  letter-spacing: 0.4rem;
+  margin-bottom: 0.75rem;
+  opacity: 0.7;
+}
+
+.chapter-intro__title {
+  font-size: 1rem;
+  font-weight: bold;
+  letter-spacing: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.chapter-intro--mobile .chapter-intro__title {
+  letter-spacing: 0.3rem;
+}
+
+.chapter-intro--landscape .chapter-intro__title {
+  margin-bottom: 1rem;
+}
+
+.chapter-intro__narrative {
+  text-align: left;
+  display: inline-block;
+  color: #ccc;
+  margin-bottom: 3rem;
+}
+
+.chapter-intro--landscape .chapter-intro__narrative {
+  margin-bottom: 0;
+  font-size: 0.75rem;
+}
+
+.chapter-intro__narrative p {
+  white-space: pre-wrap;
+  margin: 0 0 1.25em;
+}
+
+.chapter-intro__narrative p:last-child {
+  margin-bottom: 0;
+}
+
+.chapter-intro__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.chapter-intro--landscape .chapter-intro__actions {
+  flex: 0.8;
+  min-width: 200px;
+}
+
+.chapter-intro__cta {
+  color: #fff;
+  background: transparent;
+  border: none;
+  letter-spacing: 3px;
+  font-family: inherit;
+  font-size: inherit;
+  white-space: nowrap;
+  cursor: wait;
+  opacity: 1;
+  transform: scale(1);
+  transition: transform 0.5s ease;
+  animation: chapter-intro-breathe 2s infinite ease-in-out;
+}
+
+.chapter-intro__cta--ready {
+  cursor: pointer;
+}
+
+.chapter-intro__cta--ready:hover {
+  transform: scale(1.02);
+}
+
+.chapter-intro__cta--error {
+  color: #ff4444;
+  cursor: default;
+  animation: none;
+}
+
+.chapter-intro__hint {
+  margin-top: 2.5rem;
+  color: #ccc;
+  opacity: 0.8;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+}
