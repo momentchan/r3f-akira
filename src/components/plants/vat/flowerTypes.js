@@ -1,10 +1,17 @@
 import { DAHLIA_MATERIAL_DEFAULTS } from './dahliaDefaults';
 import { JASMINE_MATERIAL_DEFAULTS } from './jasmineDefaults';
+import { PLUMERA_MATERIAL_DEFAULTS } from './plumeraDefaults';
 import { ROSE_MATERIAL_DEFAULTS } from './roseDefaults';
-import { DAHLIA_META, JASMINE_META, ROSE_META } from '../field/paths';
+import {
+  DAHLIA_META,
+  JASMINE_META,
+  PLUMERA_META,
+  ROSE_META,
+} from '../field/paths';
 import {
   FLOWER_MASK_PATH,
   JASMINE_MASK_PATH,
+  PLUMERA_MASK_PATH,
   ROSE_MASK_PATH,
 } from '../look/flowerDefaults';
 
@@ -18,6 +25,17 @@ export const JASMINE_TYPE = {
   usePetalCutout: false,
   useMaskEdge: true,
   maskPath: JASMINE_MASK_PATH,
+};
+
+export const PLUMERA_TYPE = {
+  id: 'plumera',
+  label: 'Plumera',
+  metaUrl: PLUMERA_META,
+  materialDefaults: PLUMERA_MATERIAL_DEFAULTS,
+  partColorMode: 'allFlower',
+  usePetalCutout: false,
+  useMaskEdge: true,
+  maskPath: PLUMERA_MASK_PATH,
 };
 
 export const FLOWER_TYPES = [
@@ -40,4 +58,5 @@ export const FLOWER_TYPES = [
     maskPath: ROSE_MASK_PATH,
   },
   JASMINE_TYPE,
+  PLUMERA_TYPE,
 ];

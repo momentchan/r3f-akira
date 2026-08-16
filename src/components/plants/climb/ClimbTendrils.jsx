@@ -24,7 +24,7 @@ import {
   FlowerTypeBatch,
   updateFlowerBatchTips,
 } from '../vat/FlowerTypeBatch';
-import { JASMINE_TYPE } from '../vat/flowerTypes';
+import { PLUMERA_TYPE } from '../vat/flowerTypes';
 import {
   buildWrapCurves,
   WRAP_PATH_ALGORITHM_VERSION,
@@ -61,7 +61,9 @@ const MAX_TOTAL_TENDRILS = 512;
 const TUBE_SEGMENTS = 60;
 const TUBE_RADIAL_SEGMENTS = 5;
 
-preloadVATAssets(JASMINE_TYPE.metaUrl);
+const CLIMB_FLOWER_TYPE = PLUMERA_TYPE;
+
+preloadVATAssets(CLIMB_FLOWER_TYPE.metaUrl);
 
 function surfaceNormalAtPoint(host, point, target) {
   const geometry = host?.geometry;
@@ -197,13 +199,13 @@ export function ClimbTendrils({
   const lifecyclePausedRef = useLifecyclePauseHotkey();
   const schema = useMemo(() => createClimbControlsSchema(CLIMB_DEFAULTS), []);
   const controls = useControls('Climbing Tendrils', schema, { collapsed: true });
-  const jasmineSchema = useMemo(
-    () => createFlowerControlsSchema(JASMINE_TYPE.materialDefaults),
+  const flowerSchema = useMemo(
+    () => createFlowerControlsSchema(CLIMB_FLOWER_TYPE.materialDefaults),
     [],
   );
-  const jasmineControls = useControls(
-    'Flower.Jasmine',
-    jasmineSchema,
+  const flowerControls = useControls(
+    `Flower.${CLIMB_FLOWER_TYPE.label}`,
+    flowerSchema,
     { collapsed: true },
   );
 
@@ -429,16 +431,18 @@ export function ClimbTendrils({
     });
   }, [stemBuild.plantData, flowerUniforms]);
 
-  const jasmineAttachments = useMemo(() => {
+  const flowerAttachments = useMemo(() => {
     const selectedPlants = [];
     const indices = [];
     const attachTs = [];
     const attachNormals = [];
-    const density = THREE.MathUtils.clamp(controls.jasmineDensity, 0, 1);
-    const attachMin = Math.min(controls.jasmineSpan[0], controls.jasmineSpan[1]);
-    const attachMax = Math.max(controls.jasmineSpan[0], controls.jasmineSpan[1]);
-    const maxTilt = THREE.MathUtils.degToRad(controls.jasmineNormalVariation);
-    const colorVariation = JASMINE_TYPE.materialDefaults.colorVariation ?? {};
+    const density = THREE.MathUtils.clamp(controls.flowerDensity, 0, 1);
+    const attachMin = Math.min(controls.flowerSpan[0], controls.flowerSpan[1]);
+    const attachMax = Math.max(controls.flowerSpan[0], controls.flowerSpan[1]);
+    const maxTilt = THREE.MathUtils.degToRad(controls.flowerNormalVariation);
+    const defaultColorVariation = CLIMB_FLOWER_TYPE.materialDefaults.colorVariation ?? {};
+    const hueRange = flowerControls.hueRange ?? defaultColorVariation.hueRange ?? 0;
+    const lightRange = flowerControls.lightRange ?? defaultColorVariation.lightRange ?? 0;
     const hostById = new Map(hosts.map((host) => [host.id, host]));
 
     stemBuild.plants.forEach((plant, index) => {
@@ -481,15 +485,15 @@ export function ClimbTendrils({
             plant.plantId,
             42,
             plant.seed,
-            -(colorVariation.hueRange ?? 0),
-            colorVariation.hueRange ?? 0,
+            -hueRange,
+            hueRange,
           ),
           lightShift: stableRandomRange(
             plant.plantId,
             43,
             plant.seed,
-            -(colorVariation.lightRange ?? 0),
-            colorVariation.lightRange ?? 0,
+            -lightRange,
+            lightRange,
           ),
         },
       });
@@ -502,14 +506,16 @@ export function ClimbTendrils({
   }, [
     stemBuild.plants,
     hosts,
-    controls.jasmineDensity,
-    controls.jasmineSpan,
-    controls.jasmineNormalVariation,
+    controls.flowerDensity,
+    controls.flowerSpan,
+    controls.flowerNormalVariation,
+    flowerControls.hueRange,
+    flowerControls.lightRange,
   ]);
 
   const plantsRef = useRef(stemBuild.plants);
   const plantDataRef = useRef(stemBuild.plantData);
-  const jasmineRuntimeRef = useRef({ flowerBatches: {} });
+  const flowerRuntimeRef = useRef({ flowerBatches: {} });
   const lightRef = useRef(null);
   const lifecycleRef = useRef(lifecycleRanges);
   lifecycleRef.current = lifecycleRanges;
@@ -573,7 +579,7 @@ export function ClimbTendrils({
       light.target.getWorldPosition(_lightTarget);
       const lightDirection = _lightWorld.sub(_lightTarget).normalize();
       flowerUniforms.lightDir.value.copy(lightDirection);
-      for (const batch of Object.values(jasmineRuntimeRef.current.flowerBatches)) {
+      for (const batch of Object.values(flowerRuntimeRef.current.flowerBatches)) {
         batch.flowerUniforms.lightDir.value.copy(lightDirection);
       }
     }
@@ -626,7 +632,7 @@ export function ClimbTendrils({
       data[o + 3] = 0;
     }
     tex.needsUpdate = true;
-    updateFlowerBatchTips(jasmineRuntimeRef.current.flowerBatches, plants);
+    updateFlowerBatchTips(flowerRuntimeRef.current.flowerBatches, plants);
   }, 1);
 
   if (!controls.enabled) return null;
@@ -638,7 +644,7 @@ export function ClimbTendrils({
     <group name="ClimbTendrils">
       {showStems && !controls.hideRenderedTendrils && (
         <AsyncCompile
-          id={`climb-tendrils-${stemBuild.plants.length}-${controls.leafCount}-${jasmineAttachments.indices.length}`}
+          id={`climb-tendrils-${stemBuild.plants.length}-${controls.leafCount}-${flowerAttachments.indices.length}`}
         >
           <group>
             <mesh
@@ -666,16 +672,16 @@ export function ClimbTendrils({
                 colorLevels={CLIMB_INTERNALS.leafColorLevels}
               />
             )}
-            {jasmineAttachments.indices.length > 0 && (
+            {flowerAttachments.indices.length > 0 && (
               <FlowerTypeBatch
-                flowerType={JASMINE_TYPE}
-                plants={jasmineAttachments.plants}
-                plantIndexMap={jasmineAttachments.indices}
-                attachTs={jasmineAttachments.attachTs}
-                attachNormals={jasmineAttachments.attachNormals}
+                flowerType={CLIMB_FLOWER_TYPE}
+                plants={flowerAttachments.plants}
+                plantIndexMap={flowerAttachments.indices}
+                attachTs={flowerAttachments.attachTs}
+                attachNormals={flowerAttachments.attachNormals}
                 stemYMax={STEM_Y_MAX}
-                flowerControls={jasmineControls}
-                runtimeRef={jasmineRuntimeRef}
+                flowerControls={flowerControls}
+                runtimeRef={flowerRuntimeRef}
               />
             )}
           </group>

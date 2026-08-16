@@ -166,27 +166,30 @@ export function PlantField({
     [ROSE_TYPE.id]: roseControls,
   }), [dahliaControls, roseControls]);
 
-  // Color variation ranges for layout — keep stable so Flower Leva doesn't rebuild stems.
-  const colorVarByIdRef = useRef({
+  // Live color ranges are applied by the flower batch without rebuilding stems.
+  const flowerColorVariationById = useMemo(() => ({
     [DAHLIA_TYPE.id]: {
-      hueRange: DAHLIA_TYPE.materialDefaults?.colorVariation?.hueRange ?? 0,
-      lightRange: DAHLIA_TYPE.materialDefaults?.colorVariation?.lightRange ?? 0,
+      hueRange: dahliaControls.hueRange
+        ?? DAHLIA_TYPE.materialDefaults?.colorVariation?.hueRange
+        ?? 0,
+      lightRange: dahliaControls.lightRange
+        ?? DAHLIA_TYPE.materialDefaults?.colorVariation?.lightRange
+        ?? 0,
     },
     [ROSE_TYPE.id]: {
-      hueRange: ROSE_TYPE.materialDefaults?.colorVariation?.hueRange ?? 0,
-      lightRange: ROSE_TYPE.materialDefaults?.colorVariation?.lightRange ?? 0,
+      hueRange: roseControls.hueRange
+        ?? ROSE_TYPE.materialDefaults?.colorVariation?.hueRange
+        ?? 0,
+      lightRange: roseControls.lightRange
+        ?? ROSE_TYPE.materialDefaults?.colorVariation?.lightRange
+        ?? 0,
     },
-  });
-  colorVarByIdRef.current = {
-    [DAHLIA_TYPE.id]: {
-      hueRange: dahliaControls.hueRange ?? colorVarByIdRef.current[DAHLIA_TYPE.id].hueRange,
-      lightRange: dahliaControls.lightRange ?? colorVarByIdRef.current[DAHLIA_TYPE.id].lightRange,
-    },
-    [ROSE_TYPE.id]: {
-      hueRange: roseControls.hueRange ?? colorVarByIdRef.current[ROSE_TYPE.id].hueRange,
-      lightRange: roseControls.lightRange ?? colorVarByIdRef.current[ROSE_TYPE.id].lightRange,
-    },
-  };
+  }), [
+    dahliaControls.hueRange,
+    dahliaControls.lightRange,
+    roseControls.hueRange,
+    roseControls.lightRange,
+  ]);
 
   const lifecycleRanges = useMemo(() => ({
     delay: [delayMin, delayMax],
@@ -296,7 +299,6 @@ export function PlantField({
 
       const typeRoll = stableRandomRange(attempts, S_TYPE, arrangementSeed, 0, 1);
       const flowerType = typeRoll < roseRatio ? ROSE_TYPE : DAHLIA_TYPE;
-      const { hueRange = 0, lightRange = 0 } = colorVarByIdRef.current[flowerType.id] ?? {};
 
       // Bloom size hierarchy: smaller near the body, fuller toward the rim.
       const distC = Math.hypot(posX - cx, posZ - cz);
@@ -308,9 +310,9 @@ export function PlantField({
         leanOutwardAngle: Math.atan2(posX - cx, posZ - cz),
         seed: attempts * 13 + 1 + arrangementSeed * 17,
         flowerType,
-        colorOverride: {
-          hueShift: stableRandomRange(attempts, S_HUE, arrangementSeed, -hueRange, hueRange),
-          lightShift: stableRandomRange(attempts, S_LIGHT, arrangementSeed, -lightRange, lightRange),
+        colorVariationUnit: {
+          hue: stableRandomRange(attempts, S_HUE, arrangementSeed, -1, 1),
+          light: stableRandomRange(attempts, S_LIGHT, arrangementSeed, -1, 1),
         },
         params: randomParams(
           attempts, arrangementSeed,
@@ -365,6 +367,7 @@ export function PlantField({
         lifecycleRanges={lifecycleRanges}
         lifecyclePausedRef={lifecyclePausedRef}
         flowerControlsById={flowerControlsById}
+        flowerColorVariationById={flowerColorVariationById}
         stemLookControls={stemLookControls}
         leafControls={leafControls}
         windAngle={windAngle}

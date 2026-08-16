@@ -131,6 +131,10 @@ export function FlowerTypeBatch({
   const normalKey = attachNormals?.map((value) => (
     value?.map((component) => component.toFixed(4)).join('/') ?? 'fallback'
   )).join(',') ?? 'tangent';
+  const colorKey = plants.map((plant) => {
+    const variation = plant.colorOverride ?? {};
+    return `${(variation.hueShift ?? 0).toFixed(5)}/${(variation.lightShift ?? 0).toFixed(5)}`;
+  }).join(',');
   const layoutKey = `${flowerType.id}:${plants.length}:${plantIndexMap.join(',')}:${attachKey}:${normalKey}`;
   const [mesh, setMesh] = useState(null);
 
@@ -154,7 +158,8 @@ export function FlowerTypeBatch({
     }
     geo.setAttribute('aTip0', new THREE.InstancedBufferAttribute(tip0, 4));
     geo.setAttribute('aTip1', new THREE.InstancedBufferAttribute(tip1, 4));
-    geo.setAttribute('aColorVar', new THREE.InstancedBufferAttribute(colorVar, 2));
+    const colorVarAttr = new THREE.InstancedBufferAttribute(colorVar, 2);
+    geo.setAttribute('aColorVar', colorVarAttr);
 
     const instance = new THREE.InstancedMesh(geo, materialBundle.material, count);
     instance.frustumCulled = false;
@@ -174,6 +179,8 @@ export function FlowerTypeBatch({
       tip1,
       tip0Attr: geo.getAttribute('aTip0'),
       tip1Attr: geo.getAttribute('aTip1'),
+      colorVar,
+      colorVarAttr,
       plantIndexMap: indices,
       attachTs,
       attachNormals,
@@ -189,6 +196,18 @@ export function FlowerTypeBatch({
       setMesh(null);
     };
   }, [layoutKey, geometry, materialBundle, flowerType, flowerUniforms, runtimeRef]);
+
+  useEffect(() => {
+    const batch = runtimeRef.current.flowerBatches[flowerType.id];
+    if (!batch) return;
+    const typePlants = plantsRef.current;
+    for (let i = 0; i < typePlants.length; i += 1) {
+      const variation = typePlants[i].colorOverride ?? {};
+      batch.colorVar[i * 2] = variation.hueShift ?? 0;
+      batch.colorVar[i * 2 + 1] = variation.lightShift ?? 0;
+    }
+    batch.colorVarAttr.needsUpdate = true;
+  }, [colorKey, layoutKey, flowerType.id, runtimeRef]);
 
   useEffect(() => {
     const batch = runtimeRef.current.flowerBatches[flowerType.id];

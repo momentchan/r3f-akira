@@ -64,10 +64,10 @@ export const CLIMB_DEFAULTS = {
   leafDroop: 0,
   leafCurl: 0.5,
 
-  // Jasmine flowers attach at stable random positions along wrapping segments.
-  jasmineDensity: 0.18,
-  jasmineSpan: [0.25, 0.82],
-  jasmineNormalVariation: 10,
+  // Flowers attach at stable random positions along wrapping segments.
+  flowerDensity: 0.18,
+  flowerSpan: [0.25, 0.82],
+  flowerNormalVariation: 10,
 
   // Per-tree lifecycle: ground -> branches -> rings -> hold -> reverse to ground.
   restTimeRange: [2, 8],

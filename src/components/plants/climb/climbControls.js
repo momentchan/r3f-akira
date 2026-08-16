@@ -139,23 +139,23 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
       },
     }, CLOSED),
 
-    Jasmine: folder({
-      jasmineDensity: {
-        value: d.jasmineDensity,
+    Flowers: folder({
+      flowerDensity: {
+        value: d.flowerDensity,
         min: 0,
         max: 1,
         step: 0.01,
         label: 'Flower Density',
       },
-      jasmineSpan: {
-        value: d.jasmineSpan,
+      flowerSpan: {
+        value: d.flowerSpan,
         min: 0.05,
         max: 0.95,
         step: 0.01,
         label: 'Position Along Path',
       },
-      jasmineNormalVariation: {
-        value: d.jasmineNormalVariation,
+      flowerNormalVariation: {
+        value: d.flowerNormalVariation,
         min: 0,
         max: 30,
         step: 1,

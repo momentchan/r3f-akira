@@ -1,0 +1,12 @@
+{
+  "frameCount": 71,
+  "padding": 2,
+  "textureWidth": 584,
+  "textureHeight": 532,
+  "compressNormal": true,
+  "textures": {
+    "position": "Plumera Flower_pos.exr",
+    "normal": "Plumera Flower_nrm.png"
+  },
+  "glb": "Plumera Flower.glb"
+}
