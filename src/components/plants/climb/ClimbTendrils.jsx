@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useControls } from 'leva';
 import * as THREE from 'three/webgpu';
@@ -655,34 +655,38 @@ export function ClimbTendrils({
               receiveShadow
             />
             {controls.leafCount > 0 && (
-              <FieldLeaves
-                plants={stemBuild.plants}
-                plantData={stemBuild.plantData}
-                flowerUniforms={flowerUniforms}
-                leafCount={controls.leafCount}
-                leafSpan={controls.leafSpan}
-                leafScale={controls.leafScale}
-                scaleVariance={CLIMB_INTERNALS.leafScaleVariation}
-                droop={controls.leafDroop}
-                leafBend={controls.leafCurl}
-                curlStrength={[4, 1]}
-                curlPower={[6, 1]}
-                bendStrength={0}
-                bendVariance={CLIMB_INTERNALS.leafCurlVariation}
-                colorLevels={CLIMB_INTERNALS.leafColorLevels}
-              />
+              <Suspense fallback={null}>
+                <FieldLeaves
+                  plants={stemBuild.plants}
+                  plantData={stemBuild.plantData}
+                  flowerUniforms={flowerUniforms}
+                  leafCount={controls.leafCount}
+                  leafSpan={controls.leafSpan}
+                  leafScale={controls.leafScale}
+                  scaleVariance={CLIMB_INTERNALS.leafScaleVariation}
+                  droop={controls.leafDroop}
+                  leafBend={controls.leafCurl}
+                  curlStrength={[4, 1]}
+                  curlPower={[6, 1]}
+                  bendStrength={0}
+                  bendVariance={CLIMB_INTERNALS.leafCurlVariation}
+                  colorLevels={CLIMB_INTERNALS.leafColorLevels}
+                />
+              </Suspense>
             )}
             {flowerAttachments.indices.length > 0 && (
-              <FlowerTypeBatch
-                flowerType={CLIMB_FLOWER_TYPE}
-                plants={flowerAttachments.plants}
-                plantIndexMap={flowerAttachments.indices}
-                attachTs={flowerAttachments.attachTs}
-                attachNormals={flowerAttachments.attachNormals}
-                stemYMax={STEM_Y_MAX}
-                flowerControls={flowerControls}
-                runtimeRef={flowerRuntimeRef}
-              />
+              <Suspense fallback={null}>
+                <FlowerTypeBatch
+                  flowerType={CLIMB_FLOWER_TYPE}
+                  plants={flowerAttachments.plants}
+                  plantIndexMap={flowerAttachments.indices}
+                  attachTs={flowerAttachments.attachTs}
+                  attachNormals={flowerAttachments.attachNormals}
+                  stemYMax={STEM_Y_MAX}
+                  flowerControls={flowerControls}
+                  runtimeRef={flowerRuntimeRef}
+                />
+              </Suspense>
             )}
           </group>
         </AsyncCompile>

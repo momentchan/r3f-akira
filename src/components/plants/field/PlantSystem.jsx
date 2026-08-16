@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -275,24 +275,27 @@ export function PlantSystem({
           receiveShadow
         />
         {leafControls && leafControls.leafCount > 0 && (
-          <FieldLeaves
-            plants={stemBuild.plants}
-            plantData={stemBuild.plantData}
-            flowerUniforms={stemFlowerUniforms}
-            {...leafControls}
-          />
+          <Suspense fallback={null}>
+            <FieldLeaves
+              plants={stemBuild.plants}
+              plantData={stemBuild.plantData}
+              flowerUniforms={stemFlowerUniforms}
+              {...leafControls}
+            />
+          </Suspense>
         )}
         {plantsByType.map(({ type, plants: typePlants, indices }) => (
-          <FlowerTypeBatch
-            key={type.id}
-            flowerType={type}
-            plants={typePlants}
-            plantIndexMap={indices}
-            stemYMax={stemYMax}
-            flowerControls={flowerControlsById?.[type.id]}
-            stemLookControls={stemLookControls}
-            runtimeRef={runtimeRef}
-          />
+          <Suspense key={type.id} fallback={null}>
+            <FlowerTypeBatch
+              flowerType={type}
+              plants={typePlants}
+              plantIndexMap={indices}
+              stemYMax={stemYMax}
+              flowerControls={flowerControlsById?.[type.id]}
+              stemLookControls={stemLookControls}
+              runtimeRef={runtimeRef}
+            />
+          </Suspense>
         ))}
       </group>
     </AsyncCompile>
