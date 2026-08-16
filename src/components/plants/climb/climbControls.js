@@ -139,6 +139,30 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
       },
     }, CLOSED),
 
+    Jasmine: folder({
+      jasmineDensity: {
+        value: d.jasmineDensity,
+        min: 0,
+        max: 1,
+        step: 0.01,
+        label: 'Flower Density',
+      },
+      jasmineSpan: {
+        value: d.jasmineSpan,
+        min: 0.05,
+        max: 0.95,
+        step: 0.01,
+        label: 'Position Along Path',
+      },
+      jasmineNormalVariation: {
+        value: d.jasmineNormalVariation,
+        min: 0,
+        max: 30,
+        step: 1,
+        label: 'Normal Variation (deg)',
+      },
+    }, CLOSED),
+
     Lifecycle: folder({
       restTimeRange: {
         value: d.restTimeRange,

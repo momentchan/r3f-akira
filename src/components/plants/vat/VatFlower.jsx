@@ -2,7 +2,6 @@ import { useEffect, useId, useMemo } from 'react';
 import { useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import {
-  extractMeshGeometriesFromScene,
   useVATPreloader,
 } from '@core/vat';
 import { AsyncCompile } from '@core';
@@ -13,12 +12,14 @@ import {
 } from '../look/flowerControls';
 import { STEM_Y_MAX } from '../field/paths';
 import { configureVatTexture, createVatFlowerMaterials } from './createVatMaterial';
+import { extractFlowerMeshGeometries } from './flowerGeometry';
 
 export function VatFlower({
   metaUrl,
   scaleMul = 1,
   frameRatio = null,
   stemYMax = STEM_Y_MAX,
+  partColorMode = 'auto',
   flipX = true,
   usePetalCutout = true,
   useMaskEdge = true,
@@ -42,11 +43,12 @@ export function VatFlower({
       return null;
     }
 
-    return extractMeshGeometriesFromScene(vatData.scene, vatData.meta, {
+    return extractFlowerMeshGeometries(vatData.scene, vatData.meta, {
       flipX,
-      partColors: { stemYMax },
+      stemYMax,
+      partColorMode,
     });
-  }, [vatData, stemYMax, flipX]);
+  }, [vatData, stemYMax, flipX, partColorMode]);
 
   const materialBundle = useMemo(() => {
     if (!vatData.isLoaded || !vatData.posTex || !vatData.nrmTex || !vatData.meta) {

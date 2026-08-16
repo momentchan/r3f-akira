@@ -25,7 +25,7 @@ export const FIELD_DEFAULTS = {
   /** Keep flowers off the body via MeshBVH closest-point distance. */
   surround: {
     enabled: true,
-    /** MeshBVHHelper is the costly bit — off by default. */
+    /** BVHHelper is the costly bit — off by default. */
     showDebug: false,
     /** Min distance from posed mesh surface to a stem base. */
     clearMargin: 0.12,

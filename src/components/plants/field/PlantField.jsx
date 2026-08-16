@@ -6,6 +6,7 @@ import { createFlowerControlsSchema } from '../look/flowerControls';
 import { clearPointFromBvh } from './bodyBounds';
 import { createFieldControlsSchema } from './fieldControls';
 import { createStemSchema } from '../stem/stemControls';
+import { useLifecyclePauseHotkey } from '../lifecycle/useLifecyclePauseHotkey';
 import { PlantSystem } from './PlantSystem';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
 import { BodyBoundsDebug } from '../../scene/BodyBoundsDebug';
@@ -15,7 +16,7 @@ const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const DAHLIA_TYPE = FLOWER_TYPES.find((t) => t.id === 'dahlia');
 const ROSE_TYPE = FLOWER_TYPES.find((t) => t.id === 'rose');
 
-FLOWER_TYPES.forEach(({ metaUrl }) => preloadVATAssets(metaUrl));
+[DAHLIA_TYPE, ROSE_TYPE].forEach(({ metaUrl }) => preloadVATAssets(metaUrl));
 
 const S_LENGTH = 0;
 const S_RADIUS = 1;
@@ -64,24 +65,7 @@ export function PlantField({
   bodyBounds = null,
   onStemBases,
 }) {
-  const lifecyclePausedRef = useRef(false);
-
-  useEffect(() => {
-    const onKeyDown = (event) => {
-      if (event.code !== 'Space' || event.repeat) return;
-
-      const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) {
-        return;
-      }
-
-      event.preventDefault();
-      lifecyclePausedRef.current = !lifecyclePausedRef.current;
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  const lifecyclePausedRef = useLifecyclePauseHotkey();
 
   const fieldSchema = useMemo(() => createFieldControlsSchema(), []);
   const {

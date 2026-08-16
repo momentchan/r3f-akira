@@ -2,19 +2,29 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useControls } from 'leva';
 import * as THREE from 'three/webgpu';
-import { AsyncCompile } from '@core';
+import { AsyncCompile, stableRandomRange } from '@core';
+import { preloadVATAssets } from '@core/vat';
 import { createBatchedStemMaterial, createFlowerUniforms } from '../look/createFlowerMaterials';
 import { FLOWER_DEFAULTS } from '../look/flowerDefaults';
+import { createFlowerControlsSchema } from '../look/flowerControls';
 import {
   buildPackedStemTubes,
   GROWTH_START_SCALE,
 } from '../stem/buildStemTube';
 import {
   advanceLifecycleState,
+  computeGrowthLifecycle,
   createLifecycleState,
   hashLifecycleIdentity,
 } from '../lifecycle/plantLifecycle';
+import { useLifecyclePauseHotkey } from '../lifecycle/useLifecyclePauseHotkey';
 import { FieldLeaves } from '../stem/FieldLeaves';
+import { STEM_Y_MAX } from '../field/paths';
+import {
+  FlowerTypeBatch,
+  updateFlowerBatchTips,
+} from '../vat/FlowerTypeBatch';
+import { JASMINE_TYPE } from '../vat/flowerTypes';
 import {
   buildWrapCurves,
   WRAP_PATH_ALGORITHM_VERSION,
@@ -32,10 +42,92 @@ import { derivePrincipalSurfaceGuides } from './surfaceCoverage';
 
 const _lightWorld = new THREE.Vector3();
 const _lightTarget = new THREE.Vector3();
+const _surfaceHit = {};
+const _surfacePoint = new THREE.Vector3();
+const _surfaceOffset = new THREE.Vector3();
+const _triangleA = new THREE.Vector3();
+const _triangleB = new THREE.Vector3();
+const _triangleC = new THREE.Vector3();
+const _normalA = new THREE.Vector3();
+const _normalB = new THREE.Vector3();
+const _normalC = new THREE.Vector3();
+const _barycentric = new THREE.Vector3();
+const _normalTangent = new THREE.Vector3();
+const _normalBitangent = new THREE.Vector3();
+const _normalReference = new THREE.Vector3(0, 1, 0);
+const _normalAlternate = new THREE.Vector3(1, 0, 0);
 const PATH_DEBOUNCE_MS = 120;
 const MAX_TOTAL_TENDRILS = 512;
 const TUBE_SEGMENTS = 60;
 const TUBE_RADIAL_SEGMENTS = 5;
+
+preloadVATAssets(JASMINE_TYPE.metaUrl);
+
+function surfaceNormalAtPoint(host, point, target) {
+  const geometry = host?.geometry;
+  const position = geometry?.getAttribute?.('position');
+  const closest = host?.bvh?.closestPointToPoint(point, _surfaceHit, 0, Infinity);
+  if (
+    !position
+    || !closest?.point
+    || !Number.isInteger(closest.faceIndex)
+    || closest.faceIndex < 0
+  ) return null;
+
+  const index = geometry.getIndex();
+  const triangleOffset = closest.faceIndex * 3;
+  const ia = index ? index.getX(triangleOffset) : triangleOffset;
+  const ib = index ? index.getX(triangleOffset + 1) : triangleOffset + 1;
+  const ic = index ? index.getX(triangleOffset + 2) : triangleOffset + 2;
+  if (ic >= position.count) return null;
+
+  _triangleA.fromBufferAttribute(position, ia);
+  _triangleB.fromBufferAttribute(position, ib);
+  _triangleC.fromBufferAttribute(position, ic);
+
+  const normal = geometry.getAttribute('normal');
+  if (normal && THREE.Triangle.getBarycoord(
+    closest.point,
+    _triangleA,
+    _triangleB,
+    _triangleC,
+    _barycentric,
+  )) {
+    _normalA.fromBufferAttribute(normal, ia);
+    _normalB.fromBufferAttribute(normal, ib);
+    _normalC.fromBufferAttribute(normal, ic);
+    target.copy(_normalA).multiplyScalar(_barycentric.x)
+      .addScaledVector(_normalB, _barycentric.y)
+      .addScaledVector(_normalC, _barycentric.z);
+  } else {
+    _surfaceOffset.subVectors(_triangleA, _triangleB);
+    target.subVectors(_triangleC, _triangleB)
+      .cross(_surfaceOffset);
+  }
+  if (target.lengthSq() < 1e-10) return null;
+  target.normalize();
+
+  // Mesh winding can differ between hosts. The tendril point is already offset
+  // outside the surface, so use it to consistently choose the outward side.
+  _surfaceOffset.subVectors(point, closest.point);
+  if (_surfaceOffset.lengthSq() > 1e-10 && target.dot(_surfaceOffset) < 0) {
+    target.negate();
+  }
+  return target;
+}
+
+function varySurfaceNormal(normal, azimuth, tiltRadians, target) {
+  _normalTangent.crossVectors(normal, _normalReference);
+  if (_normalTangent.lengthSq() < 1e-8) {
+    _normalTangent.crossVectors(normal, _normalAlternate);
+  }
+  _normalTangent.normalize();
+  _normalBitangent.crossVectors(normal, _normalTangent).normalize();
+  return target.copy(normal).multiplyScalar(Math.cos(tiltRadians))
+    .addScaledVector(_normalTangent, Math.cos(azimuth) * Math.sin(tiltRadians))
+    .addScaledVector(_normalBitangent, Math.sin(azimuth) * Math.sin(tiltRadians))
+    .normalize();
+}
 
 function createPlantDataTexture(count) {
   const width = Math.max(1, THREE.MathUtils.ceilPowerOfTwo(count));
@@ -102,8 +194,18 @@ export function ClimbTendrils({
   bodyBounds = null,
   backpackBounds = null,
 }) {
+  const lifecyclePausedRef = useLifecyclePauseHotkey();
   const schema = useMemo(() => createClimbControlsSchema(CLIMB_DEFAULTS), []);
   const controls = useControls('Climbing Tendrils', schema, { collapsed: true });
+  const jasmineSchema = useMemo(
+    () => createFlowerControlsSchema(JASMINE_TYPE.materialDefaults),
+    [],
+  );
+  const jasmineControls = useControls(
+    'Flower.Jasmine',
+    jasmineSchema,
+    { collapsed: true },
+  );
 
   const hosts = useMemo(() => {
     const list = [];
@@ -327,8 +429,87 @@ export function ClimbTendrils({
     });
   }, [stemBuild.plantData, flowerUniforms]);
 
+  const jasmineAttachments = useMemo(() => {
+    const selectedPlants = [];
+    const indices = [];
+    const attachTs = [];
+    const attachNormals = [];
+    const density = THREE.MathUtils.clamp(controls.jasmineDensity, 0, 1);
+    const attachMin = Math.min(controls.jasmineSpan[0], controls.jasmineSpan[1]);
+    const attachMax = Math.max(controls.jasmineSpan[0], controls.jasmineSpan[1]);
+    const maxTilt = THREE.MathUtils.degToRad(controls.jasmineNormalVariation);
+    const colorVariation = JASMINE_TYPE.materialDefaults.colorVariation ?? {};
+    const hostById = new Map(hosts.map((host) => [host.id, host]));
+
+    stemBuild.plants.forEach((plant, index) => {
+      if (plant.role !== 'ring') return;
+      const selection = stableRandomRange(
+        plant.plantId,
+        41,
+        plant.seed,
+        0,
+        1,
+      );
+      if (selection >= density) return;
+
+      const attachT = stableRandomRange(
+        plant.plantId,
+        44,
+        plant.seed,
+        attachMin,
+        attachMax,
+      );
+      plant.curve.getPointAt(attachT, _surfacePoint);
+      const surfaceNormal = surfaceNormalAtPoint(
+        hostById.get(plant.hostId),
+        _surfacePoint,
+        new THREE.Vector3(),
+      );
+      const variedNormal = surfaceNormal
+        ? varySurfaceNormal(
+            surfaceNormal,
+            stableRandomRange(plant.plantId, 45, plant.seed, 0, Math.PI * 2),
+            stableRandomRange(plant.plantId, 46, plant.seed, 0, maxTilt),
+            new THREE.Vector3(),
+          )
+        : null;
+
+      selectedPlants.push({
+        ...plant,
+        colorOverride: {
+          hueShift: stableRandomRange(
+            plant.plantId,
+            42,
+            plant.seed,
+            -(colorVariation.hueRange ?? 0),
+            colorVariation.hueRange ?? 0,
+          ),
+          lightShift: stableRandomRange(
+            plant.plantId,
+            43,
+            plant.seed,
+            -(colorVariation.lightRange ?? 0),
+            colorVariation.lightRange ?? 0,
+          ),
+        },
+      });
+      indices.push(index);
+      attachTs.push(attachT);
+      attachNormals.push(variedNormal?.toArray() ?? null);
+    });
+
+    return { plants: selectedPlants, indices, attachTs, attachNormals };
+  }, [
+    stemBuild.plants,
+    hosts,
+    controls.jasmineDensity,
+    controls.jasmineSpan,
+    controls.jasmineNormalVariation,
+  ]);
+
   const plantsRef = useRef(stemBuild.plants);
   const plantDataRef = useRef(stemBuild.plantData);
+  const jasmineRuntimeRef = useRef({ flowerBatches: {} });
   const lightRef = useRef(null);
   const lifecycleRef = useRef(lifecycleRanges);
   lifecycleRef.current = lifecycleRanges;
@@ -390,19 +571,22 @@ export function ClimbTendrils({
       light.target.updateWorldMatrix(true, false);
       light.getWorldPosition(_lightWorld);
       light.target.getWorldPosition(_lightTarget);
-      flowerUniforms.lightDir.value.copy(_lightWorld.sub(_lightTarget).normalize());
+      const lightDirection = _lightWorld.sub(_lightTarget).normalize();
+      flowerUniforms.lightDir.value.copy(lightDirection);
+      for (const batch of Object.values(jasmineRuntimeRef.current.flowerBatches)) {
+        batch.flowerUniforms.lightDir.value.copy(lightDirection);
+      }
     }
 
     const { data, width, tex } = plantData;
     const dt = Math.min(delta, 0.1);
+    const paused = lifecyclePausedRef.current;
     const treeGrowthFronts = treeGrowthFrontsRef.current;
     treeGrowthFronts.clear();
     for (const [treeId, lifecycle] of treeLifecyclesRef.current) {
-      const { growth } = advanceLifecycleState(
-        lifecycle,
-        dt,
-        lifecycleRef.current,
-      );
+      const { growth } = paused
+        ? computeGrowthLifecycle(lifecycle.age, lifecycle.durations)
+        : advanceLifecycleState(lifecycle, dt, lifecycleRef.current);
       treeGrowthFronts.set(
         treeId,
         growth * Math.max(lifecycle.length, 1e-6),
@@ -426,6 +610,9 @@ export function ClimbTendrils({
           motionRef.current,
         );
       const o = i * 4;
+      plant.stemGrow = stemGrow;
+      plant.swayX = motionX;
+      plant.swayZ = motionZ;
       data[o] = stemGrow;
       data[o + 1] = motionX;
       data[o + 2] = motionZ;
@@ -439,6 +626,7 @@ export function ClimbTendrils({
       data[o + 3] = 0;
     }
     tex.needsUpdate = true;
+    updateFlowerBatchTips(jasmineRuntimeRef.current.flowerBatches, plants);
   }, 1);
 
   if (!controls.enabled) return null;
@@ -449,7 +637,9 @@ export function ClimbTendrils({
   return (
     <group name="ClimbTendrils">
       {showStems && !controls.hideRenderedTendrils && (
-        <AsyncCompile id={`climb-tendrils-${stemBuild.plants.length}-${controls.leafCount}`}>
+        <AsyncCompile
+          id={`climb-tendrils-${stemBuild.plants.length}-${controls.leafCount}-${jasmineAttachments.indices.length}`}
+        >
           <group>
             <mesh
               geometry={stemBuild.geometry}
@@ -474,6 +664,18 @@ export function ClimbTendrils({
                 bendStrength={0}
                 bendVariance={CLIMB_INTERNALS.leafCurlVariation}
                 colorLevels={CLIMB_INTERNALS.leafColorLevels}
+              />
+            )}
+            {jasmineAttachments.indices.length > 0 && (
+              <FlowerTypeBatch
+                flowerType={JASMINE_TYPE}
+                plants={jasmineAttachments.plants}
+                plantIndexMap={jasmineAttachments.indices}
+                attachTs={jasmineAttachments.attachTs}
+                attachNormals={jasmineAttachments.attachNormals}
+                stemYMax={STEM_Y_MAX}
+                flowerControls={jasmineControls}
+                runtimeRef={jasmineRuntimeRef}
               />
             )}
           </group>

@@ -1,0 +1,12 @@
+{
+  "frameCount": 71,
+  "padding": 2,
+  "textureWidth": 365,
+  "textureHeight": 260,
+  "compressNormal": true,
+  "textures": {
+    "position": "Jasmine Flower_pos.exr",
+    "normal": "Jasmine Flower_nrm.png"
+  },
+  "glb": "Jasmine Flower.glb"
+}

@@ -4,7 +4,6 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
-  extractMeshGeometriesFromScene,
   useVATPreloader,
 } from '@core/vat';
 import { AsyncCompile } from '@core';
@@ -38,6 +37,7 @@ import {
   createInstancedVatFlowerMaterials,
   prepareInstancedVatGeometry,
 } from '../vat/createVatMaterial';
+import { extractFlowerMeshGeometries } from '../vat/flowerGeometry';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
 
 const _up = new THREE.Vector3(0, 1, 0);
@@ -100,9 +100,10 @@ function FlowerTypeBatch({
 
   const geometry = useMemo(() => {
     if (!vatData.isLoaded || !vatData.scene || !vatData.meta) return null;
-    const parts = extractMeshGeometriesFromScene(vatData.scene, vatData.meta, {
+    const parts = extractFlowerMeshGeometries(vatData.scene, vatData.meta, {
       flipX: true,
-      partColors: { stemYMax },
+      stemYMax,
+      partColorMode: flowerType.partColorMode,
     });
     if (!parts.length) return null;
     const merged = parts.length === 1
@@ -112,7 +113,13 @@ function FlowerTypeBatch({
       if (p.geometry !== merged) p.geometry.dispose();
     });
     return merged;
-  }, [vatData.isLoaded, vatData.scene, vatData.meta, stemYMax]);
+  }, [
+    vatData.isLoaded,
+    vatData.scene,
+    vatData.meta,
+    stemYMax,
+    flowerType.partColorMode,
+  ]);
 
   const materialBundle = useMemo(() => {
     if (!vatData.isLoaded || !vatData.posTex || !vatData.nrmTex || !vatData.meta) {

@@ -359,6 +359,7 @@ export function ProceduralStem({
           )}
           frameRatio={flowerFrameRef}
           stemYMax={stemYMax}
+          partColorMode={flowerType.partColorMode}
           usePetalCutout={flowerType.usePetalCutout !== false}
           useMaskEdge={flowerType.useMaskEdge !== false}
           maskPath={flowerType.maskPath}
