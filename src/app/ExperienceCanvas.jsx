@@ -9,6 +9,7 @@ import { Character } from '../components/character/Character';
 import { Backpack } from '../components/character/Backpack.tsx';
 import { ClimbTendrils } from '../components/plants/climb/ClimbTendrils';
 import { PlantField } from '../components/plants/field/PlantField';
+import { GroundTendrils } from '../components/plants/groundTendrils/GroundTendrils';
 import { usePlantWindControls } from '../components/plants/wind/usePlantWindControls';
 import { DirectionalLight } from '../components/scene/DirectionalLight';
 import Effects from '../components/scene/Effects';
@@ -79,14 +80,21 @@ function SceneContent() {
           </AsyncCompile>
         </Suspense>
         <ShadowCatcher groundColor={bgColor} />
-        <Suspense fallback={null}>
+        {/* <Suspense fallback={null}>
           <PlantField
             bodyBounds={bodyBounds}
             wind={plantWind}
           />
-        </Suspense>
+        </Suspense> */}
         <Suspense fallback={null}>
           <ClimbTendrils
+            bodyBounds={bodyBounds}
+            backpackBounds={backpackBounds}
+            wind={plantWind}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <GroundTendrils
             bodyBounds={bodyBounds}
             backpackBounds={backpackBounds}
             wind={plantWind}

@@ -5,12 +5,16 @@ import * as THREE from 'three/webgpu';
 import { AsyncCompile, stableRandomRange } from '@core';
 import { preloadVATAssets } from '@core/vat';
 import { createBatchedStemMaterial, createFlowerUniforms } from '../look/createFlowerMaterials';
-import { FLOWER_DEFAULTS } from '../look/flowerDefaults';
 import { createFlowerControlsSchema } from '../look/flowerControls';
 import {
   buildPackedStemTubes,
   GROWTH_START_SCALE,
 } from '../stem/buildStemTube';
+import {
+  applyTendrilLookDefaults,
+  createTendrilDataTexture as createPlantDataTexture,
+  treeSegmentGrowth,
+} from '../tendrils/treeTendrilSystem';
 import {
   advanceLifecycleState,
   computeGrowthLifecycle,
@@ -31,7 +35,6 @@ import {
   WRAP_PATH_ALGORITHM_VERSION,
 } from './buildWrapCurve';
 import { ClimbDebug } from './ClimbDebug';
-import { treeSegmentGrowth } from './climbLifecycle';
 import { createClimbControlsSchema } from './climbControls';
 import {
   CLIMB_DEFAULTS,
@@ -129,31 +132,6 @@ function varySurfaceNormal(normal, azimuth, tiltRadians, target) {
     .addScaledVector(_normalTangent, Math.cos(azimuth) * Math.sin(tiltRadians))
     .addScaledVector(_normalBitangent, Math.sin(azimuth) * Math.sin(tiltRadians))
     .normalize();
-}
-
-function createPlantDataTexture(count) {
-  const width = Math.max(1, THREE.MathUtils.ceilPowerOfTwo(count));
-  const data = new Float32Array(width * 4);
-  const tex = new THREE.DataTexture(data, width, 1, THREE.RGBAFormat, THREE.FloatType);
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
-  tex.wrapS = THREE.ClampToEdgeWrapping;
-  tex.wrapT = THREE.ClampToEdgeWrapping;
-  tex.needsUpdate = true;
-  return { tex, data, width };
-}
-
-function applyStemLookDefaults(uniforms) {
-  const d = FLOWER_DEFAULTS.stem;
-  const { stem } = uniforms;
-  stem.colorLevels.value = d.colorLevels;
-  stem.thresholdLow.value = d.thresholdLow;
-  stem.thresholdHigh.value = d.thresholdHigh;
-  stem.shadowColor.value.set(d.shadowColor);
-  stem.highlightColor.value.set(d.highlightColor);
-  stem.edgeColor.value.set(d.edgeColor);
-  stem.edgeThreshold.value = d.edgeThreshold;
-  stem.edgeSoftness.value = d.edgeSoftness;
 }
 
 function pathKeyFromControls(c) {
@@ -300,7 +278,7 @@ export function ClimbTendrils({
 
   const flowerUniforms = useMemo(() => {
     const uniforms = createFlowerUniforms();
-    applyStemLookDefaults(uniforms);
+    applyTendrilLookDefaults(uniforms);
     return uniforms;
   }, []);
 
