@@ -10,7 +10,7 @@ import {
   FLOWER_MASK_PATH,
   FLOWER_VEIN_PATH,
 } from '../look/flowerControls';
-import { STEM_Y_MAX } from '../field/paths';
+import { STEM_Y_MAX } from '../stem/stemDefaults';
 import { configureVatTexture, createVatFlowerMaterials } from './createVatMaterial';
 import { extractFlowerMeshGeometries } from './flowerGeometry';
 

@@ -1,9 +1,11 @@
 import { folder } from 'leva';
-import { FLOWER_DEFAULTS } from '../look/flowerDefaults';
-import { STEM_Y_MAX } from '../field/paths';
-import { FIELD_DEFAULTS, STEM_RANGES } from '../field/fieldDefaults';
+import {
+  STEM_DEFAULTS,
+  STEM_RANGES,
+  STEM_Y_MAX,
+} from './stemDefaults';
 
-export function createStemGeometrySchema(defaults = FIELD_DEFAULTS.stemGeometry) {
+export function createStemGeometrySchema(defaults = STEM_DEFAULTS.geometry) {
   const d = defaults;
   const R = STEM_RANGES;
   return {
@@ -33,7 +35,7 @@ export function createStemGeometrySchema(defaults = FIELD_DEFAULTS.stemGeometry)
   };
 }
 
-export function createStemLookSchema(defaults = FIELD_DEFAULTS.stemLook) {
+export function createStemLookSchema(defaults = STEM_DEFAULTS.look) {
   const d = defaults;
   return {
     stemColorLevels: { value: d.colorLevels, min: 2, max: 6, step: 1, label: 'colorLevels' },
@@ -52,9 +54,9 @@ export function createStemLookSchema(defaults = FIELD_DEFAULTS.stemLook) {
 
 /** All stem params — geometry + shared toon look + leaves — under top-level Stem. */
 export function createStemSchema(
-  geometryDefaults = FIELD_DEFAULTS.stemGeometry,
-  lookDefaults = FIELD_DEFAULTS.stemLook,
-  leafDefaults = FIELD_DEFAULTS.leaves,
+  geometryDefaults = STEM_DEFAULTS.geometry,
+  lookDefaults = STEM_DEFAULTS.look,
+  leafDefaults = STEM_DEFAULTS.leaves,
 ) {
   return {
     Geometry: folder(createStemGeometrySchema(geometryDefaults), { collapsed: false }),
@@ -63,7 +65,7 @@ export function createStemSchema(
   };
 }
 
-function createLeafSchema(defaults = FIELD_DEFAULTS.leaves) {
+function createLeafSchema(defaults = STEM_DEFAULTS.leaves) {
   const d = defaults;
   return {
     leafCount: { value: d.leafCount, min: 0, max: 8, step: 1, label: 'count / stem' },
@@ -99,4 +101,4 @@ export function syncStemLookControls(controls, flowerUniformsList) {
   }
 }
 
-export const DEFAULT_STEM_LOOK = FLOWER_DEFAULTS.stem;
+export { DEFAULT_STEM_LOOK } from './stemDefaults';

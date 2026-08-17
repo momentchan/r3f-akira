@@ -19,7 +19,7 @@ import {
 } from '../lifecycle/plantLifecycle';
 import { useLifecyclePauseHotkey } from '../lifecycle/useLifecyclePauseHotkey';
 import { FieldLeaves } from '../stem/FieldLeaves';
-import { STEM_Y_MAX } from '../field/paths';
+import { STEM_Y_MAX } from '../stem/stemDefaults';
 import {
   FlowerTypeBatch,
   updateFlowerBatchTips,

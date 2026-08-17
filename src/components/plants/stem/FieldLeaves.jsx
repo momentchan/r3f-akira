@@ -20,7 +20,7 @@ import {
   vec3,
 } from 'three/tsl';
 import { createFlowerStemMaterial, rotateYNode } from '../look/createFlowerMaterials';
-import { FIELD_DEFAULTS } from '../field/fieldDefaults';
+import { STEM_DEFAULTS } from './stemDefaults';
 import { WIND_MASK_POW } from './wind';
 
 const GROW_WINDOW = 0.28;
@@ -66,23 +66,23 @@ export function FieldLeaves({
   plants = [],
   plantData = null, // { tex, width }
   flowerUniforms,
-  leafCount = FIELD_DEFAULTS.leaves.leafCount,
-  leafSpan = FIELD_DEFAULTS.leaves.leafSpan,
-  leafScale = FIELD_DEFAULTS.leaves.leafScale,
-  scaleVariance = FIELD_DEFAULTS.leaves.scaleVariance,
-  droop = FIELD_DEFAULTS.leaves.droop,
-  leafBend = FIELD_DEFAULTS.leaves.leafBend,
+  leafCount = STEM_DEFAULTS.leaves.leafCount,
+  leafSpan = STEM_DEFAULTS.leaves.leafSpan,
+  leafScale = STEM_DEFAULTS.leaves.leafScale,
+  scaleVariance = STEM_DEFAULTS.leaves.scaleVariance,
+  droop = STEM_DEFAULTS.leaves.droop,
+  leafBend = STEM_DEFAULTS.leaves.leafBend,
   curlStrength = [
-    FIELD_DEFAULTS.leaves.curlStrengthStart,
-    FIELD_DEFAULTS.leaves.curlStrengthEnd,
+    STEM_DEFAULTS.leaves.curlStrengthStart,
+    STEM_DEFAULTS.leaves.curlStrengthEnd,
   ],
   curlPower = [
-    FIELD_DEFAULTS.leaves.curlPowerStart,
-    FIELD_DEFAULTS.leaves.curlPowerEnd,
+    STEM_DEFAULTS.leaves.curlPowerStart,
+    STEM_DEFAULTS.leaves.curlPowerEnd,
   ],
-  bendStrength = FIELD_DEFAULTS.leaves.bendStrength,
-  bendVariance = FIELD_DEFAULTS.leaves.bendVariance,
-  colorLevels = FIELD_DEFAULTS.leaves.colorLevels,
+  bendStrength = STEM_DEFAULTS.leaves.bendStrength,
+  bendVariance = STEM_DEFAULTS.leaves.bendVariance,
+  colorLevels = STEM_DEFAULTS.leaves.colorLevels,
 }) {
   const leafGeometry = useLeafGeometry();
   const meshRef = useRef(null);
@@ -232,13 +232,22 @@ export function FieldLeaves({
     const pos = new THREE.Vector3();
     const col = new THREE.Vector3();
     const identity = new THREE.Matrix4();
-    const [spanLo, spanHi] = leafSpan;
+    const spanLo = THREE.MathUtils.clamp(Math.min(leafSpan[0], leafSpan[1]), 0, 1);
+    const spanHi = THREE.MathUtils.clamp(Math.max(leafSpan[0], leafSpan[1]), 0, 1);
 
     let leafIndex = 0;
     for (let p = 0; p < plants.length; p++) {
       const plant = plants[p];
       const curve = plant.curve;
       const rng = seededRng(plant.seed + 91);
+      // Give every leaf its own stable random attachment point. Keep this on a
+      // separate stream so changing placement does not reshuffle orientation,
+      // scale, or bend variation.
+      const positionRng = seededRng(plant.seed + 193);
+      const attachTs = Array.from(
+        { length: leafCount },
+        () => THREE.MathUtils.lerp(spanLo, spanHi, positionRng()),
+      ).sort((a, b) => a - b);
       const azJitter = rng() * Math.PI * 2;
       const {
         stemLength,
@@ -253,9 +262,7 @@ export function FieldLeaves({
       const [ox, oy, oz] = useTransformRow ? [0, 0, 0] : plant.position;
 
       for (let i = 0; i < leafCount; i++) {
-        const t = leafCount === 1
-          ? (spanLo + spanHi) * 0.5
-          : THREE.MathUtils.lerp(spanLo, spanHi, i / (leafCount - 1));
+        const t = attachTs[i];
         curve.getPointAt(t, P);
         curve.getTangentAt(t, T).normalize();
 

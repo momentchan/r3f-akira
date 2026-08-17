@@ -8,8 +8,8 @@ import {
   createFlowerUniforms,
 } from '../look/createFlowerMaterials';
 import { syncFlowerControls } from '../look/flowerControls';
-import { DEFAULT_LIFECYCLE_RANGES, FIELD_DEFAULTS } from '../field/fieldDefaults';
-import { STEM_Y_MAX } from '../field/paths';
+import { DEFAULT_LIFECYCLE_RANGES } from '../field/fieldDefaults';
+import { STEM_DEFAULTS, STEM_Y_MAX } from './stemDefaults';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
 import { VatFlower } from '../vat/VatFlower';
 import { computeDurations, computeLifecycle } from './flowerLifecycle';
@@ -65,11 +65,11 @@ export function ProceduralStem({
   flowerType = FLOWER_TYPES[0],
   colorOverride = null,
   params = {},
-  stemSegments = FIELD_DEFAULTS.stemGeometry.stemSegments,
-  radialSegs = FIELD_DEFAULTS.stemGeometry.radialSegs,
+  stemSegments = STEM_DEFAULTS.geometry.stemSegments,
+  radialSegs = STEM_DEFAULTS.geometry.radialSegs,
   stemYMax = STEM_Y_MAX,
-  bloomStart = FIELD_DEFAULTS.stemGeometry.bloomStart,
-  bloomFrac = FIELD_DEFAULTS.stemGeometry.bloomFrac,
+  bloomStart = STEM_DEFAULTS.geometry.bloomStart,
+  bloomFrac = STEM_DEFAULTS.geometry.bloomFrac,
   lifecycleRanges = DEFAULT_LIFECYCLE_RANGES,
   lifecyclePausedRef = null, // { current: boolean } — when true, freeze age (Space toggle)
   flowerControls = null,
@@ -77,25 +77,25 @@ export function ProceduralStem({
   windStrength = PLANT_WIND_DEFAULTS.windStrength,
   windScale = PLANT_WIND_DEFAULTS.windScale,
   windSpeed = PLANT_WIND_DEFAULTS.windSpeed,
-  leafCount = FIELD_DEFAULTS.leaves.leafCount,
-  leafSpan = FIELD_DEFAULTS.leaves.leafSpan,
-  leafScale = FIELD_DEFAULTS.leaves.leafScale,
-  scaleVariance = FIELD_DEFAULTS.leaves.scaleVariance,
-  droop = FIELD_DEFAULTS.leaves.droop,
-  leafBend = FIELD_DEFAULTS.leaves.leafBend,
-  curlStrength = [FIELD_DEFAULTS.leaves.curlStrengthStart, FIELD_DEFAULTS.leaves.curlStrengthEnd],
-  curlPower = [FIELD_DEFAULTS.leaves.curlPowerStart, FIELD_DEFAULTS.leaves.curlPowerEnd],
-  bendStrength = FIELD_DEFAULTS.leaves.bendStrength,
-  bendVariance = FIELD_DEFAULTS.leaves.bendVariance,
-  colorLevels = FIELD_DEFAULTS.leaves.colorLevels,
+  leafCount = STEM_DEFAULTS.leaves.leafCount,
+  leafSpan = STEM_DEFAULTS.leaves.leafSpan,
+  leafScale = STEM_DEFAULTS.leaves.leafScale,
+  scaleVariance = STEM_DEFAULTS.leaves.scaleVariance,
+  droop = STEM_DEFAULTS.leaves.droop,
+  leafBend = STEM_DEFAULTS.leaves.leafBend,
+  curlStrength = [STEM_DEFAULTS.leaves.curlStrengthStart, STEM_DEFAULTS.leaves.curlStrengthEnd],
+  curlPower = [STEM_DEFAULTS.leaves.curlPowerStart, STEM_DEFAULTS.leaves.curlPowerEnd],
+  bendStrength = STEM_DEFAULTS.leaves.bendStrength,
+  bendVariance = STEM_DEFAULTS.leaves.bendVariance,
+  colorLevels = STEM_DEFAULTS.leaves.colorLevels,
 }) {
   const {
-    stemLength = FIELD_DEFAULTS.stemGeometry.stemLength[0],
-    stemRadius = FIELD_DEFAULTS.stemGeometry.stemRadius[0],
-    leanAngle = FIELD_DEFAULTS.stemGeometry.leanAngle[0],
-    bendDegree = FIELD_DEFAULTS.stemGeometry.bendDegree[0],
-    radiusAttenuation = FIELD_DEFAULTS.stemGeometry.radiusAttenuation[0],
-    baseFlare = FIELD_DEFAULTS.stemGeometry.baseFlare[0],
+    stemLength = STEM_DEFAULTS.geometry.stemLength[0],
+    stemRadius = STEM_DEFAULTS.geometry.stemRadius[0],
+    leanAngle = STEM_DEFAULTS.geometry.leanAngle[0],
+    bendDegree = STEM_DEFAULTS.geometry.bendDegree[0],
+    radiusAttenuation = STEM_DEFAULTS.geometry.radiusAttenuation[0],
+    baseFlare = STEM_DEFAULTS.geometry.baseFlare[0],
   } = params;
 
   const [generation, setGeneration] = useState(0);

@@ -7,6 +7,7 @@ import { clearPointFromBvh } from './bodyBounds';
 import { createFieldControlsSchema } from './fieldControls';
 import { FIELD_DEFAULTS } from './fieldDefaults';
 import { createStemSchema } from '../stem/stemControls';
+import { STEM_DEFAULTS } from '../stem/stemDefaults';
 import { useLifecyclePauseHotkey } from '../lifecycle/useLifecyclePauseHotkey';
 import { PlantSystem } from './PlantSystem';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
@@ -119,9 +120,9 @@ export function PlantField({
     stemColorLevels: stemControls.stemColorLevels,
     stemThresholdLow: stemControls.stemThresholdLow,
     stemThresholdHigh: stemControls.stemThresholdHigh,
-    stemShadowColor: FIELD_DEFAULTS.stemLook.shadowColor,
-    stemHighlightColor: FIELD_DEFAULTS.stemLook.highlightColor,
-    stemEdgeColor: FIELD_DEFAULTS.stemLook.edgeColor,
+    stemShadowColor: STEM_DEFAULTS.look.shadowColor,
+    stemHighlightColor: STEM_DEFAULTS.look.highlightColor,
+    stemEdgeColor: STEM_DEFAULTS.look.edgeColor,
     stemEdgeThreshold: stemControls.stemEdgeThreshold,
     stemEdgeSoftness: stemControls.stemEdgeSoftness,
   }), [
