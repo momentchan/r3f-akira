@@ -3,30 +3,39 @@ import { useControls } from 'leva';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
 import {
-  clamp, Fn, float, fwidth, length, max, mix, mx_fractal_noise_float,
-  mx_noise_float, positionWorld, shadow, sin, smoothstep, uniform,
+  Fn, Loop, float, fwidth, max, mix, mx_noise_float,
+  positionWorld, shadow, smoothstep, uniform, vec2,
 } from 'three/tsl';
-import { GROUND_MEADOW_DEFAULTS } from '../plants/ground/groundMeadowDefaults';
 import { SHADOW_DEFAULTS } from './shadowDefaults';
 import { SCENE_DEFAULTS } from './sceneDefaults';
 
-function combinedGroundCenter(bodyBounds, backpackBounds) {
-  const boxes = [bodyBounds?.localBox, backpackBounds?.localBox].filter(Boolean);
-  if (!boxes.length) return [0, 0];
-  const box = boxes[0].clone();
-  for (let i = 1; i < boxes.length; i += 1) box.union(boxes[i]);
-  return [
-    (box.min.x + box.max.x) * 0.5,
-    (box.min.z + box.max.z) * 0.5,
-  ];
-}
+/**
+ * Two-dimensional fbm, mirroring `mx_fractal_noise_float(p, 4, 2, 0.5)` — same
+ * octave count, lacunarity and diminish, and the same unnormalized octave sum
+ * (about +/-1.875), so it is a drop-in for it.
+ *
+ * The reason to hand-roll it: that node's layout declares `p` as vec3 and its
+ * public wrapper does not convert, so passing `positionWorld.xz` pads to
+ * vec3(x, z, 0) and every octave pays the 8-corner trilinear lattice.
+ * `mx_noise_float` does `.convert('vec2|vec3')` and reaches the 4-corner 2-D
+ * overload instead — half the gradient evaluations per octave, on a plane that
+ * covers most of the screen.
+ */
+const fbm2 = /*@__PURE__*/ Fn(([p]) => {
+  const point = vec2(p).toVar();
+  const value = float(0).toVar();
+  const amplitude = float(1).toVar();
+  Loop(4, () => {
+    value.addAssign(amplitude.mul(mx_noise_float(point)));
+    point.mulAssign(2.0);
+    amplitude.mulAssign(0.5);
+  });
+  return value;
+});
 
 export function ShadowCatcher({
   size = 10,
   groundColor = SCENE_DEFAULTS.bgColor,
-  bodyBounds = null,
-  backpackBounds = null,
-  meadow = GROUND_MEADOW_DEFAULTS,
   ...props
 }) {
   const { scene } = useThree();
@@ -69,14 +78,6 @@ export function ShadowCatcher({
     edgeAt: uniform(d.edgeAt),
     edgeNoise: uniform(d.edgeNoise),
     edgeScale: uniform(d.edgeScale),
-    meadowEnabled: uniform(GROUND_MEADOW_DEFAULTS.enabled ? 1 : 0),
-    meadowCenter: uniform(new THREE.Vector2()),
-    meadowRadius: uniform(new THREE.Vector2(GROUND_MEADOW_DEFAULTS.areaX, GROUND_MEADOW_DEFAULTS.areaZ)),
-    meadowPatchScale: uniform(GROUND_MEADOW_DEFAULTS.patchScale),
-    meadowEdgeScale: uniform(GROUND_MEADOW_DEFAULTS.edgeScale),
-    meadowEdgeWarp: uniform(GROUND_MEADOW_DEFAULTS.edgeWarp),
-    grassColorA: uniform(new THREE.Color(GROUND_MEADOW_DEFAULTS.grassColorA)),
-    grassColorB: uniform(new THREE.Color(GROUND_MEADOW_DEFAULTS.grassColorB)),
   }), []);
 
   const material = useMemo(() => {
@@ -86,44 +87,9 @@ export function ShadowCatcher({
       return m;
     }
     m.colorNode = Fn(() => {
-      const meadowPosition = positionWorld.xz.sub(u.meadowCenter);
-      const meadowDistance = length(meadowPosition.div(u.meadowRadius));
-      const meadowEdgeNoise = mx_fractal_noise_float(
-        positionWorld.xz.mul(u.meadowEdgeScale),
-        3,
-      ).sub(float(0.5));
-      const meadowMask = float(1).sub(smoothstep(
-        float(0.88),
-        float(1.02),
-        meadowDistance.add(meadowEdgeNoise.mul(u.meadowEdgeWarp)),
-      )).mul(u.meadowEnabled);
-
-      // This is the same paint field used by the CPU blade scatter. Keeping the
-      // surface and instances synchronized mirrors the tutorial's shared mask.
-      const paintPosition = positionWorld.xz.mul(u.meadowPatchScale);
-      const broadPatch = sin(
-        paintPosition.x.mul(float(1.37)).add(
-          sin(paintPosition.y.mul(float(0.73))).mul(float(1.4)),
-        ),
-      );
-      const crossPatch = sin(
-        paintPosition.y.mul(float(1.91)).sub(paintPosition.x.mul(float(0.42))),
-      );
-      const paint = clamp(
-        float(0.5).add(broadPatch.mul(float(0.25))).add(crossPatch.mul(float(0.2))),
-        float(0),
-        float(1),
-      );
-      const meadowColor = mix(
-        u.grassColorA,
-        u.grassColorB,
-        smoothstep(float(0.3), float(0.7), paint),
-      );
-      const groundBase = mix(u.bg, meadowColor, meadowMask);
-
       const s = shadow(light);
       const amt = s.oneMinus().toVar();
-      const ink = mx_fractal_noise_float(positionWorld.xz.mul(u.washScale), 4).toVar();
+      const ink = fbm2(positionWorld.xz.mul(u.washScale)).toVar();
       const field = amt.add(ink.mul(u.edgeWarp));
       const fill = smoothstep(u.spread, u.spread.add(u.edgeSoft), field);
       const wash = fill.mul(float(1.0).sub(ink.mul(u.washNoise).max(float(0.0))));
@@ -132,15 +98,8 @@ export function ShadowCatcher({
       const dist = amt.sub(u.edgeAt.add(n)).abs();
       const edge = float(1.0).sub(smoothstep(float(0.0), w, dist));
       const shColor = mix(u.washColor, u.contourColor, edge);
-      // Keep the meadow shadows in the same green family; outside the meadow,
-      // retain the original ink-wash shadow used by the paper background.
-      const groundedShadowColor = mix(
-        shColor,
-        u.grassColorA,
-        meadowMask.mul(float(0.78)),
-      );
       const mask = max(wash.mul(u.washStr), edge.mul(u.contourStr));
-      return mix(groundBase, groundedShadowColor, mask);
+      return mix(u.bg, shColor, mask);
     })();
     return m;
   }, [light, u]);
@@ -161,14 +120,7 @@ export function ShadowCatcher({
     u.edgeAt.value = ctrl.edgeAt;
     u.edgeNoise.value = ctrl.edgeNoise;
     u.edgeScale.value = ctrl.edgeScale;
-    const [centerX, centerZ] = combinedGroundCenter(bodyBounds, backpackBounds);
-    u.meadowCenter.value.set(centerX, centerZ);
-    u.meadowRadius.value.set(meadow.areaX, meadow.areaZ);
-    u.meadowEnabled.value = meadow.enabled ? 1 : 0;
-    u.meadowPatchScale.value = meadow.patchScale;
-    u.grassColorA.value.set(meadow.grassColorA);
-    u.grassColorB.value.set(meadow.grassColorB);
-  }, [u, groundColor, ctrl, meadow, bodyBounds, backpackBounds]);
+  }, [u, groundColor, ctrl]);
 
   return (
     <group {...props}>

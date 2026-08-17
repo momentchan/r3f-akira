@@ -9,8 +9,6 @@ import { Character } from '../components/character/Character';
 import { Backpack } from '../components/character/Backpack.tsx';
 import { ClimbTendrils } from '../components/plants/climb/ClimbTendrils';
 import { PlantField } from '../components/plants/field/PlantField';
-import { GroundFoliage } from '../components/plants/ground/GroundFoliage';
-import { useGroundMeadowControls } from '../components/plants/ground/useGroundMeadowControls';
 import { usePlantWindControls } from '../components/plants/wind/usePlantWindControls';
 import { DirectionalLight } from '../components/scene/DirectionalLight';
 import Effects from '../components/scene/Effects';
@@ -48,7 +46,6 @@ function SceneContent() {
   const { bgColor } = useControls('Scene', {
     bgColor: { value: SCENE_DEFAULTS.bgColor, label: 'background' },
   });
-  const meadow = useGroundMeadowControls();
   const plantWind = usePlantWindControls();
 
   const setComponentReady = useExperienceStore((state) => state.setComponentReady);
@@ -81,18 +78,7 @@ function SceneContent() {
             />
           </AsyncCompile>
         </Suspense>
-        <ShadowCatcher
-          groundColor={bgColor}
-          bodyBounds={bodyBounds}
-          backpackBounds={backpackBounds}
-          meadow={meadow}
-        />
-        <GroundFoliage
-          bodyBounds={bodyBounds}
-          backpackBounds={backpackBounds}
-          config={meadow}
-          wind={plantWind}
-        />
+        <ShadowCatcher groundColor={bgColor} />
         <Suspense fallback={null}>
           <PlantField
             bodyBounds={bodyBounds}
@@ -108,10 +94,9 @@ function SceneContent() {
         </Suspense>
       </group>
 
+      {/* Same value as ShadowCatcher's groundColor, so ground and sky are one
+          flat tone and the plane's edge is never visible. */}
       <color attach="background" args={[bgColor]} />
-      <Suspense fallback={null}>
-        <Environment preset="sunset" />
-      </Suspense>
 
       <AdaptiveDpr pixelated />
       <CameraViewControl />
