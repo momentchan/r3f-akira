@@ -53,32 +53,6 @@ export function sampleSpatialNoiseOffset(x, y, z, {
 }
 
 /**
- * Slow, coherent motion around the baked resting curve. Nearby tendrils share
- * similar phases, while two layered waves prevent a mechanical pendulum loop.
- */
-export function sampleLivingMotionOffset(x, y, z, time, {
-  amount = 0,
-  frequency = 2.5,
-  speed = 0.35,
-  seed = 0,
-} = {}) {
-  if (amount <= 0 || speed <= 0) return [0, 0];
-
-  const phaseA = (x * 1.37 + y * 0.73 + z * 1.91) * frequency + seed * 0.61;
-  const phaseB = (x * -1.11 + y * 1.57 + z * 0.83) * frequency + seed * 1.17;
-  const t = time * speed;
-  const motionX = (
-    Math.sin(t + phaseA) * 0.68
-    + Math.sin(t * 0.43 + phaseB) * 0.32
-  ) * amount;
-  const motionZ = (
-    Math.sin(t * 0.79 + phaseB + 1.7) * 0.63
-    + Math.sin(t * 0.37 - phaseA + 0.4) * 0.37
-  ) * amount;
-  return [motionX, motionZ];
-}
-
-/**
  * Resample a curve through the field so every small path segment receives its
  * own smooth offset. The root is blended to zero to keep it on the ground.
  */

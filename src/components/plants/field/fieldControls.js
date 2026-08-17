@@ -56,16 +56,6 @@ export function createLeafSchema(defaults = FIELD_DEFAULTS.leaves) {
   };
 }
 
-export function createWindSchema(defaults = FIELD_DEFAULTS.wind) {
-  const d = defaults;
-  return {
-    windStrength: { value: d.windStrength, min: 0, max: 0.15, step: 0.001, label: 'strength' },
-    windAngle: { value: d.windAngle, min: 0, max: 360, step: 1, label: 'angle °' },
-    windScale: { value: d.windScale, min: 0.1, max: 6, step: 0.1, label: 'gust scale' },
-    windSpeed: { value: d.windSpeed, min: 0, max: 4, step: 0.05, label: 'gust speed' },
-  };
-}
-
 export function createSurroundSchema(defaults = FIELD_DEFAULTS.surround) {
   const d = defaults;
   return {
@@ -118,6 +108,5 @@ export function createFieldControlsSchema(defaults = FIELD_DEFAULTS) {
     Arrangement: folder(createArrangementSchema(defaults.arrangement), { collapsed: true }),
     Surround: folder(createSurroundSchema(defaults.surround), { collapsed: true }),
     Lifecycle: folder(createLifecycleSchema(defaults.lifecycle), { collapsed: true }),
-    Wind: folder(createWindSchema(defaults.wind), { collapsed: true }),
   };
 }

@@ -85,20 +85,6 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
         step: 0.1,
         label: 'Noise Frequency',
       },
-      motionAmount: {
-        value: d.motionAmount,
-        min: 0,
-        max: 0.03,
-        step: 0.001,
-        label: 'Motion Amount',
-      },
-      motionSpeed: {
-        value: d.motionSpeed,
-        min: 0,
-        max: 2.5,
-        step: 0.05,
-        label: 'Motion Speed',
-      },
     }, CLOSED),
 
     Leaves: folder({

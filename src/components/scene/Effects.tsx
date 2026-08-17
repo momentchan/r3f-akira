@@ -30,7 +30,7 @@ export default function Effects() {
             tintStrength: { value: d.tintStrength, min: 0, max: 1, step: 0.01 },
             blotchScale: { value: d.blotchScale, min: 1, max: 30, step: 0.5 },
             blotchStrength: { value: d.blotchStrength, min: 0, max: 1, step: 0.01 },
-        }),
+        }, { collapsed: true }),
     });
 
     useEffect(() => {

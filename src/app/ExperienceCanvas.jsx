@@ -7,6 +7,10 @@ import * as THREE from 'three/webgpu';
 import { Character } from '../components/character/Character';
 import { Backpack } from '../components/character/Backpack.tsx';
 import { ClimbTendrils } from '../components/plants/climb/ClimbTendrils';
+import { PlantField } from '../components/plants/field/PlantField';
+import { GroundFoliage } from '../components/plants/ground/GroundFoliage';
+import { useGroundMeadowControls } from '../components/plants/ground/useGroundMeadowControls';
+import { usePlantWindControls } from '../components/plants/wind/usePlantWindControls';
 import { DirectionalLight } from '../components/scene/DirectionalLight';
 import Effects from '../components/scene/Effects';
 import { ShadowCatcher } from '../components/scene/ShadowCatcher';
@@ -42,8 +46,9 @@ function SceneContent() {
   const { bgColor } = useControls('Scene', {
     bgColor: { value: SCENE_DEFAULTS.bgColor, label: 'background' },
   });
+  const meadow = useGroundMeadowControls();
+  const plantWind = usePlantWindControls();
 
-  const isStarted = useExperienceStore((state) => state.isStarted);
   const setComponentReady = useExperienceStore((state) => state.setComponentReady);
 
   return (
@@ -74,7 +79,24 @@ function SceneContent() {
             />
           </AsyncCompile>
         </Suspense>
-        <ShadowCatcher groundColor={bgColor} />
+        <ShadowCatcher
+          groundColor={bgColor}
+          bodyBounds={bodyBounds}
+          backpackBounds={backpackBounds}
+          meadow={meadow}
+        />
+        <GroundFoliage
+          bodyBounds={bodyBounds}
+          backpackBounds={backpackBounds}
+          config={meadow}
+          wind={plantWind}
+        />
+        <Suspense fallback={null}>
+          <PlantField
+            bodyBounds={bodyBounds}
+            wind={plantWind}
+          />
+        </Suspense>
         <Suspense fallback={null}>
           <ClimbTendrils
             bodyBounds={bodyBounds}

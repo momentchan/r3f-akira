@@ -67,12 +67,6 @@ export const FIELD_DEFAULTS = {
     keep: [10, 20],
     die: [1.5, 3],
   },
-  wind: {
-    windStrength: 0.05,
-    windAngle: 30,
-    windScale: 1.5,
-    windSpeed: 0.6,
-  },
   // Leaves deferred while the field runs as one batched system.
   leaves: {
     leafCount: 3,

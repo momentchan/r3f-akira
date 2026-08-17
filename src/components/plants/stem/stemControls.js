@@ -39,9 +39,6 @@ export function createStemLookSchema(defaults = FIELD_DEFAULTS.stemLook) {
     stemColorLevels: { value: d.colorLevels, min: 2, max: 6, step: 1, label: 'colorLevels' },
     stemThresholdLow: { value: d.thresholdLow, min: 0, max: 1, step: 0.01, label: 'thresholdLow' },
     stemThresholdHigh: { value: d.thresholdHigh, min: 0, max: 1, step: 0.01, label: 'thresholdHigh' },
-    stemShadowColor: { value: d.shadowColor, label: 'shadow' },
-    stemHighlightColor: { value: d.highlightColor, label: 'highlight' },
-    stemEdgeColor: { value: d.edgeColor, label: 'edge' },
     stemEdgeThreshold: { value: d.edgeThreshold, min: 0, max: 0.5, step: 0.01, label: 'edge start' },
     stemEdgeSoftness: {
       value: d.edgeSoftness,

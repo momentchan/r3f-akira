@@ -5,12 +5,14 @@ import { preloadVATAssets } from '@core/vat';
 import { createFlowerControlsSchema } from '../look/flowerControls';
 import { clearPointFromBvh } from './bodyBounds';
 import { createFieldControlsSchema } from './fieldControls';
+import { FIELD_DEFAULTS } from './fieldDefaults';
 import { createStemSchema } from '../stem/stemControls';
 import { useLifecyclePauseHotkey } from '../lifecycle/useLifecyclePauseHotkey';
 import { PlantSystem } from './PlantSystem';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
 import { BodyBoundsDebug } from '../../scene/BodyBoundsDebug';
 import { CompositionDebug } from './CompositionDebug';
+import { PLANT_WIND_DEFAULTS } from '../wind/plantWind';
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const DAHLIA_TYPE = FLOWER_TYPES.find((t) => t.id === 'dahlia');
@@ -64,6 +66,7 @@ export function PlantField({
   position = [0, 0, 0],
   bodyBounds = null,
   onStemBases,
+  wind = PLANT_WIND_DEFAULTS,
 }) {
   const lifecyclePausedRef = useLifecyclePauseHotkey();
 
@@ -83,7 +86,6 @@ export function PlantField({
     grow: [growMin, growMax],
     keep: [keepMin, keepMax],
     die: [dieMin, dieMax],
-    windStrength, windAngle, windScale, windSpeed,
   } = useControls('Field', fieldSchema, { collapsed: true });
 
   const stemSchema = useMemo(() => createStemSchema(), []);
@@ -115,18 +117,15 @@ export function PlantField({
     stemColorLevels: stemControls.stemColorLevels,
     stemThresholdLow: stemControls.stemThresholdLow,
     stemThresholdHigh: stemControls.stemThresholdHigh,
-    stemShadowColor: stemControls.stemShadowColor,
-    stemHighlightColor: stemControls.stemHighlightColor,
-    stemEdgeColor: stemControls.stemEdgeColor,
+    stemShadowColor: FIELD_DEFAULTS.stemLook.shadowColor,
+    stemHighlightColor: FIELD_DEFAULTS.stemLook.highlightColor,
+    stemEdgeColor: FIELD_DEFAULTS.stemLook.edgeColor,
     stemEdgeThreshold: stemControls.stemEdgeThreshold,
     stemEdgeSoftness: stemControls.stemEdgeSoftness,
   }), [
     stemControls.stemColorLevels,
     stemControls.stemThresholdLow,
     stemControls.stemThresholdHigh,
-    stemControls.stemShadowColor,
-    stemControls.stemHighlightColor,
-    stemControls.stemEdgeColor,
     stemControls.stemEdgeThreshold,
     stemControls.stemEdgeSoftness,
   ]);
@@ -370,10 +369,7 @@ export function PlantField({
         flowerColorVariationById={flowerColorVariationById}
         stemLookControls={stemLookControls}
         leafControls={leafControls}
-        windAngle={windAngle}
-        windStrength={windStrength}
-        windScale={windScale}
-        windSpeed={windSpeed}
+        wind={wind}
       />
     </group>
   );

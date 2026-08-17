@@ -22,6 +22,7 @@ import {
   restoreLifecycleProgress,
 } from '../lifecycle/plantLifecycle';
 import { computeWindSway } from '../stem/wind';
+import { PLANT_WIND_DEFAULTS } from '../wind/plantWind';
 import {
   FlowerTypeBatch,
   updateFlowerBatchTips,
@@ -62,10 +63,7 @@ export function PlantSystem({
   flowerColorVariationById,
   stemLookControls = null,
   leafControls = null,
-  windAngle = 30,
-  windStrength = 0.05,
-  windScale = 1.5,
-  windSpeed = 0.6,
+  wind = PLANT_WIND_DEFAULTS,
 }) {
   const runtimeRef = useRef({
     plants: [],
@@ -221,7 +219,7 @@ export function PlantSystem({
         plant.position[0],
         plant.position[2],
         time,
-        { windAngle, windStrength, windScale, windSpeed },
+        wind,
       );
 
       const growthState = paused

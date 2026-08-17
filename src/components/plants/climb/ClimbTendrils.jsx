@@ -25,6 +25,7 @@ import {
   updateFlowerBatchTips,
 } from '../vat/FlowerTypeBatch';
 import { PLUMERA_TYPE } from '../vat/flowerTypes';
+import { computeWindSway, PLANT_WIND_DEFAULTS } from '../wind/plantWind';
 import {
   buildWrapCurves,
   WRAP_PATH_ALGORITHM_VERSION,
@@ -37,7 +38,6 @@ import {
   CLIMB_HOST_PROFILES,
   CLIMB_INTERNALS,
 } from './climbDefaults';
-import { sampleLivingMotionOffset } from './spatialNoise';
 import { derivePrincipalSurfaceGuides } from './surfaceCoverage';
 
 const _lightWorld = new THREE.Vector3();
@@ -195,6 +195,7 @@ function allocateHostBudgets(hosts, total) {
 export function ClimbTendrils({
   bodyBounds = null,
   backpackBounds = null,
+  wind = PLANT_WIND_DEFAULTS,
 }) {
   const lifecyclePausedRef = useLifecyclePauseHotkey();
   const schema = useMemo(() => createClimbControlsSchema(CLIMB_DEFAULTS), []);
@@ -293,9 +294,9 @@ export function ClimbTendrils({
   ]);
 
   const flowerUniforms = useMemo(() => {
-    const u = createFlowerUniforms();
-    applyStemLookDefaults(u);
-    return u;
+    const uniforms = createFlowerUniforms();
+    applyStemLookDefaults(uniforms);
+    return uniforms;
   }, []);
 
   const wraps = useMemo(() => {
@@ -521,13 +522,6 @@ export function ClimbTendrils({
   lifecycleRef.current = lifecycleRanges;
   const treeLifecyclesRef = useRef(new Map());
   const treeGrowthFrontsRef = useRef(new Map());
-  const motionRef = useRef(null);
-  motionRef.current = {
-    amount: controls.motionAmount,
-    frequency: CLIMB_INTERNALS.motionFrequency,
-    speed: controls.motionSpeed,
-    seed: CLIMB_INTERNALS.layoutSeed,
-  };
 
   // Geometry stays packed, while every grounded tree owns one lifecycle.
   useEffect(() => {
@@ -608,12 +602,12 @@ export function ClimbTendrils({
       );
       const [motionX, motionZ] = plant.role === 'feeder'
         ? [0, 0]
-        : sampleLivingMotionOffset(
+        : computeWindSway(
           plant.motionPosition[0],
-          plant.motionPosition[1],
           plant.motionPosition[2],
           clock.elapsedTime,
-          motionRef.current,
+          wind,
+          0.32,
         );
       const o = i * 4;
       plant.stemGrow = stemGrow;

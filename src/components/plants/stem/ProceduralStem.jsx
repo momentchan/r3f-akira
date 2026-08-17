@@ -15,6 +15,7 @@ import { VatFlower } from '../vat/VatFlower';
 import { computeDurations, computeLifecycle } from './flowerLifecycle';
 import { computeWindSway, windMask, WIND_MASK_POW } from './wind';
 import { StemLeaves } from './StemLeaves';
+import { PLANT_WIND_DEFAULTS } from '../wind/plantWind';
 
 const _up = new THREE.Vector3(0, 1, 0);
 const GROWTH_START_SCALE = 0.1;
@@ -72,10 +73,10 @@ export function ProceduralStem({
   lifecycleRanges = DEFAULT_LIFECYCLE_RANGES,
   lifecyclePausedRef = null, // { current: boolean } — when true, freeze age (Space toggle)
   flowerControls = null,
-  windAngle = FIELD_DEFAULTS.wind.windAngle,
-  windStrength = FIELD_DEFAULTS.wind.windStrength,
-  windScale = FIELD_DEFAULTS.wind.windScale,
-  windSpeed = FIELD_DEFAULTS.wind.windSpeed,
+  windAngle = PLANT_WIND_DEFAULTS.windAngle,
+  windStrength = PLANT_WIND_DEFAULTS.windStrength,
+  windScale = PLANT_WIND_DEFAULTS.windScale,
+  windSpeed = PLANT_WIND_DEFAULTS.windSpeed,
   leafCount = FIELD_DEFAULTS.leaves.leafCount,
   leafSpan = FIELD_DEFAULTS.leaves.leafSpan,
   leafScale = FIELD_DEFAULTS.leaves.leafScale,
@@ -240,6 +241,7 @@ export function ProceduralStem({
   useFrame(({ scene, clock }, delta) => {
     // Wind gust for this plant → shader uniform (drives the stem bend)
     const [swayX, swayZ] = computeWindSway(position[0], position[2], clock.elapsedTime, {
+      enabled: true,
       windAngle, windStrength, windScale, windSpeed,
     });
     windSway.value.set(swayX, swayZ);

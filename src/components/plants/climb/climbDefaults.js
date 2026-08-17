@@ -23,7 +23,6 @@ export const CLIMB_INTERNALS = Object.freeze({
   curveSamples: 48,
   spacingVariation: 1,
   entryBend: 1,
-  motionFrequency: 2.5,
   leafScaleVariation: 0.35,
   leafCurlVariation: 0.3,
   leafColorLevels: 3,
@@ -52,10 +51,6 @@ export const CLIMB_DEFAULTS = {
   // Shared spatial field; nearby tendrils receive related X/Z displacement.
   noiseAmount: 0.03,
   noiseFrequency: 8.4,
-
-  // Slow coherent flex around the baked noisy curve.
-  motionAmount: 0,
-  motionSpeed: 0.5,
 
   // Leaves grow from the same packed lifecycle as their tendril.
   leafCount: 2,
