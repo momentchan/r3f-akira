@@ -19,6 +19,7 @@ import {
   computeBloomLifecycle,
   computeGrowthLifecycle,
   createLifecycleState,
+  lifecycleLength,
   restoreLifecycleProgress,
 } from '../lifecycle/plantLifecycle';
 import { computeWindSway, windMask } from '../stem/wind';
@@ -98,6 +99,9 @@ export function PlantSystem({
   lifecycleRanges,
   lifecyclePausedRef = null,
   lifecycleGate = null,
+  treeLifecycleRef = null,
+  flowerTimingRef = null,
+  routeRegistryRef = null,
   flowerControlsById,
   flowerColorVariationById,
   stemLookControls = null,
@@ -166,6 +170,7 @@ export function PlantSystem({
         // over many respawns and wreck the near/far size hierarchy.
         homeRimT: stem.rimT ?? 0,
         generationSeen: 0,
+        treeGenerationSeen: -1,
         lifecycle: createLifecycleState({
           seed: stem.seed,
           ranges: lifecycleRanges,
@@ -244,7 +249,7 @@ export function PlantSystem({
     const map = new Map();
     FLOWER_TYPES.forEach((t) => map.set(t.id, { type: t, plants: [], indices: [] }));
     stemBuild.plants.forEach((p, i) => {
-      const id = p.flowerType.id;
+      const id = p.flowerType?.id;
       const bucket = map.get(id);
       if (!bucket) return;
       const ranges = flowerColorVariationById?.[id] ?? {};
@@ -318,9 +323,80 @@ export function PlantSystem({
         plant.position[2] = anchor[2] + attachZ * attachMask;
       }
 
-      const lifecycleReady = lifecycleGate ? lifecycleGate(plant) : true;
+      const treeLifecycle = plant.sourceTreeId
+        ? treeLifecycleRef?.current?.get(plant.sourceTreeId)
+        : null;
+      if (
+        treeLifecycle
+        && plant.treeGenerationSeen !== treeLifecycle.generation
+      ) {
+        const routePath = routeRegistryRef?.current?.get(plant.sourcePathId);
+        if (routePath && Number.isFinite(plant.sourcePathT)) {
+          const routePoint = routePath.curve.getPointAt(plant.sourcePathT);
+          const routeTangent = routePath.curve.getTangentAt(plant.sourcePathT);
+          routeTangent.y = 0;
+          if (routeTangent.lengthSq() < 1e-8) routeTangent.set(0, 0, 1);
+          routeTangent.normalize();
+          const motionPoint = routePath.curve.getPointAt(0.5);
+          plant.anchorPosition[0] = routePoint.x;
+          plant.anchorPosition[1] = routePoint.y;
+          plant.anchorPosition[2] = routePoint.z;
+          plant.position[0] = routePoint.x;
+          plant.position[1] = routePoint.y;
+          plant.position[2] = routePoint.z;
+          plant.yaw = Math.atan2(routeTangent.x, routeTangent.z)
+            + (plant.routeFanOffset ?? 0)
+            - plant.baseLeanAngle;
+          plant.attachmentWind = {
+            motionPosition: [motionPoint.x, motionPoint.y, motionPoint.z],
+            pathT: plant.sourcePathT,
+            response: plant.attachmentWind?.response ?? 0,
+          };
+        }
+        plant.lifecycle = createLifecycleState({
+          seed: plant.seed + treeLifecycle.generation * 131,
+          ranges: lifecycleRanges,
+          initialStagger: 0,
+          rerollEachGeneration: false,
+        });
+        if (treeLifecycle.phase === 'flowers') {
+          plant.lifecycle.age = Math.min(
+            Math.max(treeLifecycle.flowerAge ?? 0, 0),
+            lifecycleLength(plant.lifecycle.durations),
+          );
+        }
+        plant.treeGenerationSeen = treeLifecycle.generation;
+      }
+
+      const coordinatedWithTree = Boolean(treeLifecycle);
+      if (coordinatedWithTree && flowerTimingRef?.current) {
+        const timing = flowerTimingRef.current;
+        timing.durationByTreeId ??= new Map();
+        timing.generationByTreeId ??= new Map();
+        if (timing.generationByTreeId.get(plant.sourceTreeId) !== treeLifecycle.generation) {
+          timing.generationByTreeId.set(plant.sourceTreeId, treeLifecycle.generation);
+          timing.durationByTreeId.set(plant.sourceTreeId, 0);
+        }
+        timing.durationByTreeId.set(
+          plant.sourceTreeId,
+          Math.max(
+            timing.durationByTreeId.get(plant.sourceTreeId) ?? 0,
+            lifecycleLength(plant.lifecycle.durations),
+          ),
+        );
+      }
+      const lifecycleReady = coordinatedWithTree
+        ? treeLifecycle.phase === 'flowers'
+        : (lifecycleGate ? lifecycleGate(plant) : true);
       if (!paused && lifecycleReady) {
-        advanceLifecycleState(plant.lifecycle, dt, lifecycleRanges);
+        if (coordinatedWithTree) {
+          plant.lifecycle.age = Math.min(
+            plant.lifecycle.age + dt,
+            lifecycleLength(plant.lifecycle.durations),
+          );
+        } else {
+          advanceLifecycleState(plant.lifecycle, dt, lifecycleRanges);
+        }
       }
       // Recomputed (rather than using advance's return) so the petal-shed hold on
       // the stem is applied in both the paused and running paths.

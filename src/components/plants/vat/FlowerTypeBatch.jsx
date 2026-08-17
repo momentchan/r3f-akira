@@ -198,7 +198,9 @@ export function FlowerTypeBatch({
       attachTs,
       attachNormals,
       flowerUniforms,
-      scaleMuls: typePlants.map((plant) => plant.params.stemRadius * size),
+      scaleMuls: typePlants.map((plant) => (
+        plant.params.stemRadius * size * (plant.flowerSizeScale ?? 1)
+      )),
     };
     setMesh(instance);
 
@@ -230,7 +232,9 @@ export function FlowerTypeBatch({
     const size = flowerControlsRef.current?.flowerSize
       ?? flowerType.materialDefaults?.flowerSize
       ?? 4.2;
-    batch.scaleMuls = typePlants.map((plant) => plant.params.stemRadius * size);
+    batch.scaleMuls = typePlants.map((plant) => (
+      plant.params.stemRadius * size * (plant.flowerSizeScale ?? 1)
+    ));
   }, [flowerControls?.flowerSize, layoutKey, flowerType, runtimeRef]);
 
   useEffect(() => {

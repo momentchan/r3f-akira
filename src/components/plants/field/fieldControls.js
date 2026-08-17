@@ -4,10 +4,31 @@ import { FIELD_DEFAULTS } from './fieldDefaults';
 export function createArrangementSchema(defaults = FIELD_DEFAULTS.arrangement) {
   const d = defaults;
   return {
-    count: { value: d.count, min: 1, max: 256, step: 1 },
+    count: { value: d.count, min: 1, max: 256, step: 1, label: 'flower count' },
     spreadRadius: { value: d.spreadRadius, min: 0, max: 4, step: 0.01 },
-    minGap: { value: d.minGap, min: 0, max: 1, step: 0.01, label: 'min gap' },
+    minGap: { value: d.minGap, min: 0, max: 1, step: 0.01, label: 'flower root gap' },
     leanOut: { value: d.leanOut, min: 0, max: 1, step: 0.05, label: 'lean outward' },
+    flowerBandSpread: {
+      value: d.flowerBandSpread ?? 0.78,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      label: 'flower band width',
+    },
+    bloomClusterCount: {
+      value: d.bloomClusterCount ?? 8,
+      min: 1,
+      max: 16,
+      step: 1,
+      label: 'bloom clusters',
+    },
+    clusterShare: {
+      value: d.clusterShare ?? 0.75,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      label: 'flowers in clusters',
+    },
     arrangementSeed: { value: d.arrangementSeed, min: 0, max: 999, step: 1, label: 'seed' },
     positionJitter: {
       value: d.positionJitter ?? 0.35,

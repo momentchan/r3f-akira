@@ -8,6 +8,7 @@ import { createFieldControlsSchema } from './fieldControls';
 import { createStemSchema } from '../stem/stemControls';
 import { STEM_DEFAULTS } from '../stem/stemDefaults';
 import { useLifecyclePauseHotkey } from '../lifecycle/useLifecyclePauseHotkey';
+import { computeDurations, lifecycleLength } from '../lifecycle/plantLifecycle';
 import { PlantSystem } from './PlantSystem';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
 import { BodyBoundsDebug } from '../../scene/BodyBoundsDebug';
@@ -69,6 +70,9 @@ export function PlantField({
   groundPaths = null,
   groundOffsetY = 0,
   groundCompletedTreesRef = null,
+  groundTreeLifecycleRef = null,
+  groundFlowerTimingRef = null,
+  groundRouteRegistryRef = null,
   onStemBases,
   wind = PLANT_WIND_DEFAULTS,
 }) {
@@ -78,6 +82,7 @@ export function PlantField({
   const fieldSchema = useMemo(() => createFieldControlsSchema(), []);
   const {
     count, spreadRadius, minGap, leanOut, phaseSpread, arrangementSeed,
+    flowerBandSpread, bloomClusterCount, clusterShare,
     positionJitter, roseRatio, reshuffleOnRespawn, slotFactor,
     petalShedFrac, shedStemOverlap,
     shedRise, shedRiseVariance, shedSpread, shedStagger,
@@ -257,6 +262,10 @@ export function PlantField({
           layoutSeed: arrangementSeed + 7001,
           roseType: ROSE_TYPE,
           dahliaType: DAHLIA_TYPE,
+          maxPathDepth: 1,
+          flowerBandSpread,
+          bloomClusterCount,
+          clusterShare,
           stemGeometry: {
             stemLength: [lenMin, lenMax],
             stemRadius: [radMin, radMax],
@@ -388,12 +397,49 @@ export function PlantField({
     }
 
     return { stems: out, slotPool: slots };
-  }, [usesGroundPaths, groundPaths, count, minGap,
+  }, [usesGroundPaths, groundPaths, count, minGap, flowerBandSpread,
+    bloomClusterCount, clusterShare,
     effectiveSpread, arrangementSeed, positionJitter, roseRatio, slotFactor,
     bvh, clearMargin, faceClearRadius, contactPow, nearSizeMin,
     boundsVersion, bodyBounds, resolvedHeadLocal,
     lenMin, lenMax, radMin, radMax, leanMin, leanMax,
     bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
+
+  useEffect(() => {
+    if (!groundFlowerTimingRef) return;
+    const durationByTreeId = new Map();
+    const generationByTreeId = new Map();
+    for (const stem of stems) {
+      if (!stem.sourceTreeId) continue;
+      const generation = stem.sourceTreeGeneration ?? 0;
+      const duration = lifecycleLength(computeDurations(
+        stem.seed + generation * 131,
+        lifecycleRanges,
+      ));
+      generationByTreeId.set(stem.sourceTreeId, generation);
+      durationByTreeId.set(
+        stem.sourceTreeId,
+        Math.max(durationByTreeId.get(stem.sourceTreeId) ?? 0, duration),
+      );
+    }
+    groundFlowerTimingRef.current = {
+      ready: true,
+      maxDuration: delayMax + growMax + keepMax + dieMax,
+      treeIds: new Set(
+        stems.map((stem) => stem.sourceTreeId).filter(Boolean),
+      ),
+      durationByTreeId,
+      generationByTreeId,
+    };
+  }, [
+    groundFlowerTimingRef,
+    stems,
+    lifecycleRanges,
+    delayMax,
+    growMax,
+    keepMax,
+    dieMax,
+  ]);
 
   useEffect(() => {
     if (!onStemBases) return;
@@ -451,6 +497,9 @@ export function PlantField({
         lifecycleRanges={lifecycleRanges}
         lifecyclePausedRef={lifecyclePausedRef}
         lifecycleGate={groundLifecycleGate}
+        treeLifecycleRef={usesGroundPaths ? groundTreeLifecycleRef : null}
+        flowerTimingRef={usesGroundPaths ? groundFlowerTimingRef : null}
+        routeRegistryRef={usesGroundPaths ? groundRouteRegistryRef : null}
         flowerControlsById={flowerControlsById}
         flowerColorVariationById={flowerColorVariationById}
         stemLookControls={stemLookControls}

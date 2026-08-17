@@ -34,7 +34,7 @@ export const CLIMB_DEFAULTS = {
   enabled: true,
 
   // Distribution along each directed body region.
-  tendrilCount: 256,
+  tendrilCount: 160,
   // Relative helmet allocation: 0 = none, 1 = unmodified surface density.
   headDensity: 0.1,
   // Extra dormant routes built per visible wrap, so a regrown tree can appear

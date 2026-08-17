@@ -40,6 +40,15 @@ function SceneContent() {
   const [groundPaths, setGroundPaths] = useState([]);
   const [groundPathOffsetY, setGroundPathOffsetY] = useState(0);
   const groundCompletedTreesRef = useRef(new Set());
+  const groundTreeLifecycleRef = useRef(new Map());
+  const groundRouteRegistryRef = useRef(new Map());
+  const groundFlowerTimingRef = useRef({
+    ready: false,
+    maxDuration: 0,
+    treeIds: new Set(),
+    durationByTreeId: new Map(),
+    generationByTreeId: new Map(),
+  });
   const onBodyBounds = useCallback((bounds) => {
     setBodyBounds(bounds);
   }, []);
@@ -89,6 +98,9 @@ function SceneContent() {
             groundPaths={groundPaths}
             groundOffsetY={groundPathOffsetY}
             groundCompletedTreesRef={groundCompletedTreesRef}
+            groundTreeLifecycleRef={groundTreeLifecycleRef}
+            groundFlowerTimingRef={groundFlowerTimingRef}
+            groundRouteRegistryRef={groundRouteRegistryRef}
             wind={plantWind}
           />
         </Suspense>
@@ -104,6 +116,9 @@ function SceneContent() {
             bodyBounds={bodyBounds}
             backpackBounds={backpackBounds}
             completedTreesRef={groundCompletedTreesRef}
+            treeLifecycleRef={groundTreeLifecycleRef}
+            flowerTimingRef={groundFlowerTimingRef}
+            routeRegistryRef={groundRouteRegistryRef}
             onGroundPaths={setGroundPaths}
             onGroundOffsetY={setGroundPathOffsetY}
             wind={plantWind}

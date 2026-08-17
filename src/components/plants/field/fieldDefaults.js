@@ -1,13 +1,17 @@
 export const FIELD_DEFAULTS = {
   arrangement: {
-    // Fewer stems = readable arcs across the suit (not wire noise).
-    count: 128,
+    // Enough blooms to read as a loose band, while preserving open ground.
+    count: 80,
     spreadRadius: 2.8,
     minGap: 0.14,
     leanOut: 1.0,
+    // Fan stems across both sides of a ground route instead of tracing one line.
+    flowerBandSpread: 0.78,
+    bloomClusterCount: 8,
+    clusterShare: 0.75,
     arrangementSeed: 0,
     positionJitter: 0.1,
-    roseRatio: 0.7,
+    roseRatio: 0.45,
     reshuffleOnRespawn: true,
     slotFactor: 3,
   },

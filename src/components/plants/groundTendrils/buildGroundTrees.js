@@ -191,15 +191,24 @@ function addChildren(paths, parent, options, rng, depth) {
     const child = {
       curve,
       treeId: parent.treeId,
+      logicalTreeId: parent.logicalTreeId,
       hostId: parent.hostId,
       seed: parent.seed * 31 + depth * 7 + childIndex + 1,
       role: 'ground-branch',
       parentId: parent.id,
       id: `${parent.id}.${childIndex}`,
+      logicalPathId: `${parent.logicalPathId}.${childIndex}`,
       depth: depth + 1,
       attachT,
       junction: start.clone(),
       radialOrigin: parent.radialOrigin,
+      routePersonality: parent.routePersonality,
+      treeKind: parent.treeKind,
+      stemRadius: parent.stemRadius,
+      layoutSeed: parent.layoutSeed,
+      routeGeneration: parent.routeGeneration,
+      routeVariant: parent.routeVariant,
+      flowerEligible: parent.flowerEligible,
       pathStartDistance: startDistance,
       pathEndDistance: startDistance + curve.getLength(),
       radiusStartScale: startRadius,
@@ -215,13 +224,27 @@ function buildHostTrees(host, count, options) {
   if (!host?.geometry || !host?.localBox || count < 1) return [];
   const paths = [];
   const radialOrigin = host.localBox.getCenter(new THREE.Vector3()).setY(options.groundY);
-  const phaseRng = seededRng(options.layoutSeed + options.seedOffset);
-  const phase = phaseRng() * TAU;
+  const directionCenter = THREE.MathUtils.degToRad(
+    options.directionCenter + (options.directionOffset ?? 0),
+  );
+  const directionSpread = THREE.MathUtils.degToRad(options.directionSpread);
   for (let treeIndex = 0; treeIndex < count; treeIndex += 1) {
-    const seed = options.layoutSeed + options.seedOffset + treeIndex * 101;
+    const treeKind = options.treeKind ?? 'main';
+    const logicalTreeId = `ground:${host.id}:${treeKind}:${treeIndex}`;
+    const routeGeneration = options.treeGenerations?.[logicalTreeId] ?? 0;
+    const routeVariant = 0;
+    const treeId = logicalTreeId;
+    const seed = options.layoutSeed + options.seedOffset + treeIndex * 101
+      + routeGeneration * (options.generationSeedStep ?? 0);
     const rng = seededRng(seed);
-    const angle = phase + TAU * (treeIndex + 0.5) / count
-      + (rng() - 0.5) * (TAU / count) * 0.45;
+    const routePersonalities = options.routePersonalities ?? [];
+    const routePersonality = routePersonalities.length
+      ? routePersonalities[treeIndex % routePersonalities.length]
+      : null;
+    const fanT = count <= 1 ? 0 : treeIndex / (count - 1) - 0.5;
+    const corridorWidth = directionSpread / Math.max(count, 1);
+    const angle = directionCenter + fanT * directionSpread
+      + (rng() - 0.5) * corridorWidth * 0.35;
     const contact = footprintRoot(
       host,
       angle,
@@ -251,19 +274,27 @@ function buildHostTrees(host, count, options) {
       radiusEndScale: options.tipRadiusScale,
       rng,
     });
-    const treeId = `ground:${host.id}:${treeIndex}`;
     const trunk = {
       curve,
       treeId,
+      logicalTreeId,
       hostId: host.id,
       seed,
       role: 'ground-trunk',
       parentId: null,
       id: `${treeId}:trunk`,
+      logicalPathId: `${logicalTreeId}:trunk`,
       depth: 0,
       root: root.clone(),
       rootSurfacePoint: rootSurfacePoint.clone(),
       radialOrigin,
+      routePersonality,
+      treeKind,
+      stemRadius: options.tendrilRadius,
+      layoutSeed: options.layoutSeed,
+      routeGeneration,
+      routeVariant,
+      flowerEligible: options.flowerEligible !== false,
       pathStartDistance: 0,
       pathEndDistance: curve.getLength(),
       radiusStartScale: 1,
@@ -280,13 +311,35 @@ export function buildGroundTrees({ hosts, profiles, ...options }) {
   return hosts.flatMap((host) => {
     const profile = profiles[host.id];
     if (!profile) return [];
-    const count = host.id === 'body'
+    const mainCount = host.id === 'body'
       ? options.bodyTreeCount
       : options.backpackTreeCount;
-    return buildHostTrees(host, count, {
+    const shortCount = host.id === 'body'
+      ? options.bodyShortTreeCount
+      : options.backpackShortTreeCount;
+    const shared = {
       ...options,
       seedOffset: profile.seedOffset,
       lengthScale: profile.lengthScale,
+      directionOffset: profile.directionOffset,
+    };
+    const mainTrees = buildHostTrees(host, mainCount, {
+      ...shared,
+      routePersonalities: profile.routePersonalities,
+      treeKind: 'main',
+      flowerEligible: true,
     });
+    const shortTrees = buildHostTrees(host, shortCount, {
+      ...shared,
+      seedOffset: profile.seedOffset + options.shortTreeSeedOffset,
+      trunkLength: options.trunkLength * options.shortTreeLengthScale,
+      branchDepth: options.shortTreeBranchDepth,
+      branchLengthScale: Math.min(options.branchLengthScale, 0.52),
+      directionSpread: options.shortTreeDirectionSpread,
+      routePersonalities: [],
+      treeKind: 'nearby',
+      flowerEligible: true,
+    });
+    return [...mainTrees, ...shortTrees];
   });
 }
