@@ -92,6 +92,9 @@ export function PlantSystem({
   stemYMax = 0.05,
   bloomStart = 0.23,
   bloomFrac = 0.3,
+  petalShedFrac = 0, // fraction of `die` spent dropping petals before the stem goes
+  shedStemOverlap = 0, // 0 = stem waits for every petal, 1 = both start together
+  shedControls = null,
   lifecycleRanges,
   lifecyclePausedRef = null,
   flowerControlsById,
@@ -279,14 +282,21 @@ export function PlantSystem({
         wind,
       );
 
-      const growthState = paused
-        ? computeGrowthLifecycle(plant.lifecycle.age, plant.lifecycle.durations)
-        : advanceLifecycleState(plant.lifecycle, dt, lifecycleRanges);
-      const { flowerFrame, flowerScale } = computeBloomLifecycle(
+      if (!paused) advanceLifecycleState(plant.lifecycle, dt, lifecycleRanges);
+      // Recomputed (rather than using advance's return) so the petal-shed hold on
+      // the stem is applied in both the paused and running paths.
+      const growthState = computeGrowthLifecycle(
+        plant.lifecycle.age,
+        plant.lifecycle.durations,
+        petalShedFrac,
+        shedStemOverlap,
+      );
+      const { flowerFrame, flowerScale, shed } = computeBloomLifecycle(
         plant.lifecycle.age,
         plant.lifecycle.durations,
         bloomFrac,
         bloomStart,
+        petalShedFrac,
       );
       const stemGrow = growthState.growth;
 
@@ -315,6 +325,7 @@ export function PlantSystem({
       plant.stemGrow = stemGrow;
       plant.flowerFrame = flowerFrame;
       plant.flowerScale = flowerScale;
+      plant.shed = shed;
       plant.swayX = swayX;
       plant.swayZ = swayZ;
 
@@ -381,6 +392,7 @@ export function PlantSystem({
               stemYMax={stemYMax}
               flowerControls={flowerControlsById?.[type.id]}
               stemLookControls={stemLookControls}
+              shedControls={shedControls}
               runtimeRef={runtimeRef}
             />
           </Suspense>

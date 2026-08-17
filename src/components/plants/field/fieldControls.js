@@ -37,6 +37,51 @@ export function createArrangementSchema(defaults = FIELD_DEFAULTS.arrangement) {
       step: 1,
       label: 'spawn slots ×',
     },
+    // Death: petals shrink about their own centres and lift away, then the stem
+    // retracts. 0 = the old behaviour (bloom rewinds while the stem shrinks).
+    petalShedFrac: {
+      value: d.petalShedFrac ?? 0.75,
+      min: 0,
+      max: 0.95,
+      step: 0.05,
+      label: 'petal shed / die',
+    },
+    // 0 = stem waits for every petal to go (staged), 1 = both start together.
+    shedStemOverlap: {
+      value: d.shedStemOverlap ?? 0.5,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      label: 'stem/shed overlap',
+    },
+    shedRise: {
+      value: d.shedRise ?? 2,
+      min: 0,
+      max: 6,
+      step: 0.1,
+      label: 'shed rise (× stem)',
+    },
+    shedRiseVariance: {
+      value: d.shedRiseVariance ?? 0.5,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      label: 'shed rise ±',
+    },
+    shedSpread: {
+      value: d.shedSpread ?? 0.35,
+      min: 0,
+      max: 3,
+      step: 0.05,
+      label: 'shed spread (× stem)',
+    },
+    shedStagger: {
+      value: d.shedStagger ?? 0.55,
+      min: 0,
+      max: 0.95,
+      step: 0.05,
+      label: 'shed stagger',
+    },
   };
 }
 

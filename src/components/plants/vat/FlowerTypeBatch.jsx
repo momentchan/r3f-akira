@@ -23,6 +23,7 @@ import {
   prepareInstancedVatGeometry,
 } from './createVatMaterial';
 import { extractFlowerMeshGeometries } from './flowerGeometry';
+import { assignPetalSegments } from './petalSegments';
 
 const _up = new THREE.Vector3(0, 1, 0);
 const _tip = new THREE.Vector3();
@@ -48,6 +49,7 @@ export function FlowerTypeBatch({
   stemYMax,
   flowerControls,
   stemLookControls = null,
+  shedControls = null,
   runtimeRef,
   attachTs = null,
   attachNormals = null,
@@ -91,9 +93,16 @@ export function FlowerTypeBatch({
     const merged = parts.length === 1
       ? parts[0].geometry
       : mergeGeometries(parts.map((part) => part.geometry), false);
+    const singlePart = parts.length === 1;
     parts.forEach((part) => {
       if (part.geometry !== merged) part.geometry.dispose();
     });
+    // Derive per-petal ids + shrink pivots from the mesh islands (packed into
+    // COLOR_0.g/.b) so petals can shed individually without a re-export.
+    // Only for single-mesh VATs: the shader rebuilds the pivot's texel from its
+    // vertex index, and UV1 is generated per part, so merged indices would not
+    // map back to the right texel.
+    if (singlePart) assignPetalSegments(merged);
     return merged;
   }, [
     vatData.isLoaded,
@@ -151,15 +160,18 @@ export function FlowerTypeBatch({
     const count = typePlants.length;
     const tip0 = new Float32Array(count * 4);
     const tip1 = new Float32Array(count * 4);
-    const colorVar = new Float32Array(count * 2);
+    // z = petal-shed progress (updated every frame with the tips),
+    // w = stem length, the world-space unit the shed lift is expressed in.
+    const colorVar = new Float32Array(count * 4);
     for (let i = 0; i < count; i += 1) {
       const variation = typePlants[i].colorOverride ?? {};
-      colorVar[i * 2] = variation.hueShift ?? 0;
-      colorVar[i * 2 + 1] = variation.lightShift ?? 0;
+      colorVar[i * 4] = variation.hueShift ?? 0;
+      colorVar[i * 4 + 1] = variation.lightShift ?? 0;
+      colorVar[i * 4 + 3] = typePlants[i].params?.stemLength ?? 1;
     }
     geo.setAttribute('aTip0', new THREE.InstancedBufferAttribute(tip0, 4));
     geo.setAttribute('aTip1', new THREE.InstancedBufferAttribute(tip1, 4));
-    const colorVarAttr = new THREE.InstancedBufferAttribute(colorVar, 2);
+    const colorVarAttr = new THREE.InstancedBufferAttribute(colorVar, 4);
     geo.setAttribute('aColorVar', colorVarAttr);
 
     const instance = new THREE.InstancedMesh(geo, materialBundle.material, count);
@@ -204,8 +216,9 @@ export function FlowerTypeBatch({
     const typePlants = plantsRef.current;
     for (let i = 0; i < typePlants.length; i += 1) {
       const variation = typePlants[i].colorOverride ?? {};
-      batch.colorVar[i * 2] = variation.hueShift ?? 0;
-      batch.colorVar[i * 2 + 1] = variation.lightShift ?? 0;
+      batch.colorVar[i * 4] = variation.hueShift ?? 0;
+      batch.colorVar[i * 4 + 1] = variation.lightShift ?? 0;
+      batch.colorVar[i * 4 + 3] = typePlants[i].params?.stemLength ?? 1;
     }
     batch.colorVarAttr.needsUpdate = true;
   }, [colorKey, layoutKey, flowerType.id, runtimeRef]);
@@ -220,6 +233,15 @@ export function FlowerTypeBatch({
     batch.scaleMuls = typePlants.map((plant) => plant.params.stemRadius * size);
   }, [flowerControls?.flowerSize, layoutKey, flowerType, runtimeRef]);
 
+  useEffect(() => {
+    const shed = materialBundle?.shedUniforms;
+    if (!shed || !shedControls) return;
+    shed.rise.value = shedControls.shedRise ?? shed.rise.value;
+    shed.riseVariance.value = shedControls.shedRiseVariance ?? shed.riseVariance.value;
+    shed.spread.value = shedControls.shedSpread ?? shed.spread.value;
+    shed.stagger.value = shedControls.shedStagger ?? shed.stagger.value;
+  }, [materialBundle, shedControls]);
+
   useEffect(() => () => {
     materialBundle?.material.dispose();
     geometry?.dispose();
@@ -233,7 +255,7 @@ export function updateFlowerBatchTips(flowerBatches, plants) {
   for (const batch of Object.values(flowerBatches)) {
     const {
       tip0, tip1, tip0Attr, tip1Attr, plantIndexMap, scaleMuls,
-      attachTs, attachNormals,
+      attachTs, attachNormals, colorVar, colorVarAttr,
     } = batch;
     for (let local = 0; local < plantIndexMap.length; local += 1) {
       const plant = plants[plantIndexMap[local]];
@@ -247,6 +269,7 @@ export function updateFlowerBatchTips(flowerBatches, plants) {
       const flowerScale = hasFixedAttachment ? reveal : (plant?.flowerScale ?? 0);
       const scale = flowerScale * growthSize * scaleMuls[local];
       const offset = local * 4;
+      if (colorVar) colorVar[local * 4 + 2] = plant?.shed ?? 0;
 
       if (!plant || scale < 0.001 || reveal < 0.001) {
         tip0[offset] = 0;
@@ -294,5 +317,6 @@ export function updateFlowerBatchTips(flowerBatches, plants) {
     }
     tip0Attr.needsUpdate = true;
     tip1Attr.needsUpdate = true;
+    if (colorVarAttr) colorVarAttr.needsUpdate = true;
   }
 }

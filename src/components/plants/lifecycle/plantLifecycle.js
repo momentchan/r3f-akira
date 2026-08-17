@@ -89,8 +89,20 @@ export function restoreLifecycleProgress(state, previous, ranges) {
   return state;
 }
 
-/** Map lifecycle age to generic organism growth. */
-export function computeGrowthLifecycle(age, durations) {
+/**
+ * Map lifecycle age to generic organism growth.
+ *
+ * `petalShedFrac` > 0 reserves that fraction of `die` for the flower to drop its
+ * petals while the stem still stands. `shedOverlap` then decides how much of that
+ * the stem joins in on: 0 = the stem waits for every petal (staged), 1 = it starts
+ * retracting the moment petals begin to leave (simultaneous).
+ */
+export function computeGrowthLifecycle(
+  age,
+  durations,
+  petalShedFrac = 0,
+  shedOverlap = 0,
+) {
   const { delay, grow, keep, die } = durations;
   const lifetime = lifecycleLength(durations);
   const growEnd = delay + grow;
@@ -105,8 +117,23 @@ export function computeGrowthLifecycle(age, durations) {
     };
   }
   if (age < keepEnd) return { growth: 1, phase: 'hold', lifetime };
+
+  const dieProgress = (age - keepEnd) / Math.max(die, 1e-6);
+  const shedFrac = Math.min(Math.max(petalShedFrac, 0), 0.95);
+  if (shedFrac > 0) {
+    // Pull the stem's exit earlier into the shed as overlap rises.
+    const overlap = Math.min(Math.max(shedOverlap, 0), 1);
+    const retractStart = shedFrac * (1 - overlap);
+    if (dieProgress < retractStart) return { growth: 1, phase: 'shed', lifetime };
+    const retract = (dieProgress - retractStart) / Math.max(1 - retractStart, 1e-6);
+    return {
+      growth: easeOutCubic(Math.max(0, 1 - retract)),
+      phase: 'retract',
+      lifetime,
+    };
+  }
   return {
-    growth: easeOutCubic(Math.max(0, 1 - (age - keepEnd) / Math.max(die, 1e-6))),
+    growth: easeOutCubic(Math.max(0, 1 - dieProgress)),
     phase: 'retract',
     lifetime,
   };
@@ -130,8 +157,20 @@ export function advanceLifecycleState(state, delta, ranges) {
   return computeGrowthLifecycle(state.age, state.durations);
 }
 
-/** Flower-only animation layered on top of generic organism growth. */
-export function computeBloomLifecycle(age, durations, bloomFrac, bloomStart) {
+/**
+ * Flower-only animation layered on top of generic organism growth.
+ *
+ * With `petalShed`, death stops rewinding the bloom: the head stays fully open at
+ * full size and `shed` runs 0→1 instead, so the petal shader can shrink each petal
+ * about its own centre and lift it away. The stem still retracts as usual.
+ */
+export function computeBloomLifecycle(
+  age,
+  durations,
+  bloomFrac,
+  bloomStart,
+  petalShedFrac = 0,
+) {
   const { delay, grow, keep, die } = durations;
   const growEnd = delay + grow;
   const keepEnd = growEnd + keep;
@@ -145,6 +184,9 @@ export function computeBloomLifecycle(age, durations, bloomFrac, bloomStart) {
   } else if (age < keepEnd) flowerScale = 1;
   else flowerScale = budScaleIn(1 - (age - keepEnd) / Math.max(die, 1e-6));
 
+  const shedFrac = Math.min(Math.max(petalShedFrac, 0), 0.95);
+  const shedding = shedFrac > 0;
+
   const openStart = delay + bs * grow;
   const openEnd = growEnd + bf * keep;
   const closeStart = keepEnd - bf * keep;
@@ -153,12 +195,26 @@ export function computeBloomLifecycle(age, durations, bloomFrac, bloomStart) {
   if (age < openStart) flowerFrame = 0;
   else if (age < openEnd) {
     flowerFrame = (age - openStart) / Math.max(openEnd - openStart, 1e-6);
+  } else if (shedding) {
+    // Never rewind the bloom when petals shed. The close normally begins at
+    // closeStart (before keepEnd), so forcing "fully open" at keepEnd instead
+    // would snap the flower back open — a visible pop right as the shed starts.
+    flowerFrame = 1;
   } else if (age < closeStart) flowerFrame = 1;
   else if (age < closeEnd) {
     flowerFrame = 1 - (age - closeStart) / Math.max(closeEnd - closeStart, 1e-6);
   } else flowerFrame = 0;
 
-  return { flowerFrame, flowerScale };
+  let shed = 0;
+  if (shedding && age >= keepEnd) {
+    const dieProgress = (age - keepEnd) / Math.max(die, 1e-6);
+    shed = Math.min(Math.max(dieProgress / shedFrac, 0), 1);
+    // Hold the head at full size — the petals do the disappearing, and the stem
+    // only starts retracting once they are gone.
+    flowerScale = 1;
+  }
+
+  return { flowerFrame, flowerScale, shed };
 }
 
 /** Compatibility API for standalone flower stems. */

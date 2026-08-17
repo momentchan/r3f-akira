@@ -23,6 +23,12 @@ export const FIELD_DEFAULTS = {
     roseRatio: 0.7,
     reshuffleOnRespawn: true,
     slotFactor: 3,
+    petalShedFrac: 0.75,
+    shedStemOverlap: 0.5,
+    shedRise: 2,
+    shedRiseVariance: 0.5,
+    shedSpread: 0.45, // also × stem length now, so it reads against the rise
+    shedStagger: 0.55,
   },
   /** Keep flowers off the body via MeshBVH closest-point distance. */
   surround: {
@@ -67,7 +73,9 @@ export const FIELD_DEFAULTS = {
     delay: [0.2, 1.2],
     grow: [5, 10],
     keep: [10, 20],
-    die: [1.5, 3],
+    // Long enough for the petals to drift off gently before the stem retracts;
+    // `petalShedFrac` of this window is the shed itself.
+    die: [5, 8],
   },
   // Leaves deferred while the field runs as one batched system.
   leaves: {

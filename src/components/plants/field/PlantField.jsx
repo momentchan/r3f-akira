@@ -74,6 +74,8 @@ export function PlantField({
   const {
     count, spreadRadius, minGap, leanOut, phaseSpread, arrangementSeed,
     positionJitter, roseRatio, reshuffleOnRespawn, slotFactor,
+    petalShedFrac, shedStemOverlap,
+    shedRise, shedRiseVariance, shedSpread, shedStagger,
     enabled: surroundEnabled,
     showDebug,
     clearMargin,
@@ -189,6 +191,11 @@ export function PlantField({
     roseControls.hueRange,
     roseControls.lightRange,
   ]);
+
+  const shedControls = useMemo(
+    () => ({ shedRise, shedRiseVariance, shedSpread, shedStagger }),
+    [shedRise, shedRiseVariance, shedSpread, shedStagger],
+  );
 
   const lifecycleRanges = useMemo(() => ({
     delay: [delayMin, delayMax],
@@ -393,6 +400,9 @@ export function PlantField({
         stemYMax={stemYMax}
         bloomStart={bloomStart}
         bloomFrac={bloomFrac}
+        petalShedFrac={petalShedFrac}
+        shedStemOverlap={shedStemOverlap}
+        shedControls={shedControls}
         lifecycleRanges={lifecycleRanges}
         lifecyclePausedRef={lifecyclePausedRef}
         flowerControlsById={flowerControlsById}
