@@ -1,8 +1,8 @@
 {
   "frameCount": 71,
   "padding": 2,
-  "textureWidth": 1679,
-  "textureHeight": 1568,
+  "textureWidth": 876,
+  "textureHeight": 824,
   "compressNormal": true,
   "textures": {
     "position": "Rose_pos.exr",
