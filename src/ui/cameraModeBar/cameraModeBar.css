@@ -1,0 +1,62 @@
+.camera-mode-bar {
+  position: fixed;
+  left: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  font-family: Cousine, Arial, Helvetica, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  color: rgba(48, 40, 32, 0.55);
+  text-shadow: 0 1px 10px rgba(237, 228, 211, 0.65);
+  user-select: none;
+}
+
+.camera-mode-bar__modes,
+.camera-mode-bar__frames {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-mode-bar__mode,
+.camera-mode-bar__frames button {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  padding: 4px 2px;
+  opacity: 0.55;
+  transition: opacity 0.35s ease;
+}
+
+.camera-mode-bar__mode:hover,
+.camera-mode-bar__frames button:hover {
+  opacity: 0.9;
+}
+
+.camera-mode-bar__mode--active {
+  opacity: 1;
+  color: #2a241c;
+}
+
+.camera-mode-bar__dot {
+  margin: 0 10px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.camera-mode-bar__frames {
+  gap: 12px;
+  letter-spacing: 0.16em;
+  font-size: 0.65rem;
+  color: rgba(48, 40, 32, 0.7);
+}

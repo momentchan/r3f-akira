@@ -1,5 +1,6 @@
 import { memo, Suspense, useCallback, useRef, useState } from 'react';
-import { AdaptiveDpr, CameraControls, Environment } from '@react-three/drei';
+import { AdaptiveDpr, Environment } from '@react-three/drei';
+import { CameraViewControl } from '../components/camera/CameraViewControl';
 import { AsyncCompile, CanvasCapture } from '@core';
 import { Canvas } from '@react-three/fiber';
 import { useControls } from 'leva';
@@ -15,6 +16,7 @@ import { DirectionalLight } from '../components/scene/DirectionalLight';
 import Effects from '../components/scene/Effects';
 import { ShadowCatcher } from '../components/scene/ShadowCatcher';
 import { SCENE_DEFAULTS } from '../components/scene/sceneDefaults';
+import { FLOW_START } from '../components/camera/cameraShots';
 import { TIER1_TARGETS, useExperienceStore } from '../core/experienceStore';
 
 function createWebGPURenderer(canvas) {
@@ -101,6 +103,7 @@ function SceneContent() {
           <ClimbTendrils
             bodyBounds={bodyBounds}
             backpackBounds={backpackBounds}
+            wind={plantWind}
           />
         </Suspense>
       </group>
@@ -111,7 +114,7 @@ function SceneContent() {
       </Suspense>
 
       <AdaptiveDpr pixelated />
-      <CameraControls enabled={isStarted} makeDefault maxPolarAngle={Math.PI / 2.5} />
+      <CameraViewControl />
       <CanvasCapture />
       <DirectionalLight />
       <Effects />
@@ -128,7 +131,7 @@ export const ExperienceCanvas = memo(function ExperienceCanvas() {
         fov: 45,
         near: 0.1,
         far: 200,
-        position: [1.4, 1.6, 2.2],
+        position: FLOW_START.position,
       }}
       gl={createWebGPURenderer}
       dpr={[1, 2]}

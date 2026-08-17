@@ -1,5 +1,7 @@
-import { create } from 'zustand';
+import { getInitialCameraMode } from '../components/camera/cameraModes';
+import { FRAME_SHOTS } from '../components/camera/cameraShots';
 import { isDebugRoute } from './debugRoute';
+import { create } from 'zustand';
 
 export const TIER1_TARGETS = ['character', 'backpack'];
 
@@ -30,4 +32,24 @@ export const useExperienceStore = create((set, get) => ({
     if (tier1Targets.length === 0) return false;
     return tier1Targets.every((id) => readyStatus[id] === true);
   },
+
+  cameraMode: getInitialCameraMode(),
+  setCameraMode: (cameraMode) =>
+    set((state) => (state.cameraMode === cameraMode ? state : { cameraMode })),
+
+  frameIndex: 0,
+  setFrameIndex: (frameIndex) => {
+    const count = FRAME_SHOTS.length;
+    const next = ((frameIndex % count) + count) % count;
+    set((state) => (state.frameIndex === next ? state : { frameIndex: next }));
+  },
+  nextFrame: () => get().setFrameIndex(get().frameIndex + 1),
+  prevFrame: () => get().setFrameIndex(get().frameIndex - 1),
+
+  // 0 = active looking, 1 = sustained stillness. For environmental systems.
+  stillness: 0,
+  setStillness: (stillness) =>
+    set((state) =>
+      Math.abs(state.stillness - stillness) < 0.002 ? state : { stillness },
+    ),
 }));
