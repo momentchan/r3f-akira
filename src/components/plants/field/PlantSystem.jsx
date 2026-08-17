@@ -21,7 +21,7 @@ import {
   createLifecycleState,
   restoreLifecycleProgress,
 } from '../lifecycle/plantLifecycle';
-import { computeWindSway } from '../stem/wind';
+import { computeWindSway, windMask } from '../stem/wind';
 import { PLANT_WIND_DEFAULTS } from '../wind/plantWind';
 import {
   FlowerTypeBatch,
@@ -97,6 +97,7 @@ export function PlantSystem({
   shedControls = null,
   lifecycleRanges,
   lifecyclePausedRef = null,
+  lifecycleGate = null,
   flowerControlsById,
   flowerColorVariationById,
   stemLookControls = null,
@@ -154,6 +155,7 @@ export function PlantSystem({
         curve,
         // Mutated at runtime, so clone rather than aliasing the layout memo.
         position: [stem.position[0], stem.position[1], stem.position[2]],
+        anchorPosition: [stem.position[0], stem.position[1], stem.position[2]],
         yaw: 0,
         // Home slot + the lean azimuth the curve was baked for; a new slot's yaw
         // is the delta from this, which keeps "lean outward" pointing outward.
@@ -178,7 +180,7 @@ export function PlantSystem({
 
     return { geometry: merged, plantData, plants };
   }, [
-    stems, leanOut, stemSegments, radialSegs, lifecycleRanges, phaseSpread,
+    stems, leanOut, stemSegments, radialSegs,
   ]);
 
   const stemMaterial = useMemo(() => {
@@ -216,6 +218,21 @@ export function PlantSystem({
       .map((_, idx) => idx)
       .filter((idx) => !taken.has(idx));
   }, [stemBuild, slotPool]);
+
+  // Lifecycle tuning is runtime-only; updating timing must not rebuild merged
+  // stem geometry or restart plants from zero.
+  useEffect(() => {
+    for (const plant of runtimeRef.current.plants) {
+      const next = createLifecycleState({
+        seed: plant.seed,
+        ranges: lifecycleRanges,
+        initialStagger: phaseSpread,
+        rerollEachGeneration: true,
+      });
+      restoreLifecycleProgress(next, plant.lifecycle, lifecycleRanges);
+      plant.lifecycle = next;
+    }
+  }, [lifecycleRanges, phaseSpread]);
 
   useEffect(() => () => {
     stemBuild.geometry?.dispose();
@@ -275,14 +292,36 @@ export function PlantSystem({
 
     for (let i = 0; i < plants.length; i++) {
       const plant = plants[i];
+      const anchor = plant.anchorPosition ?? plant.position;
       const [swayX, swayZ] = computeWindSway(
-        plant.position[0],
-        plant.position[2],
+        anchor[0],
+        anchor[2],
         time,
         wind,
       );
 
-      if (!paused) advanceLifecycleState(plant.lifecycle, dt, lifecycleRanges);
+      // A flower sampled from a moving ground tendril must inherit the
+      // tendril's displacement at that exact path parameter. The flower stem's
+      // own wind remains height-masked on top of this translated base.
+      const attachment = plant.attachmentWind;
+      if (attachment?.motionPosition && Number.isFinite(attachment.pathT)) {
+        const [attachX, attachZ] = computeWindSway(
+          attachment.motionPosition[0],
+          attachment.motionPosition[2],
+          time,
+          wind,
+          attachment.response ?? 0,
+        );
+        const attachMask = windMask(attachment.pathT);
+        plant.position[0] = anchor[0] + attachX * attachMask;
+        plant.position[1] = anchor[1];
+        plant.position[2] = anchor[2] + attachZ * attachMask;
+      }
+
+      const lifecycleReady = lifecycleGate ? lifecycleGate(plant) : true;
+      if (!paused && lifecycleReady) {
+        advanceLifecycleState(plant.lifecycle, dt, lifecycleRanges);
+      }
       // Recomputed (rather than using advance's return) so the petal-shed hold on
       // the stem is applied in both the paused and running paths.
       const growthState = computeGrowthLifecycle(

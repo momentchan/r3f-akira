@@ -114,7 +114,7 @@ export function createGroundTendrilControlsSchema(defaults = GROUND_TENDRIL_DEFA
         min: 0,
         max: 20,
         step: 0.1,
-        label: 'Rest Time (s)',
+        label: 'Start Delay (s)',
       },
       growthTimeRange: {
         value: d.growthTimeRange,
@@ -122,20 +122,6 @@ export function createGroundTendrilControlsSchema(defaults = GROUND_TENDRIL_DEFA
         max: 30,
         step: 0.1,
         label: 'Grow Time (s)',
-      },
-      holdTimeRange: {
-        value: d.holdTimeRange,
-        min: 0,
-        max: 60,
-        step: 0.1,
-        label: 'Hold Time (s)',
-      },
-      retractTimeRange: {
-        value: d.retractTimeRange,
-        min: 0.2,
-        max: 30,
-        step: 0.1,
-        label: 'Retract Time (s)',
       },
     }, CLOSED),
     Debug: folder({

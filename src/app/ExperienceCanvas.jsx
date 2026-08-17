@@ -37,6 +37,9 @@ function SceneContent() {
   const fieldParentRef = useRef(null);
   const [bodyBounds, setBodyBounds] = useState(null);
   const [backpackBounds, setBackpackBounds] = useState(null);
+  const [groundPaths, setGroundPaths] = useState([]);
+  const [groundPathOffsetY, setGroundPathOffsetY] = useState(0);
+  const groundCompletedTreesRef = useRef(new Set());
   const onBodyBounds = useCallback((bounds) => {
     setBodyBounds(bounds);
   }, []);
@@ -80,12 +83,15 @@ function SceneContent() {
           </AsyncCompile>
         </Suspense>
         <ShadowCatcher groundColor={bgColor} />
-        {/* <Suspense fallback={null}>
+        <Suspense fallback={null}>
           <PlantField
             bodyBounds={bodyBounds}
+            groundPaths={groundPaths}
+            groundOffsetY={groundPathOffsetY}
+            groundCompletedTreesRef={groundCompletedTreesRef}
             wind={plantWind}
           />
-        </Suspense> */}
+        </Suspense>
         <Suspense fallback={null}>
           <ClimbTendrils
             bodyBounds={bodyBounds}
@@ -97,6 +103,9 @@ function SceneContent() {
           <GroundTendrils
             bodyBounds={bodyBounds}
             backpackBounds={backpackBounds}
+            completedTreesRef={groundCompletedTreesRef}
+            onGroundPaths={setGroundPaths}
+            onGroundOffsetY={setGroundPathOffsetY}
             wind={plantWind}
           />
         </Suspense>

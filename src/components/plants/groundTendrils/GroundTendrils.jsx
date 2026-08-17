@@ -5,7 +5,6 @@ import * as THREE from 'three/webgpu';
 import { AsyncCompile } from '@core';
 import { createBatchedStemMaterial, createFlowerUniforms } from '../look/createFlowerMaterials';
 import {
-  advanceLifecycleState,
   computeGrowthLifecycle,
   createLifecycleState,
   hashLifecycleIdentity,
@@ -52,6 +51,9 @@ function rebuildSnapshot(controls) {
 export function GroundTendrils({
   bodyBounds = null,
   backpackBounds = null,
+  completedTreesRef: externalCompletedTreesRef = null,
+  onGroundPaths = null,
+  onGroundOffsetY = null,
   wind = PLANT_WIND_DEFAULTS,
 }) {
   const lifecyclePausedRef = useLifecyclePauseHotkey();
@@ -163,15 +165,16 @@ export function GroundTendrils({
   const lifecycleRanges = useMemo(() => ({
     delay: controls.restTimeRange,
     grow: controls.growthTimeRange,
-    keep: controls.holdTimeRange,
-    die: controls.retractTimeRange,
+    // Ground trees stop at the end of grow, so these phases are unreachable.
+    keep: GROUND_TENDRIL_DEFAULTS.holdTimeRange,
+    die: GROUND_TENDRIL_DEFAULTS.retractTimeRange,
   }), [
     controls.restTimeRange,
     controls.growthTimeRange,
-    controls.holdTimeRange,
-    controls.retractTimeRange,
   ]);
   const lifecyclesRef = useRef(new Map());
+  const localCompletedTreesRef = useRef(new Set());
+  const completedTreesRef = externalCompletedTreesRef ?? localCompletedTreesRef;
   const plantsRef = useRef(tendrilBuild.plants);
   const plantDataRef = useRef(tendrilBuild.plantData);
   const lightRef = useRef(null);
@@ -182,14 +185,29 @@ export function GroundTendrils({
   }, [tendrilBuild]);
 
   useEffect(() => {
+    onGroundPaths?.(controls.enabled ? paths : []);
+  }, [onGroundPaths, paths, controls.enabled]);
+
+  useEffect(() => {
+    onGroundOffsetY?.(controls.enabled ? controls.groundGap : 0);
+  }, [onGroundOffsetY, controls.enabled, controls.groundGap]);
+
+  useEffect(() => () => {
+    onGroundPaths?.([]);
+    onGroundOffsetY?.(0);
+    completedTreesRef.current.clear();
+  }, [onGroundPaths, onGroundOffsetY, completedTreesRef]);
+
+  useEffect(() => {
     const previous = lifecyclesRef.current;
+    completedTreesRef.current.clear();
     const lifecycles = new Map();
     for (const [treeId, length] of tendrilBuild.treeLengths) {
       const state = createLifecycleState({
           seed: GROUND_TENDRIL_INTERNALS.layoutSeed + hashLifecycleIdentity(treeId),
           ranges: lifecycleRanges,
           initialStagger: GROUND_TENDRIL_INTERNALS.initialStagger,
-          rerollEachGeneration: true,
+          rerollEachGeneration: false,
       });
       restoreLifecycleProgress(state, previous.get(treeId), lifecycleRanges);
       lifecycles.set(treeId, { ...state, length });
@@ -224,9 +242,15 @@ export function GroundTendrils({
 
     const fronts = new Map();
     for (const [treeId, lifecycle] of lifecyclesRef.current) {
-      const growth = lifecyclePausedRef.current
-        ? computeGrowthLifecycle(lifecycle.age, lifecycle.durations).growth
-        : advanceLifecycleState(lifecycle, Math.min(delta, 0.1), lifecycleRanges).growth;
+      const growEnd = lifecycle.durations.delay + lifecycle.durations.grow;
+      if (!lifecyclePausedRef.current) {
+        lifecycle.age = Math.min(lifecycle.age + Math.min(delta, 0.1), growEnd);
+      }
+      const growth = computeGrowthLifecycle(
+        lifecycle.age,
+        lifecycle.durations,
+      ).growth;
+      if (growth >= 0.999) completedTreesRef.current.add(treeId);
       fronts.set(treeId, growth * Math.max(lifecycle.length, 1e-6));
     }
 
@@ -245,7 +269,7 @@ export function GroundTendrils({
         plant.motionPosition[2],
         clock.elapsedTime,
         wind,
-        0.04,
+        GROUND_TENDRIL_INTERNALS.windResponse,
       );
       const offset = i * 4;
       plant.stemGrow = growth;

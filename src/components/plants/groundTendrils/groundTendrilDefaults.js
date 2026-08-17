@@ -7,6 +7,7 @@ export const GROUND_TENDRIL_INTERNALS = Object.freeze({
   layoutSeed: 37,
   stemSegments: 48,
   radialSegments: 5,
+  windResponse: 0.04,
   initialStagger: 0.35,
   // Only vertices this close to y=0 may seed a ground tree. If a host is
   // slightly elevated, the same band is measured from its lowest surface.

@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useControls } from 'leva';
 import { stableRandomRange } from '@core';
 import { preloadVATAssets } from '@core/vat';
 import { createFlowerControlsSchema } from '../look/flowerControls';
 import { clearPointFromBvh } from './bodyBounds';
 import { createFieldControlsSchema } from './fieldControls';
-import { FIELD_DEFAULTS } from './fieldDefaults';
 import { createStemSchema } from '../stem/stemControls';
 import { STEM_DEFAULTS } from '../stem/stemDefaults';
 import { useLifecyclePauseHotkey } from '../lifecycle/useLifecyclePauseHotkey';
@@ -14,6 +13,7 @@ import { FLOWER_TYPES } from '../vat/flowerTypes';
 import { BodyBoundsDebug } from '../../scene/BodyBoundsDebug';
 import { CompositionDebug } from './CompositionDebug';
 import { PLANT_WIND_DEFAULTS } from '../wind/plantWind';
+import { buildGroundFlowerStems } from '../groundTendrils/buildGroundFlowerStems';
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const DAHLIA_TYPE = FLOWER_TYPES.find((t) => t.id === 'dahlia');
@@ -66,10 +66,14 @@ function clearPointFromDisc(x, z, cx, cz, radius) {
 export function PlantField({
   position = [0, 0, 0],
   bodyBounds = null,
+  groundPaths = null,
+  groundOffsetY = 0,
+  groundCompletedTreesRef = null,
   onStemBases,
   wind = PLANT_WIND_DEFAULTS,
 }) {
   const lifecyclePausedRef = useLifecyclePauseHotkey();
+  const usesGroundPaths = Array.isArray(groundPaths);
 
   const fieldSchema = useMemo(() => createFieldControlsSchema(), []);
   const {
@@ -239,6 +243,33 @@ export function PlantField({
   }, [bodyBounds, effectiveSpread, resolvedHeadLocal]);
 
   const { stems, slotPool } = useMemo(() => {
+    // Ground-vine mode is authoritative: an empty array means the vine layout
+    // is still loading, not that the field should fall back to its old layout.
+    if (usesGroundPaths) {
+      if (!groundPaths.length) return { stems: [], slotPool: [] };
+      return {
+        stems: buildGroundFlowerStems({
+          paths: groundPaths,
+          count,
+          minSpacing: minGap,
+          pathRange: [0.18, 0.92],
+          roseRatio,
+          layoutSeed: arrangementSeed + 7001,
+          roseType: ROSE_TYPE,
+          dahliaType: DAHLIA_TYPE,
+          stemGeometry: {
+            stemLength: [lenMin, lenMax],
+            stemRadius: [radMin, radMax],
+            leanAngle: [leanMin, leanMax],
+            bendDegree: [bendMin, bendMax],
+            radiusAttenuation: [taperMin, taperMax],
+            baseFlare: [flareMin, flareMax],
+          },
+        }),
+        slotPool: [],
+      };
+    }
+
     // Wait for posed MeshBVH before planting.
     if (!bvh) return { stems: [], slotPool: [] };
 
@@ -357,7 +388,8 @@ export function PlantField({
     }
 
     return { stems: out, slotPool: slots };
-  }, [count, effectiveSpread, arrangementSeed, positionJitter, roseRatio, slotFactor,
+  }, [usesGroundPaths, groundPaths, count, minGap,
+    effectiveSpread, arrangementSeed, positionJitter, roseRatio, slotFactor,
     bvh, clearMargin, faceClearRadius, contactPow, nearSizeMin,
     boundsVersion, bodyBounds, resolvedHeadLocal,
     lenMin, lenMax, radMin, radMax, leanMin, leanMax,
@@ -367,14 +399,26 @@ export function PlantField({
     if (!onStemBases) return;
     // Report every spawn slot, not just the occupied ones — a plant can respawn
     // into any of them, and ground foliage must already be cleared there.
-    const bases = reshuffleOnRespawn
+    const bases = !usesGroundPaths && reshuffleOnRespawn
       ? slotPool.map((s) => ({ x: s.x, z: s.z }))
       : stems.map((s) => ({ x: s.position[0], z: s.position[2] }));
     onStemBases(bases);
-  }, [stems, slotPool, reshuffleOnRespawn, onStemBases]);
+  }, [stems, slotPool, reshuffleOnRespawn, usesGroundPaths, onStemBases]);
+
+  const groundLifecycleGate = useCallback(
+    (plant) => !usesGroundPaths
+      || Boolean(groundCompletedTreesRef?.current?.has(plant.sourceTreeId)),
+    [usesGroundPaths, groundCompletedTreesRef],
+  );
 
   return (
-    <group position={position}>
+    <group
+      position={[
+        position[0],
+        position[1] + (usesGroundPaths ? groundOffsetY : 0),
+        position[2],
+      ]}
+    >
       <BodyBoundsDebug
         geometry={bodyBounds?.geometry ?? null}
         visible={Boolean(showDebug && surroundEnabled && bodyBounds?.geometry)}
@@ -393,7 +437,7 @@ export function PlantField({
       <PlantSystem
         stems={stems}
         slotPool={slotPool}
-        reshuffleOnRespawn={reshuffleOnRespawn}
+        reshuffleOnRespawn={usesGroundPaths ? false : reshuffleOnRespawn}
         leanOut={leanOut}
         phaseSpread={phaseSpread}
         stemSegments={stemSegments}
@@ -406,6 +450,7 @@ export function PlantField({
         shedControls={shedControls}
         lifecycleRanges={lifecycleRanges}
         lifecyclePausedRef={lifecyclePausedRef}
+        lifecycleGate={groundLifecycleGate}
         flowerControlsById={flowerControlsById}
         flowerColorVariationById={flowerColorVariationById}
         stemLookControls={stemLookControls}
