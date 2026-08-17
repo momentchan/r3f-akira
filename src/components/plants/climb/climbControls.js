@@ -23,6 +23,19 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
         step: 0.01,
         label: 'Head Density',
       },
+      // Route pool: build this many times the visible wraps, keep the surplus
+      // dormant, and wake a different route each time a tree finishes its cycle.
+      routePoolFactor: {
+        value: d.routePoolFactor ?? 2,
+        min: 1,
+        max: 4,
+        step: 1,
+        label: 'Route Pool x',
+      },
+      reshuffleRoutes: {
+        value: d.reshuffleRoutes ?? true,
+        label: 'Reshuffle Routes',
+      },
     }, CLOSED),
 
     Form: folder({

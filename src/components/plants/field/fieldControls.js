@@ -24,6 +24,19 @@ export function createArrangementSchema(defaults = FIELD_DEFAULTS.arrangement) {
       step: 0.01,
       label: 'rose ratio',
     },
+    // Respawn shuffle: plants hop to a different validated slot each rebirth
+    // instead of regrowing in place forever.
+    reshuffleOnRespawn: {
+      value: d.reshuffleOnRespawn ?? true,
+      label: 'reshuffle respawn',
+    },
+    slotFactor: {
+      value: d.slotFactor ?? 3,
+      min: 1,
+      max: 6,
+      step: 1,
+      label: 'spawn slots ×',
+    },
   };
 }
 

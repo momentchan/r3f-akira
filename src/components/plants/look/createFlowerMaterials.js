@@ -468,22 +468,41 @@ export function createFlowerStemMaterial(flowerUniforms, options = {}) {
   return material;
 }
 
+/** Rotate a node vector about +Y (matches THREE.Vector3.applyAxisAngle(Y, a)). */
+export const rotateYNode = (v, angle) => {
+  const c = cos(angle);
+  const s = sin(angle);
+  return vec3(v.x.mul(c).add(v.z.mul(s)), v.y, v.z.mul(c).sub(v.x.mul(s)));
+};
+
 /**
  * One-draw field stems: per-vertex `plantId` indexes a Float RGBA DataTexture
- *   R = stemGrow, G = swayX, B = swayZ, A = unused
- * Vertices above the grow tip are collapsed onto the local centerline.
+ *   row 0: R = stemGrow, G = swayX, B = swayZ, A = unused
+ *   row 1 (only when `texRows` >= 2): RGB = world offset, A = yaw
+ * With a transform row the tube is baked in plant-local space and placed on the
+ * GPU, so a plant can be moved/turned at runtime (respawn shuffle) without
+ * rebuilding the merged geometry. Vertices above the grow tip collapse onto the
+ * local centerline.
  */
 export function createBatchedStemMaterial(flowerUniforms, options = {}) {
   const {
     normalSource = normalLocal,
     plantDataTexture,
     texWidth,
+    texRows = 1,
     maskPow = 2,
     startScale = 0.1,
     growthSegments = 24,
   } = options;
   const stem = flowerUniforms.stem;
   const uTexWidth = uniform(texWidth);
+  const rows = Math.max(1, texRows);
+  const hasTransformRow = rows >= 2;
+  // Row centre in v; with rows = 1 this is the original 0.5.
+  const dataUVAt = (plantId, row) => vec2(
+    plantId.add(0.5).div(uTexWidth),
+    float((row + 0.5) / rows),
+  );
   const segmentCount = float(Math.max(1, growthSegments));
   const quantizeGrowthFront = (grow) => clamp(
     ceil(grow.mul(segmentCount)).div(segmentCount),
@@ -500,13 +519,16 @@ export function createBatchedStemMaterial(flowerUniforms, options = {}) {
 
   material.fragmentNode = Fn(() => {
     const plantId = attribute('plantId', 'float');
-    const dataUV = vec2(plantId.add(0.5).div(uTexWidth), 0.5);
-    const grow = texture(plantDataTexture, dataUV).r;
+    const grow = texture(plantDataTexture, dataUVAt(plantId, 0)).r;
     const growthFront = quantizeGrowthFront(grow);
     If(uv().x.greaterThan(growthFront), () => {
       Discard();
     });
-    const color = buildStemColor(stem, normalSource);
+    // The normal must turn with the plant, or a shuffled stem lights wrongly.
+    const shadeNormal = hasTransformRow
+      ? rotateYNode(normalSource, texture(plantDataTexture, dataUVAt(plantId, 1)).a)
+      : normalSource;
+    const color = buildStemColor(stem, shadeNormal);
     return vec4(clamp(color, 0.0, 1.0), 1.0);
   })();
 
@@ -515,8 +537,7 @@ export function createBatchedStemMaterial(flowerUniforms, options = {}) {
     const center = attribute('center', 'vec3');
     const previousPosition = attribute('previousPosition', 'vec3');
     const previousCenter = attribute('previousCenter', 'vec3');
-    const dataUV = vec2(plantId.add(0.5).div(uTexWidth), 0.5);
-    const data = texture(plantDataTexture, dataUV);
+    const data = texture(plantDataTexture, dataUVAt(plantId, 0));
     const grow = data.r.toVar();
     const growthFront = quantizeGrowthFront(grow).toVar();
     const sway = vec2(data.g, data.b);
@@ -542,7 +563,14 @@ export function createBatchedStemMaterial(flowerUniforms, options = {}) {
     const base = mix(center, smoothFront, visible);
     const motionAlong = mix(along, grow, isBoundary);
     const mask = pow(motionAlong, float(maskPow));
-    return base.add(vec3(sway.x, 0.0, sway.y).mul(mask.mul(visible)));
+    // Turn + place the plant-local tube (respawn shuffle), then apply the
+    // world-space wind sway on top so gust direction stays global.
+    let placed = base;
+    if (hasTransformRow) {
+      const xform = texture(plantDataTexture, dataUVAt(plantId, 1));
+      placed = rotateYNode(base, xform.a).add(xform.xyz);
+    }
+    return placed.add(vec3(sway.x, 0.0, sway.y).mul(mask.mul(visible)));
   })();
 
   return material;

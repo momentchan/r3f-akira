@@ -37,6 +37,10 @@ export const CLIMB_DEFAULTS = {
   tendrilCount: 256,
   // Relative helmet allocation: 0 = none, 1 = unmodified surface density.
   headDensity: 0.1,
+  // Extra dormant routes built per visible wrap, so a regrown tree can appear
+  // somewhere new instead of retracing the same path forever.
+  routePoolFactor: 2,
+  reshuffleRoutes: true,
 
   // Independent partial-ring shape.
   wrapAngleRange: [90, 150],

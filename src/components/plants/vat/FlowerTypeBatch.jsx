@@ -29,6 +29,7 @@ const _tip = new THREE.Vector3();
 const _tangent = new THREE.Vector3();
 const _outward = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
+const _yawQuat = new THREE.Quaternion();
 const ATTACH_GROW_WINDOW = 0.28;
 
 function smoothstep01(value) {
@@ -269,6 +270,14 @@ export function updateFlowerBatchTips(flowerBatches, plants) {
         _quat.setFromUnitVectors(_up, _outward);
       } else {
         _quat.setFromUnitVectors(_up, _tangent);
+      }
+      // Runtime yaw (respawn shuffle) turns the whole plant, so the head has to
+      // orbit + face with it. Local-space tip first, then rotate, then offset.
+      const yaw = plant.yaw ?? 0;
+      if (yaw !== 0) {
+        _tip.applyAxisAngle(_up, yaw);
+        _yawQuat.setFromAxisAngle(_up, yaw);
+        _quat.premultiply(_yawQuat);
       }
       if (_quat.w < 0) _quat.set(-_quat.x, -_quat.y, -_quat.z, -_quat.w);
       const displacementMask = windMask(hasFixedAttachment ? attachT : stemGrow);

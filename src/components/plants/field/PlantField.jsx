@@ -73,7 +73,7 @@ export function PlantField({
   const fieldSchema = useMemo(() => createFieldControlsSchema(), []);
   const {
     count, spreadRadius, minGap, leanOut, phaseSpread, arrangementSeed,
-    positionJitter, roseRatio,
+    positionJitter, roseRatio, reshuffleOnRespawn, slotFactor,
     enabled: surroundEnabled,
     showDebug,
     clearMargin,
@@ -230,9 +230,9 @@ export function PlantField({
     };
   }, [bodyBounds, effectiveSpread, resolvedHeadLocal]);
 
-  const stems = useMemo(() => {
+  const { stems, slotPool } = useMemo(() => {
     // Wait for posed MeshBVH before planting.
-    if (!bvh) return [];
+    if (!bvh) return { stems: [], slotPool: [] };
 
     const fieldSpin = stableRandomRange(0, S_SPIN, arrangementSeed, 0, Math.PI * 2);
     const maxAngleJit = positionJitter * GOLDEN_ANGLE * 0.45;
@@ -252,16 +252,21 @@ export function PlantField({
     const head = resolvedHeadLocal;
     const densPow = Math.max(contactPow, 1);
 
-    const out = [];
-    let attempts = 0;
-    const maxAttempts = count * 24;
+    // Generate MORE validated slots than live plants: the extras are the pool a
+    // plant hops to when it respawns, so a rebirth never lands in the same spot.
+    const poolFactor = Math.max(1, Math.round(slotFactor ?? 1));
+    const poolTotal = count * poolFactor;
 
-    for (let i = 0; out.length < count && attempts < maxAttempts; attempts += 1, i += 1) {
-      const ringT = count <= 1 ? 0 : (out.length / Math.max(count - 1, 1));
-      const angleJit = out.length === 0
+    const slots = [];
+    let attempts = 0;
+    const maxAttempts = poolTotal * 24;
+
+    for (; slots.length < poolTotal && attempts < maxAttempts; attempts += 1) {
+      const ringT = poolTotal <= 1 ? 0 : (slots.length / Math.max(poolTotal - 1, 1));
+      const angleJit = slots.length === 0
         ? 0
         : stableRandomRange(attempts, S_ANG_JIT, arrangementSeed, -maxAngleJit, maxAngleJit);
-      const radScale = out.length === 0
+      const radScale = slots.length === 0
         ? 1
         : stableRandomRange(attempts, S_RAD_JIT, arrangementSeed, 1 - maxRadJit, 1 + maxRadJit);
 
@@ -296,25 +301,46 @@ export function PlantField({
         }
       }
 
-      const typeRoll = stableRandomRange(attempts, S_TYPE, arrangementSeed, 0, 1);
-      const flowerType = typeRoll < roseRatio ? ROSE_TYPE : DAHLIA_TYPE;
-
-      // Bloom size hierarchy: smaller near the body, fuller toward the rim.
+      // Distance from the body drives the bloom size hierarchy, and it is what a
+      // respawning plant matches on so its baked size still suits the new spot.
       const distC = Math.hypot(posX - cx, posZ - cz);
       const rimT = Math.min(1, Math.max(0, (distC - nearR) / Math.max(farR - nearR, 1e-4)));
-      const sizeMul = nearSizeMin + (1 - nearSizeMin) * Math.pow(rimT, 0.65);
+
+      slots.push({
+        x: posX,
+        z: posZ,
+        rimT,
+        leanOutwardAngle: Math.atan2(posX - cx, posZ - cz),
+      });
+    }
+
+    // Live plants take every Nth slot so they still span the full near→rim range
+    // (taking the first `count` would bunch them all in the inner band).
+    const stride = Math.max(1, Math.floor(slots.length / Math.max(count, 1)));
+    const out = [];
+    for (let k = 0; k < count; k += 1) {
+      const slotIndex = k * stride;
+      const slot = slots[slotIndex];
+      if (!slot) break;
+
+      const typeRoll = stableRandomRange(slotIndex, S_TYPE, arrangementSeed, 0, 1);
+      const flowerType = typeRoll < roseRatio ? ROSE_TYPE : DAHLIA_TYPE;
+      // Bloom size hierarchy: smaller near the body, fuller toward the rim.
+      const sizeMul = nearSizeMin + (1 - nearSizeMin) * Math.pow(slot.rimT, 0.65);
 
       out.push({
-        position: [posX, 0, posZ],
-        leanOutwardAngle: Math.atan2(posX - cx, posZ - cz),
-        seed: attempts * 13 + 1 + arrangementSeed * 17,
+        position: [slot.x, 0, slot.z],
+        leanOutwardAngle: slot.leanOutwardAngle,
+        slotIndex,
+        rimT: slot.rimT,
+        seed: slotIndex * 13 + 1 + arrangementSeed * 17,
         flowerType,
         colorVariationUnit: {
-          hue: stableRandomRange(attempts, S_HUE, arrangementSeed, -1, 1),
-          light: stableRandomRange(attempts, S_LIGHT, arrangementSeed, -1, 1),
+          hue: stableRandomRange(slotIndex, S_HUE, arrangementSeed, -1, 1),
+          light: stableRandomRange(slotIndex, S_LIGHT, arrangementSeed, -1, 1),
         },
         params: randomParams(
-          attempts, arrangementSeed,
+          slotIndex, arrangementSeed,
           lenMin, lenMax, radMin, radMax, leanMin, leanMax,
           bendMin, bendMax, taperMin, taperMax, flareMin, flareMax,
           sizeMul,
@@ -322,8 +348,8 @@ export function PlantField({
       });
     }
 
-    return out;
-  }, [count, effectiveSpread, arrangementSeed, positionJitter, roseRatio,
+    return { stems: out, slotPool: slots };
+  }, [count, effectiveSpread, arrangementSeed, positionJitter, roseRatio, slotFactor,
     bvh, clearMargin, faceClearRadius, contactPow, nearSizeMin,
     boundsVersion, bodyBounds, resolvedHeadLocal,
     lenMin, lenMax, radMin, radMax, leanMin, leanMax,
@@ -331,11 +357,13 @@ export function PlantField({
 
   useEffect(() => {
     if (!onStemBases) return;
-    onStemBases(stems.map((s) => ({
-      x: s.position[0],
-      z: s.position[2],
-    })));
-  }, [stems, onStemBases]);
+    // Report every spawn slot, not just the occupied ones — a plant can respawn
+    // into any of them, and ground foliage must already be cleared there.
+    const bases = reshuffleOnRespawn
+      ? slotPool.map((s) => ({ x: s.x, z: s.z }))
+      : stems.map((s) => ({ x: s.position[0], z: s.position[2] }));
+    onStemBases(bases);
+  }, [stems, slotPool, reshuffleOnRespawn, onStemBases]);
 
   return (
     <group position={position}>
@@ -356,6 +384,8 @@ export function PlantField({
       />
       <PlantSystem
         stems={stems}
+        slotPool={slotPool}
+        reshuffleOnRespawn={reshuffleOnRespawn}
         leanOut={leanOut}
         phaseSpread={phaseSpread}
         stemSegments={stemSegments}

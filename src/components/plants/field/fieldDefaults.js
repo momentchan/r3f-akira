@@ -21,11 +21,13 @@ export const FIELD_DEFAULTS = {
     arrangementSeed: 0,
     positionJitter: 0.1,
     roseRatio: 0.7,
+    reshuffleOnRespawn: true,
+    slotFactor: 3,
   },
   /** Keep flowers off the body via MeshBVH closest-point distance. */
   surround: {
     enabled: true,
-    /** BVHHelper is the costly bit — off by default. */
+    /** MeshBVHHelper is the costly bit — off by default. */
     showDebug: false,
     /** Min distance from posed mesh surface to a stem base. */
     clearMargin: 0.12,
@@ -43,7 +45,7 @@ export const FIELD_DEFAULTS = {
     nearSizeMin: 0.62,
     /** Draw face/contact/rim guides (independent of BVH helper). */
     showCompositionDebug: false,
-    /** BVHHelper display depth when showDebug is on (keep low). */
+    /** MeshBVHHelper display depth when showDebug is on (keep low). */
     bvhDepth: 8,
   },
   stemGeometry: {

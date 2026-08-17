@@ -261,6 +261,8 @@ export function ClimbTendrils({
   const [debouncedPath, setDebouncedPath] = useState(() => ({
     key: livePathKey,
     tendrilCount: controls.tendrilCount,
+    routePoolFactor: controls.routePoolFactor,
+    reshuffleRoutes: controls.reshuffleRoutes,
     headDensity: controls.headDensity,
     wrapAngleRange: controls.wrapAngleRange,
     axialWeave: controls.axialWeave,
@@ -273,6 +275,7 @@ export function ClimbTendrils({
     const next = {
       key: livePathKey,
       tendrilCount: controls.tendrilCount,
+      routePoolFactor: controls.routePoolFactor,
       headDensity: controls.headDensity,
       wrapAngleRange: controls.wrapAngleRange,
       axialWeave: controls.axialWeave,
@@ -285,6 +288,8 @@ export function ClimbTendrils({
   }, [
     livePathKey,
     controls.tendrilCount,
+    controls.routePoolFactor,
+    controls.reshuffleRoutes,
     controls.headDensity,
     controls.wrapAngleRange,
     controls.axialWeave,
@@ -301,7 +306,15 @@ export function ClimbTendrils({
 
   const wraps = useMemo(() => {
     if (!controls.enabled || !hosts.length) return [];
-    const total = Math.min(debouncedPath.tendrilCount, MAX_TOTAL_TENDRILS);
+    // Build a surplus of routes; only ~tendrilCount worth are awake at a time and
+    // the rest stay dormant (growth 0), ready to take over on a tree's rebirth.
+    const poolFactor = debouncedPath.reshuffleRoutes
+      ? Math.max(1, Math.round(debouncedPath.routePoolFactor ?? 1))
+      : 1;
+    const total = Math.min(
+      debouncedPath.tendrilCount * poolFactor,
+      MAX_TOTAL_TENDRILS,
+    );
     const budgets = allocateHostBudgets(hosts, total);
     return budgets.flatMap(({ host, count }) => {
       const configuredHost = host.id === 'body'
@@ -348,7 +361,13 @@ export function ClimbTendrils({
 
   const stemBuild = useMemo(() => {
     if (!wraps.length) {
-      return { geometry: null, plantData: null, plants: [], treeLengths: new Map() };
+      return {
+        geometry: null,
+        plantData: null,
+        plants: [],
+        treeLengths: new Map(),
+        treeSizes: new Map(),
+      };
     }
 
     const plantData = createPlantDataTexture(wraps.length);
@@ -374,7 +393,13 @@ export function ClimbTendrils({
     });
 
     if (!geometry) {
-      return { geometry: null, plantData: null, plants: [], treeLengths: new Map() };
+      return {
+        geometry: null,
+        plantData: null,
+        plants: [],
+        treeLengths: new Map(),
+        treeSizes: new Map(),
+      };
     }
 
     const motionSample = new THREE.Vector3();
@@ -407,13 +432,16 @@ export function ClimbTendrils({
     });
 
     const treeLengths = new Map();
+    // Segments per tree — used to wake roughly `tendrilCount` worth of routes.
+    const treeSizes = new Map();
     for (const plant of plants) {
       treeLengths.set(
         plant.treeId,
         Math.max(treeLengths.get(plant.treeId) ?? 0, plant.pathEndDistance),
       );
+      treeSizes.set(plant.treeId, (treeSizes.get(plant.treeId) ?? 0) + 1);
     }
-    return { geometry, plantData, plants, treeLengths };
+    return { geometry, plantData, plants, treeLengths, treeSizes };
   }, [
     wraps,
     controls.tendrilRadius,
@@ -522,6 +550,10 @@ export function ClimbTendrils({
   lifecycleRef.current = lifecycleRanges;
   const treeLifecyclesRef = useRef(new Map());
   const treeGrowthFrontsRef = useRef(new Map());
+  // Route pool: only these trees grow; the rest stay dormant at growth 0 until a
+  // finished tree hands its slot over (see the swap in useFrame).
+  const activeTreesRef = useRef(new Set());
+  const dormantTreesRef = useRef([]);
 
   // Geometry stays packed, while every grounded tree owns one lifecycle.
   useEffect(() => {
@@ -547,7 +579,36 @@ export function ClimbTendrils({
     }
     treeLifecyclesRef.current = lifecycles;
     treeGrowthFrontsRef.current.clear();
-  }, [lifecycleRanges, stemBuild.treeLengths]);
+
+    // Wake a seeded subset covering ~tendrilCount segments; park the remainder.
+    const ids = [...lifecycles.keys()].sort((a, b) => (
+      hashLifecycleIdentity(`${CLIMB_INTERNALS.layoutSeed}:${a}`)
+      - hashLifecycleIdentity(`${CLIMB_INTERNALS.layoutSeed}:${b}`)
+    ));
+    const active = new Set();
+    const dormant = [];
+    if (!debouncedPath.reshuffleRoutes) {
+      ids.forEach((id) => active.add(id));
+    } else {
+      const target = debouncedPath.tendrilCount;
+      let awake = 0;
+      for (const id of ids) {
+        if (awake >= target) dormant.push(id);
+        else {
+          active.add(id);
+          awake += stemBuild.treeSizes.get(id) ?? 1;
+        }
+      }
+    }
+    activeTreesRef.current = active;
+    dormantTreesRef.current = dormant;
+  }, [
+    lifecycleRanges,
+    stemBuild.treeLengths,
+    stemBuild.treeSizes,
+    debouncedPath.reshuffleRoutes,
+    debouncedPath.tendrilCount,
+  ]);
 
   useEffect(() => () => {
     stemBuild.geometry?.dispose();
@@ -582,11 +643,36 @@ export function ClimbTendrils({
     const dt = Math.min(delta, 0.1);
     const paused = lifecyclePausedRef.current;
     const treeGrowthFronts = treeGrowthFrontsRef.current;
+    const activeTrees = activeTreesRef.current;
+    const dormantTrees = dormantTreesRef.current;
     treeGrowthFronts.clear();
     for (const [treeId, lifecycle] of treeLifecyclesRef.current) {
+      // Dormant routes hold at zero: their tubes are packed but the growth front
+      // never leaves the base, so the fragment stage discards them entirely.
+      if (!activeTrees.has(treeId)) {
+        treeGrowthFronts.set(treeId, 0);
+        continue;
+      }
+
+      const generationBefore = lifecycle.generation;
       const { growth } = paused
         ? computeGrowthLifecycle(lifecycle.age, lifecycle.durations)
         : advanceLifecycleState(lifecycle, dt, lifecycleRef.current);
+
+      // Finished a full cycle → sleep, and wake a different route in its place.
+      if (!paused && lifecycle.generation !== generationBefore && dormantTrees.length) {
+        const pick = Math.floor(Math.random() * dormantTrees.length);
+        const wakingId = dormantTrees[pick];
+        dormantTrees[pick] = treeId;
+        activeTrees.delete(treeId);
+        activeTrees.add(wakingId);
+        const waking = treeLifecyclesRef.current.get(wakingId);
+        if (waking) waking.age = 0; // regrow from rest, not mid-cycle
+        lifecycle.age = 0;
+        treeGrowthFronts.set(treeId, 0);
+        continue;
+      }
+
       treeGrowthFronts.set(
         treeId,
         growth * Math.max(lifecycle.length, 1e-6),
