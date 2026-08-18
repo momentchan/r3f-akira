@@ -28,9 +28,7 @@ function shapeGroup(d) {
       value: d.anchors.reachScale ?? 1, min: 0.4, max: 2, step: 0.01,
     },
     // Shape, not intensity. This is the knob that makes a cluster stop being a
-    // circle; at 0 the masses are clean ellipses however high `edgeRagged` goes,
-    // because that one only varies brightness along an unchanged boundary.
-    // `Debug > densityField` is what makes the difference legible.
+    // circle. `Debug > densityField` is what makes the difference legible.
     shapeWarp: {
       value: d.anchors.shapeWarp ?? 0.3, min: 0, max: 1, step: 0.01,
     },
@@ -44,12 +42,6 @@ function shapeGroup(d) {
     },
     patchScale: {
       value: d.anchors.patchScale ?? 1.1, min: 0.2, max: 4, step: 0.05,
-    },
-    edgeRagged: {
-      value: d.anchors.edgeRagged ?? 0.35, min: 0, max: 1, step: 0.01,
-    },
-    edgeScale: {
-      value: d.anchors.edgeScale ?? 2.6, min: 0.5, max: 8, step: 0.1,
     },
   };
 }
@@ -75,51 +67,16 @@ function clumpingGroup(d) {
   };
 }
 
-/** Flower size. Both knobs run through `buildStem`. */
-function sizeGroup(d) {
-  return {
-    // Floor of the radial ramp: the size an innermost flower gets. 1 disables the
-    // hierarchy entirely.
-    nearBloomScale: {
-      value: d.surround.nearBloomScale ?? 0.48, min: 0.25, max: 1, step: 0.01,
-    },
-    // Outer end of that ramp. It normalises each slot's `rimT`, so raising it
-    // lowers rimT everywhere and shrinks every flower — it is a size control, not
-    // a placement one. Verified chain: sizeRampRadius -> effectiveSpread -> farR
-    // -> slot.rimT -> radialBase -> sizeMul.
-    //
-    // It clamps up to the body diagonal + 0.6, so lowering it past ~1.8 does
-    // nothing.
-    sizeRampRadius: {
-      value: d.arrangement.sizeRampRadius, min: 0, max: 4, step: 0.01,
-    },
-  };
-}
-
 /** How the composition changes over time. */
 function evolutionGroup(d) {
   return {
-    // 0 freezes the composition. Also sizes the spare-slot envelope at build time,
-    // so changing it rebuilds the pool.
+    // 0 freezes hearts. Dying flowers still pick among them by field × distance.
     migrateRange: {
       value: d.anchors.migrateRange ?? 0.45, min: 0, max: 1.2, step: 0.01,
     },
+    // Also sets how often hearts hop (~10s at the default 0.035).
     migrateSpeed: {
       value: d.anchors.migrateSpeed ?? 0.035, min: 0, max: 0.3, step: 0.005,
-    },
-    // Density floor for the respawn pick. Slots below it carry no weight, so a
-    // flower finishing its cycle reappears where the field currently is. It never
-    // interrupts a live plant — raising it steers new growth, it does not cull.
-    regrowFloor: {
-      value: d.anchors.regrowFloor ?? 0.12, min: 0, max: 0.6, step: 0.01,
-    },
-    reshuffleOnRespawn: {
-      value: d.arrangement.reshuffleOnRespawn ?? true,
-    },
-    // Spare slots per live plant. These are the targets a respawning flower moves
-    // into, so at 1 the reshuffle has nowhere to go.
-    spareSlots: {
-      value: d.arrangement.spareSlots ?? 2, min: 1, max: 6, step: 1,
     },
   };
 }
@@ -128,12 +85,8 @@ function lifecycleGroup(d) {
   const l = d.lifecycle;
   const p = d.petalShed;
   return {
-    // GLOBAL, and not only to this panel: it rescales the climbing tendrils and the
-    // standalone stems too, and it drives the anchor-field drift as well as flower
-    // ages, so the masses and the flowers on them move together. Everything below
-    // is expressed in simulated seconds, which this multiplies.
-    // 10x turns a ~180s / six-generation evolution review into ~18s.
-    simSpeed: { value: 1, min: 0, max: 12, step: 0.1 },
+    // Everything below is simulated seconds. Global rate lives on the Sim
+    // panel — this folder only sets the field's own lifecycle windows.
     initialPhaseSpread: { value: l.initialPhaseSpread, min: 0, max: 1, step: 0.01 },
     delay: { value: l.delay, min: 0, max: 10, step: 0.1 },
     grow: { value: l.grow, min: 0.1, max: 10, step: 0.1 },
@@ -166,7 +119,7 @@ function keepOutGroup(d) {
   return {
     clearBody: { value: d.surround.clearBody },
     meshClearDistance: {
-      value: d.surround.meshClearDistance, min: 0.05, max: 1.2, step: 0.01,
+      value: d.surround.meshClearDistance, min: 0.0, max: 1, step: 0.01,
     },
     // A hard pocket, and now the ONLY helmet protection: the soft negative anchor
     // that used to feather density outward from it has been removed, so density
@@ -192,9 +145,6 @@ function debugGroup(d) {
     gridResolution: {
       value: 56, min: 24, max: 160, step: 4, render: whenField,
     },
-    compositionGuides: {
-      value: d.surround.compositionGuides ?? false,
-    },
     bvhHelper: { value: d.surround.bvhHelper },
     bvhHelperDepth: { value: d.surround.bvhHelperDepth, min: 3, max: 20, step: 1 },
   };
@@ -206,7 +156,6 @@ export function createFieldControlsSchema(defaults = FIELD_DEFAULTS) {
     Layout: folder(layoutGroup(d), CLOSED),
     'Mass Shape': folder(shapeGroup(d), CLOSED),
     Clumping: folder(clumpingGroup(d), CLOSED),
-    Size: folder(sizeGroup(d), CLOSED),
     Evolution: folder(evolutionGroup(d), CLOSED),
     Lifecycle: folder(lifecycleGroup(d), CLOSED),
     'Keep-out': folder(keepOutGroup(d), CLOSED),

@@ -5,16 +5,10 @@ export const FIELD_DEFAULTS = {
     // plants dormant. The gate is gone — built count now equals visible count, and
     // live slots pack into the true field instead of the wider envelope — so this
     // is very likely too high and wants retuning downward.
-    flowerCount: 230,
-    sizeRampRadius: 2.8,
+    flowerCount: 256,
     leanOutward: 1.0,
     arrangementSeed: 0,
-    roseRatio: 0.7,
-    reshuffleOnRespawn: true,
-    // Down from 3 while count went up. Cluster-aware respawn made a large spare
-    // pool much less valuable, and pool size is the most expensive thing in the
-    // layout pass.
-    spareSlots: 2,
+    roseRatio: 0.75,
   },
   /**
    * Anchor probability field. An anchor raises the chance of vegetation in its
@@ -23,34 +17,26 @@ export const FIELD_DEFAULTS = {
   anchors: {
     showAnchors: false,
     densityField: false,
-    reachScale: 1,
-    edgeRagged: 0.35,
-    edgeScale: 2.6,
+    reachScale: 1.7,
     // Domain warp: displaces the sample position before distance is measured, so
     // the cluster SHAPE is irregular rather than a circle of varying intensity.
-    shapeWarp: 0.3,
-    warpScale: 1.6,
-    // Shared bare patches punched through every cluster, which is what stops an
-    // annulus reading as a closed ring around the body.
-    // Lowered from 0.4: the mask is a FIXED noise field, so a high cut leaves large
-    // contiguous holes rather than scattered clearings. 0.2 keeps the clearings
-    // without punching out whole regions.
-    barePatches: 0.2,
-    patchScale: 1.1,
+    shapeWarp: 1,
+    warpScale: 5,
+    
+    barePatches: 0.25,
+    patchScale: 1.7,
     // Dispersal. Fewer founders = fewer, tighter bouquets; a wider hop range
     // loosens each clump toward a scatter.
     founderShare: 0.14,
-    hopRange: [0.07, 0.2],
+    hopRange: [0.2, 0.5],
     // Scene-wide, NOT per anchor. One focal flower per cluster averages the image
     // back out to uniform.
     primaryCount: 4,
-    // Migration: the cluster centres wander, and each plant that FINISHES its
-    // cycle is re-placed weighted by where the field has drifted to. Live plants
-    // are never touched, so a clump creeps over a few generations instead of
-    // fading in and out, and every flower gets a complete lifecycle.
-    migrateRange: 0.45,
+    // Migration: hearts wander on their own clock. A dying flower picks among
+    // them weighted by live density × distance, then hops. Occupancy follows
+    // the field; live plants are never touched.
+    migrateRange: 0.2,
     migrateSpeed: 0.035,
-    regrowFloor: 0.12,
   },
   /** Keep flowers off the body via MeshBVH closest-point distance. */
   surround: {
@@ -58,13 +44,9 @@ export const FIELD_DEFAULTS = {
     /** MeshBVHHelper is the costly bit - off by default. */
     bvhHelper: false,
     /** Min distance from posed mesh surface to a stem base. */
-    meshClearDistance: 0.12,
+    meshClearDistance: 0.08,
     /** Quiet pocket around head/helmet (field units, XZ). */
-    faceClearRadius: 0.38,
-    /** Near-body bloom scale vs outer; 1 means no size hierarchy. */
-    nearBloomScale: 0.62,
-    /** Draw face/contact/rim guides (independent of BVH helper). */
-    compositionGuides: false,
+    faceClearRadius: 0.2,
     /** MeshBVHHelper display depth when bvhHelper is on (keep low). */
     bvhHelperDepth: 8,
   },

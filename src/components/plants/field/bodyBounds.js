@@ -4,6 +4,14 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const _vertex = new THREE.Vector3();
 const _hit = {};
+const _ray = new THREE.Ray();
+const _rayOrigin = new THREE.Vector3();
+const _rayDown = new THREE.Vector3(0, -1, 0);
+
+/** Ground Y for a downward silhouette ray. */
+const COLUMN_Y0 = 0.02;
+/** Fallback top when a host has no localBox. */
+const COLUMN_Y1 = 1.5;
 
 /**
  * Bake posed suit meshes into one BufferGeometry in `parent` local space,
@@ -99,14 +107,52 @@ export function closestDistanceAtXZ(bvh, x, z, heights) {
 }
 
 /**
+ * True when a vertical stem at (x,z) would grow through the mesh.
+ *
+ * Unsigned closest-point fails here: a sample inside a thick torso is far from
+ * every surface, so 3D distance looks "clear". A downward ray from above the
+ * host hits the silhouette instead.
+ */
+export function columnHitsBvh(bvh, x, z, localBox = null) {
+  const top = Number.isFinite(localBox?.max?.y)
+    ? localBox.max.y + 0.05
+    : COLUMN_Y1;
+  if (top <= COLUMN_Y0) return false;
+  _rayOrigin.set(x, top, z);
+  _ray.set(_rayOrigin, _rayDown);
+  const hit = bvh.raycastFirst(_ray, THREE.DoubleSide, 0, top - COLUMN_Y0);
+  return Boolean(hit?.point);
+}
+
+function hostColumnHits(host, x, z) {
+  if (!host?.bvh) return false;
+  if (host.localBox && !boxNearXZ(host.localBox, x, z, 0.05)) return false;
+  return columnHitsBvh(host.bvh, x, z, host.localBox);
+}
+
+/** True when a stem at (x,z) would grow through any host. */
+export function columnHitsHosts(hosts, x, z) {
+  const list = hosts ?? [];
+  for (let i = 0; i < list.length; i += 1) {
+    if (hostColumnHits(list[i], x, z)) return true;
+  }
+  return false;
+}
+
+/**
  * Push (x,z) away from the mesh until closest distance >= margin.
+ * Interior silhouette hits are rejected, not pushed: closest-point XZ from
+ * inside a volume points toward the centre and walks deeper in.
  * @returns {[number, number, boolean]} [x, z, ok]
  */
-export function clearPointFromBvh(x, z, bvh, margin, heights) {
+export function clearPointFromBvh(x, z, bvh, margin, heights, localBox = null) {
+  if (columnHitsBvh(bvh, x, z, localBox)) return [x, z, false];
+
   let px = x;
   let pz = z;
 
   for (let iter = 0; iter < 8; iter += 1) {
+    if (columnHitsBvh(bvh, px, pz, localBox)) return [px, pz, false];
     const hit = closestDistanceAtXZ(bvh, px, pz, heights);
     if (!hit || hit.distance >= margin) return [px, pz, true];
 
@@ -124,8 +170,9 @@ export function clearPointFromBvh(x, z, bvh, margin, heights) {
     pz += (dz / len) * push;
   }
 
+  if (columnHitsBvh(bvh, px, pz, localBox)) return [px, pz, false];
   const finalHit = closestDistanceAtXZ(bvh, px, pz, heights);
-  const ok = !finalHit || finalHit.distance >= margin * 0.85;
+  const ok = !finalHit || finalHit.distance >= margin;
   return [px, pz, ok];
 }
 
@@ -157,7 +204,7 @@ export function clearPointFromHosts(x, z, hosts, margin, heights) {
   const list = (hosts ?? []).filter((host) => host?.bvh);
   if (!list.length) return [x, z, true];
   if (list.length === 1) {
-    return clearPointFromBvh(x, z, list[0].bvh, margin, heights);
+    return clearPointFromBvh(x, z, list[0].bvh, margin, heights, list[0].localBox);
   }
 
   const nearest = (px, pz) => {
@@ -170,11 +217,17 @@ export function clearPointFromHosts(x, z, hosts, margin, heights) {
     return best;
   };
 
+  // Inside the silhouette: reject. Pushing unsigned-closest XZ from inside a
+  // thick volume walks toward the centre, which is how flowers ended up in the
+  // torso when warp granted density there.
+  if (columnHitsHosts(list, x, z)) return [x, z, false];
+
   let px = x;
   let pz = z;
   // More iterations than the single-host case: a point can be handed back and
   // forth between two hosts a few times before it settles outside both.
   for (let iter = 0; iter < 12; iter += 1) {
+    if (columnHitsHosts(list, px, pz)) return [px, pz, false];
     const hit = nearest(px, pz);
     if (!hit || hit.distance >= margin) return [px, pz, true];
 
@@ -192,8 +245,9 @@ export function clearPointFromHosts(x, z, hosts, margin, heights) {
     pz += (dz / len) * push;
   }
 
+  if (columnHitsHosts(list, px, pz)) return [px, pz, false];
   const finalHit = nearest(px, pz);
-  const ok = !finalHit || finalHit.distance >= margin * 0.85;
+  const ok = !finalHit || finalHit.distance >= margin;
   return [px, pz, ok];
 }
 

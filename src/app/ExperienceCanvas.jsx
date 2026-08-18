@@ -1,4 +1,4 @@
-import { memo, Suspense, useCallback, useRef, useState } from 'react';
+import { memo, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { AdaptiveDpr, Environment } from '@react-three/drei';
 import { CameraViewControl } from '../components/camera/CameraViewControl';
 import { AsyncCompile, CanvasCapture } from '@core';
@@ -13,6 +13,7 @@ import { usePlantWindControls } from '../components/plants/wind/usePlantWindCont
 import { DirectionalLight } from '../components/scene/DirectionalLight';
 import Effects from '../components/scene/Effects';
 import { ShadowCatcher } from '../components/scene/ShadowCatcher';
+import { setSimSpeed } from '../components/plants/lifecycle/simSpeed';
 import { SCENE_DEFAULTS } from '../components/scene/sceneDefaults';
 import { FLOW_START } from '../components/camera/cameraShots';
 import { TIER1_TARGETS, useExperienceStore } from '../core/experienceStore';
@@ -46,6 +47,10 @@ function SceneContent() {
   const { bgColor } = useControls('Scene', {
     bgColor: { value: SCENE_DEFAULTS.bgColor, label: 'background' },
   });
+  const { simSpeed } = useControls('Sim', {
+    simSpeed: { value: 1, min: 0, max: 12, step: 0.1 },
+  });
+  useEffect(() => { setSimSpeed(simSpeed); }, [simSpeed]);
   const plantWind = usePlantWindControls();
 
   const setComponentReady = useExperienceStore((state) => state.setComponentReady);

@@ -28,8 +28,8 @@ sampleAnchorField       (fieldAnchors.js)    (x,z) ──► 0..1 density. THE f
         │                                     summed anchors, domain warp, presence
         │                                     mask, edge noise, BVH keep-out
         ▼
-buildAnchorClusterSlots (fieldClusterLayout.js)  dispersal sampling ──► slot pool
-        │                                     founders (rejection) ──► hops ──► spares
+buildAnchorClusterSlots (fieldClusterLayout.js)  dispersal sampling ──► live slots
+        │                                     founders (rejection) ──► hops
         ▼
 buildStem               (PlantField.jsx)     per slot: size, height, role, bloomCeiling
         │
@@ -45,18 +45,14 @@ Layout is **always** the anchor field. The golden-angle spiral branch and its
 knobs (`layoutMode`, `positionJitter`, `contactPow`) were removed; do not
 reintroduce a second layout without a reason.
 
-### Slot pool
+### Respawn
 
-`flowerCount` live slots plus `spareSlots - 1` spares each. A plant **hops between slots**
-at respawn by writing DataTexture row 1 — the merged geometry is never rebuilt.
-
-- **Live slots** are placed against the **true** field.
-- **Spare slots** are placed against an **envelope** (anchor radius + `migrateRange`)
-  and may sit up to `variantSpread` from their live point.
-
-Getting that backwards puts live plants out in the margin where the field is zero,
-which reads as a vague halo around every mass. It was survivable only while a gate
-hid them; there is no gate now.
+Hearts (one per opening founder) **wander on their own clock** — a field-weighted
+creep of up to `migrateRange`, staggered so they do not jump together. A plant
+that finishes its cycle **picks among current hearts** with
+`P ∝ field(heart) × exp(-dist / attractRadius)`, then hops around the chosen
+heart. Occupancy follows likelihood; live plants are never moved. Geometry is
+never rebuilt; DataTexture row 1 takes the new offset.
 
 ---
 
@@ -92,18 +88,20 @@ hid them; there is no gate now.
    script must read with `newline=''`, normalise to `\n`, and write back the
    original EOL — otherwise every multi-line match fails.
 
-7. **`groupKey` must be stamped on every slot, including spares.** `PlantSystem`
-   buckets free slots by `slot.groupKey`; when it was only written onto live slots,
-   every spare fell into bucket `-1` while every plant sought a bucket `>= 0`, and
-   the reshuffle silently never fired.
+7. **Respawn picks a heart, then hops.** Hearts move on a timer, independent of
+   flower deaths. The pick is field × distance so neighbourhood occupancy can
+   follow the heatmap without everyone piling on the hottest heart. If a hop
+   fails, the plant stays put for that generation rather than landing on empty
+   ground.
 
 ---
 
 ## The sim clock
 
 `../lifecycle/simSpeed.js` — a module-level ref, deliberately not a prop. The
-field, `ClimbTendrils` and `ProceduralStem` each run their own `useFrame` and must
-agree on how fast time passes.
+Leva control lives on the **Sim** panel, not Field: it also drives
+`ClimbTendrils` and `ProceduralStem`. The field, climbers and standalone stems
+each run their own `useFrame` and must agree on how fast time passes.
 
 - Scales lifecycle `dt` **and** the anchor-field drift. Both, on purpose: at 10x a
   render-clock drift would show six flower generations against a stationary field,
@@ -114,7 +112,7 @@ agree on how fast time passes.
   state; at 10x it reads as a gale.
 - Space (`useLifecyclePauseHotkey`) freezes `simTime`, so it freezes the drift too.
 
-**Set `sim speed` to 10 for any evolution review.** One lifecycle is ~21–33s, so
+**Set Sim `simSpeed` to 10 for any evolution review.** One lifecycle is ~21–33s, so
 180 real seconds is ~6 generations; at 10x that is 18s.
 
 ---
@@ -126,14 +124,19 @@ someone before:
 
 | Knob | Trap |
 |---|---|
-| `sizeRampRadius` | A **size** control (→ `farR` → `rimT` → `sizeMul`), not a placement radius. Clamps up to bodyDiagonal + 0.6, so lowering past ~1.8 does nothing. |
 | `flowerCount` | Was inflated to 230 to offset the removed gate. Built count now equals visible count — **this is very likely too high and wants retuning down** (try 150–170). |
-| `shapeWarp` | The only knob that makes a mass stop being an ellipse. `edgeRagged` is multiplicative on the field *value*, so it can roughen an outline but never manufacture density on bare ground, and never changes the gross form. |
-| `migrateRange` | Also sizes the spare envelope **at build time**, so changing it rebuilds the slot pool. Was missing from the memo deps, which froze the envelope at its mount value. |
-| `regrowFloor` | Density floor for the respawn pick. Steers new growth; cannot cull a live plant. |
-| `spareSlots` | At 1 the reshuffle has nowhere to go. |
+| `shapeWarp` | The only knob that makes a mass stop being an ellipse. |
+| `migrateRange` | How far a heart may creep on each periodic hop. 0 freezes hearts; dying flowers still pick among them. |
 
-**Removed, do not reintroduce without a reason:** `layoutMode` / `positionJitter` /
+**Removed, do not reintroduce without a reason:** `compositionGuides` (debug
+rings + role size legend; face pocket is on `showAnchors`), `regrowFloor` (hard density
+cut; accept/pick are already `P ∝ field`), `nearBloomScale` /
+`sizeRampRadius` (radial size ramp from body centre; fought clump-core size),
+`edgeRagged` / `edgeScale`
+(multiplicative brightness noise on an unchanged outline; shape comes from
+`shapeWarp`), `reshuffleOnRespawn` /
+`spareSlots` (nearby pre-baked hops; respawn now samples the live field),
+`layoutMode` / `positionJitter` /
 `contactPow` (golden-angle spiral layout and its knobs), `minGap` (misnamed —
 nothing enforces flower separation; its only effect was silently raising the size
 ramp radius), `anchorDrift` / `fieldX` / `fieldZ` (redundant with the migration
@@ -182,18 +185,18 @@ under migration. Judge migration from the flowers, not the heat map. Drop
 - **Migration has never been verified as evolution.** No time-lapse has been taken.
   Stills at 0 / 45 / 90 / 180 s from a fixed frame, diffed.
 - **`flowerCount` retune** after the gate removal (see table above).
-- **Side view / height rhythm** (plan step 4). `HEIGHT_MIN/MAX/BIAS` in
-  `PlantField.jsx` separate stem height from head size; whether that is enough has
-  not been judged from a grazing camera.
+- **Side view / height rhythm** (plan step 4). Field length is `stemLength`
+  sampled with `lengthExp` so most stems sit near min. Whether that is enough
+  has not been judged from a grazing camera.
 
 ## Files
 
 | File | Role |
 |---|---|
 | `fieldAnchors.js` | Anchor derivation, `sampleAnchorField`, domain warp, presence mask, `animatedCentre` |
-| `fieldClusterLayout.js` | Dispersal slot sampling: founders, hops, spares |
+| `fieldClusterLayout.js` | Dispersal slot sampling: founders, hops; heart pick + hop on respawn |
 | `PlantField.jsx` | Leva wiring, slot build, `buildStem`, role classification |
-| `PlantSystem.jsx` | Merged geometry, DataTexture, lifecycle stepping, field-weighted respawn |
+| `PlantSystem.jsx` | Merged geometry, DataTexture, lifecycle stepping, periodic hearts, death-time pick |
 | `CompositionDebug.jsx` | Anchor rings, density heat grid, composition guides |
 | `bodyBounds.js` | BVH keep-out: `clearPointFromHosts`, `clearPointFromDisc` |
 | `fieldControls.js` | Leva schema — grouping and unused-knob gating |

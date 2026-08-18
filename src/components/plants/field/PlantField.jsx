@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useControls } from 'leva';
 import { stableRandomRange } from '@core';
 import { preloadVATAssets } from '@core/vat';
 import { createFlowerControlsSchema } from '../look/flowerControls';
-import { buildAnchorClusterSlots } from './fieldClusterLayout';
+import { buildAnchorClusterSlots, DEFAULT_HOP_DECAY } from './fieldClusterLayout';
 import { deriveFieldAnchors } from './fieldAnchors';
 import { createFieldControlsSchema } from './fieldControls';
-import { setSimSpeed } from '../lifecycle/simSpeed';
 import { FIELD_DEFAULTS } from './fieldDefaults';
 import { createStemSchema } from '../stem/stemControls';
 import { STEM_DEFAULTS } from '../stem/stemDefaults';
@@ -22,7 +21,6 @@ const ROSE_TYPE = FLOWER_TYPES.find((t) => t.id === 'rose');
 
 [DAHLIA_TYPE, ROSE_TYPE].forEach(({ metaUrl }) => preloadVATAssets(metaUrl));
 
-const S_LENGTH = 0;
 const S_RADIUS = 1;
 const S_LEAN = 2;
 const S_BEND = 3;
@@ -34,15 +32,6 @@ const S_LIGHT = 8;
 const S_ROLE_SIZE = 18;
 const S_BLOOM = 19;
 const S_HEIGHT = 22;
-
-/**
- * Long-tailed height. Most stems stay low and a few reach right up, because a
- * uniform range gives every stem a similar height and the side view collapses
- * into a mat. The bias exponent is what makes tall stems rare rather than average.
- */
-const HEIGHT_MIN = 0.6;
-const HEIGHT_MAX = 1.95;
-const HEIGHT_BIAS = 2.6;
 
 /**
  * Size and bloom decay CONTINUOUSLY with dispersal depth rather than snapping to
@@ -61,25 +50,18 @@ const BLOOM_DENSITY_POW = 0.75;
 const PRIMARY_SEPARATION = 0.55;
 /** Share of the non-primary field promoted to secondary; the remainder are echoes. */
 const SECONDARY_SHARE = 0.34;
-const ROLE_ID = { primary: 0, secondary: 1, echo: 2 };
 
 /** Heights (field local Y) sampled for closest-point vs the lying suit. */
 const CLEAR_HEIGHTS = [0.05, 0.2, 0.4, 0.7, 1.0, 1.35];
 
 /**
- * `sizeMul` scales the flower HEAD (via stemRadius, which is what `scaleMuls`
- * reads). `heightMul` scales the stem only.
- *
- * They were one variable, which welded tall to large — so height varied only as
- * much as head size did, and from a grazing camera the whole field read as a flat
- * mat. Splitting them is what lets a tall thin stem carry the silhouette while a
- * dense core still holds the largest blooms.
+ * `sizeMul` scales the flower HEAD (via stemRadius). Stem length is passed in
+ * already rolled, so tall does not imply large.
  */
-function randomParams(i, seed, lenMin, lenMax, radMin, radMax, leanMin, leanMax,
-  bendMin, bendMax, taperMin, taperMax, flareMin, flareMax, sizeMul = 1,
-  heightMul = 1) {
+function randomParams(i, seed, radMin, radMax, leanMin, leanMax,
+  bendMin, bendMax, taperMin, taperMax, flareMin, flareMax, sizeMul, stemLength) {
   return {
-    stemLength: stableRandomRange(i, S_LENGTH, seed, lenMin, lenMax) * heightMul,
+    stemLength,
     stemRadius: stableRandomRange(i, S_RADIUS, seed, radMin, radMax) * sizeMul,
     leanAngle: stableRandomRange(i, S_LEAN, seed, leanMin, leanMax),
     bendDegree: stableRandomRange(i, S_BEND, seed, bendMin, bendMax),
@@ -92,8 +74,6 @@ function randomParams(i, seed, lenMin, lenMax, radMin, radMax, leanMin, leanMax,
 export function PlantField({
   position = [0, 0, 0],
   bodyBounds = null,
-  // Keep-out only for now. The field is still centred on the body; the backpack
-  // becomes a layout anchor in its own right in a later phase.
   backpackBounds = null,
   onStemBases,
   wind = PLANT_WIND_DEFAULTS,
@@ -102,23 +82,19 @@ export function PlantField({
 
   const fieldSchema = useMemo(() => createFieldControlsSchema(), []);
   const {
-    flowerCount, sizeRampRadius, leanOutward, initialPhaseSpread, arrangementSeed,
-    simSpeed, roseRatio, reshuffleOnRespawn, spareSlots,
+    flowerCount, leanOutward, initialPhaseSpread, arrangementSeed,
+    roseRatio,
     petalShedFrac, shedStemOverlap,
     shedRise, shedRiseVariance, shedSpread, shedStagger,
     clearBody,
     bvhHelper,
     meshClearDistance,
     faceClearRadius,
-    nearBloomScale,
-    compositionGuides,
     bvhHelperDepth,
     showAnchors,
     densityField,
     gridResolution,
     reachScale,
-    edgeRagged,
-    edgeScale,
     shapeWarp,
     warpScale,
     barePatches,
@@ -128,22 +104,18 @@ export function PlantField({
     primaryCount,
     migrateRange,
     migrateSpeed,
-    regrowFloor,
     delay: [delayMin, delayMax],
     grow: [growMin, growMax],
     keep: [keepMin, keepMax],
     die: [dieMin, dieMax],
   } = useControls('Field', fieldSchema, { collapsed: true });
 
-  // The rate lives in a module-level ref shared with the climbers and the
-  // standalone stems, so it is pushed rather than passed down.
-  useEffect(() => { setSimSpeed(simSpeed); }, [simSpeed]);
-
   const stemSchema = useMemo(() => createStemSchema(), []);
   const stemControls = useControls('Stem', stemSchema, { collapsed: true });
   const {
     stemSegments, radialSegs, bloomStart, bloomFrac, stemYMax,
     stemLength: [lenMin, lenMax],
+    lengthExp,
     stemRadius: [radMin, radMax],
     leanAngle: [leanMin, leanMax],
     bendDegree: [bendMin, bendMax],
@@ -264,13 +236,6 @@ export function PlantField({
         .map((host) => ({ bvh: host.bvh, localBox: host.localBox }))
       : []
   ), [clearBody, bodyBounds, backpackBounds]);
-  // `sizeRampRadius` directly. A `max(sizeRampRadius, minGap * sqrt(flowerCount))`
-  // term used to sit here, fed by a `min gap` knob — but nothing in the layout
-  // enforces a minimum flower separation, so all that term did was silently raise
-  // the size ramp radius once minGap crossed ~0.185. Misnamed, undocumented in
-  // effect, and filed as spiral-only when it applied to both layouts. Removed
-  // outright.
-  const effectiveSpread = sizeRampRadius;
 
   const resolvedHeadLocal = useMemo(() => {
     const box = bodyBounds?.localBox;
@@ -289,17 +254,11 @@ export function PlantField({
     const box = bodyBounds?.localBox;
     const cx = box ? (box.min.x + box.max.x) * 0.5 : 0;
     const cz = box ? (box.min.z + box.max.z) * 0.5 : 0;
-    const halfX = box ? (box.max.x - box.min.x) * 0.5 : effectiveSpread * 0.35;
-    const halfZ = box ? (box.max.z - box.min.z) * 0.5 : effectiveSpread * 0.35;
-    const nearR = Math.max(0.05, Math.min(halfX, halfZ) * 0.35);
-    const farR = Math.max(effectiveSpread, Math.hypot(halfX, halfZ) + 0.6);
     return {
       center: [cx, cz],
-      nearR,
-      farR,
       headLocal: resolvedHeadLocal,
     };
-  }, [bodyBounds, effectiveSpread, resolvedHeadLocal]);
+  }, [bodyBounds, resolvedHeadLocal]);
 
   // Keyed only on the bounds version and the anchor knobs, so scrubbing
   // `flowerCount` never re-probes the BVH.
@@ -320,22 +279,7 @@ export function PlantField({
     reachScale,
   ]);
 
-  // Relative bloom size per role, for the debug legend. Radial base is held at
-  // mid-field so the legend isolates the ROLE factor, and it lives here because
-  // this is where the constants are — the debug view previously re-derived the
-  // formula and went stale silently.
-  const sizeLegend = useMemo(() => {
-    const base = nearBloomScale + (1 - nearBloomScale) * Math.pow(0.5, 0.65);
-    return {
-      echo: base * Math.pow(DEPTH_SIZE_DECAY, 6),
-      secondary: base,
-      primary: base * PRIMARY_SIZE_BOOST,
-    };
-  }, [nearBloomScale]);
-
   const anchorFieldOptions = useMemo(() => ({
-    edgeRagged,
-    edgeScale,
     shapeWarp,
     warpScale,
     barePatches,
@@ -346,26 +290,18 @@ export function PlantField({
     hosts: clearanceHosts,
     meshClearDistance,
   }), [
-    edgeRagged, edgeScale, shapeWarp, warpScale,
+    shapeWarp, warpScale,
     barePatches, patchScale, arrangementSeed, clearanceHosts, meshClearDistance,
   ]);
 
-  // Same field, minus the BVH keep-out. The sampler pushes candidates out of the
-  // mesh instead of discarding them, so paying for closest-point queries inside
-  // its accept/reject roll would be pure waste.
-  // Everything PlantSystem needs to weight a respawning plant toward wherever the
-  // field has drifted to. Sampled only on respawn, never per plant per frame.
-  // Null when migration is off, in which case respawn falls back to a uniform
-  // pick inside the cluster.
+  // Runtime hearts + death-time pick. PlantSystem wanders each founder heart
+  // on a clock, then a dying flower chooses among them by field × distance
+  // and hops. Null when there are no anchors.
   const migration = useMemo(() => {
-    if (!(migrateRange > 0) || !anchorSet.anchors.length) {
-      return null;
-    }
+    if (!anchorSet.anchors.length) return null;
     return {
       anchors: anchorSet.anchors,
       options: {
-        edgeRagged,
-        edgeScale,
         shapeWarp,
         warpScale,
         barePatches,
@@ -373,26 +309,37 @@ export function PlantField({
         seed: arrangementSeed,
         migrateRange,
         migrateSpeed,
+        hosts: clearanceHosts,
+        meshClearDistance,
       },
-      threshold: regrowFloor,
+      clearanceHosts,
+      meshClearDistance,
+      clearHeights: CLEAR_HEIGHTS,
+      head: resolvedHeadLocal,
+      faceClearRadius,
+      bodyCenter: compositionGuide.center,
+      hopMin: Math.min(hopRange[0], hopRange[1]),
+      hopMax: Math.max(hopRange[0], hopRange[1]),
+      hopDecay: DEFAULT_HOP_DECAY,
     };
   }, [
-    anchorSet, edgeRagged, edgeScale, shapeWarp,
+    anchorSet, shapeWarp,
     warpScale, barePatches, patchScale, arrangementSeed, migrateRange,
-    migrateSpeed, regrowFloor,
+    migrateSpeed, clearanceHosts, meshClearDistance,
+    resolvedHeadLocal, faceClearRadius, compositionGuide, hopRange,
   ]);
 
   const anchorSamplerOptions = useMemo(() => ({
-    edgeRagged,
-    edgeScale,
     shapeWarp,
     warpScale,
     barePatches,
     patchScale,
     seed: arrangementSeed,
+    hosts: clearanceHosts,
+    meshClearDistance,
   }), [
-    edgeRagged, edgeScale, shapeWarp, warpScale,
-    barePatches, patchScale, arrangementSeed,
+    shapeWarp, warpScale,
+    barePatches, patchScale, arrangementSeed, clearanceHosts, meshClearDistance,
   ]);
 
   // Surfaces derivation problems that are otherwise invisible: an anchor whose
@@ -424,33 +371,14 @@ export function PlantField({
     }
   }, [anchorSet, showAnchors]);
 
-  const { stems, slotPool } = useMemo(() => {
+  const { stems } = useMemo(() => {
     // Wait for posed MeshBVH before planting.
-    if (!bvh) return { stems: [], slotPool: [] };
+    if (!bvh) return { stems: [] };
 
-    // Roles come out of the dispersal tree rather than a separate rule: a
-    // founder is a primary, its first offspring a secondary, deeper generations
-    // the quiet echoes.
-    //
-    // But primaries are capped SCENE-WIDE, not per anchor. Every cluster having
-    // its own focal flower averages the image back out to uniform — the same
-    // failure as even spacing, one level up. Founders beyond the cap stay as
-    // dispersal seeds and simply read as secondaries.
     /**
-     * Allocated round-robin across anchors so the cap spreads over clusters
-     * rather than going entirely to whichever anchor comes first. Takes the slots
-     * as arguments because it can only run AFTER sampling.
-     */
-    /**
-     * Role from LOCAL DENSITY, not dispersal depth.
-     *
-     * Depth was an artifact of tree traversal order with no relationship to the
-     * field. Ranking by the density each flower actually stands in makes the
-     * hierarchy causal, and makes the answer to "why does the farthest flower
-     * exist" literally true: it is the last echo at the edge of a mass.
-     *
-     * Percentile-based rather than absolute thresholds, so it adapts when the field
-     * knobs change instead of needing re-tuning.
+     * Role from local density, capped scene-wide. One primary per cluster
+     * averages the image back to uniform. Ranking by the density each flower
+     * stands in keeps the hierarchy causal.
      */
     const classifyByDensity = (slotList, liveList, wanted) => {
       const ranked = liveList
@@ -494,27 +422,22 @@ export function PlantField({
       const typeRoll = stableRandomRange(slotIndex, S_TYPE, arrangementSeed, 0, 1);
       const flowerType = typeRoll < roseRatio ? ROSE_TYPE : DAHLIA_TYPE;
       const role = roleOf(slotIndex, classes);
-      // The radial ramp stays the base and roles modulate it. With primaries this
-      // rare the ramp carries most of the size variation, so replacing it would
-      // flatten the field into three discrete sizes.
-      const radialBase = nearBloomScale + (1 - nearBloomScale) * Math.pow(slot.rimT, 0.65);
+      // Size comes from the clump, not from distance to the body: depth decay
+      // (core large, fringe small) plus a rare primary boost.
       const sizeJit = stableRandomRange(slotIndex, S_ROLE_SIZE, arrangementSeed, -0.08, 0.08);
       const depth = slot.generation ?? 0;
-      const sizeMul = radialBase
-        * Math.pow(DEPTH_SIZE_DECAY, depth)
+      const sizeMul = Math.pow(DEPTH_SIZE_DECAY, depth)
         * (role === 'primary' ? PRIMARY_SIZE_BOOST : 1)
         * (1 + sizeJit);
       // Independent of size on purpose, so tall does not imply large.
+      // One roll inside stemLength, biased toward min so a grazing camera
+      // does not read a mat. lengthExp is how rare the max is.
       const heightU = stableRandomRange(slotIndex, S_HEIGHT, arrangementSeed, 0, 1);
-      const heightMul = HEIGHT_MIN
-        + (HEIGHT_MAX - HEIGHT_MIN) * Math.pow(heightU, HEIGHT_BIAS);
-      // Bloom ceiling scales the VAT frame, so an echo stays a bud or half-open
-      // however long it lives. Clamped so nothing reads as a bare stick.
+      const stemLength = lenMin + (lenMax - lenMin) * Math.pow(heightU, lengthExp);
       const bloomJit = stableRandomRange(slotIndex, S_BLOOM, arrangementSeed, -0.05, 0.05);
-      // Also depth-driven: a clump core opens fully while its fringe stays budded,
-      // which is the multi-scale read without needing any extra geometry.
-      // Density-driven, not depth-driven: a flower is budded because it stands at
-      // the fringe of a mass, not because a traversal counter reached 2.
+      // Bloom ceiling scales the VAT frame, so an echo stays a bud or half-open.
+      // Density-driven: a flower is budded because it stands at the fringe of a
+      // mass, not because a traversal counter reached 2.
       const density = slot.fieldValue ?? 0;
       const bloomCeiling = Math.min(1, Math.max(
         MIN_BLOOM,
@@ -524,17 +447,10 @@ export function PlantField({
         position: [slot.x, 0, slot.z],
         leanOutwardAngle: slot.leanOutwardAngle,
         slotIndex,
-        rimT: slot.rimT,
-        // Metadata for later phases; nothing reads these yet.
-        anchorId: slot.anchorId,
         anchorIndex: slot.anchorIndex,
-        role,
         generation: slot.generation,
+        clumpId: slot.clumpId ?? slotIndex,
         bloomCeiling,
-        // Anchor + role identity, so a respawning plant can only take a slot from
-        // its own cluster and band.
-        // Already stamped on the slot above; read it back so the two can never drift.
-        groupKey: slot.groupKey ?? ((slot.anchorIndex ?? 0) * 8 + (ROLE_ID[role] ?? 1)),
         seed: slotIndex * 13 + 1 + arrangementSeed * 17,
         flowerType,
         colorVariationUnit: {
@@ -543,38 +459,25 @@ export function PlantField({
         },
         params: randomParams(
           slotIndex, arrangementSeed,
-          lenMin, lenMax, radMin, radMax, leanMin, leanMax,
+          radMin, radMax, leanMin, leanMax,
           bendMin, bendMax, taperMin, taperMax, flareMin, flareMax,
           sizeMul,
-          heightMul,
+          stemLength,
         ),
       };
     };
 
-    if (!anchorSet.anchors.length) return { stems: [], slotPool: [] };
+    if (!anchorSet.anchors.length) return { stems: [] };
 
     const { slots: anchorSlotsRaw, liveIndices: anchorLiveRaw, diagnostics } = buildAnchorClusterSlots({
-      // Live slots go against the TRUE field, so the composition opens tight to
-      // the masses as drawn. Only the respawn spares use the inflated envelope —
-      // they have to already exist where the drift is heading, since nothing
-      // rebuilds the pool at runtime. These were both the envelope until the
-      // migration gate was removed; with no gate hiding the margin, live slots out
-      // there just read as a vague halo around every mass.
       anchors: anchorSet.anchors,
-      envelopeAnchors: migrateRange > 0
-        ? anchorSet.anchors.map((a) => ({ ...a, radius: a.radius + migrateRange }))
-        : anchorSet.anchors,
-      variantSpread: migrateRange,
       count: flowerCount,
-      slotFactor: spareSlots,
       clearanceHosts,
       clearMargin: meshClearDistance,
       clearHeights: CLEAR_HEIGHTS,
       head: resolvedHeadLocal,
       faceClearRadius,
       bodyCenter: compositionGuide.center,
-      nearR: compositionGuide.nearR,
-      farR: compositionGuide.farR,
       arrangementSeed,
       fieldOptions: anchorSamplerOptions,
       founderShare,
@@ -591,44 +494,23 @@ export function PlantField({
     }
     const classes = classifyByDensity(anchorSlotsRaw, anchorLiveRaw, primaryCount);
 
-    // Stamp the respawn bucket onto every SLOT, not just the live stems.
-    // PlantSystem buckets free slots by `slot.groupKey`; writing it only onto the
-    // stem meant every free slot fell into bucket -1 while every plant looked for
-    // a bucket >= 0, so the reshuffle silently never fired.
-    for (let si = 0; si < anchorSlotsRaw.length; si += 1) {
-      const slot = anchorSlotsRaw[si];
-      // A variant inherits its owner's role: it is a short hop away, so it sits in
-      // comparable density, and it must share the bucket to be a valid target.
-      const roleIndex = slot.ownerSlot >= 0 ? slot.ownerSlot : si;
-      const role = roleOf(roleIndex, classes);
-      slot.groupKey = (slot.anchorIndex ?? 0) * 8 + (ROLE_ID[role] ?? 1);
-    }
     return {
       stems: anchorLiveRaw.map(
         (slotIndex) => buildStem(anchorSlotsRaw[slotIndex], slotIndex, classes),
       ),
-      slotPool: anchorSlotsRaw,
     };
   }, [anchorSet, anchorSamplerOptions, compositionGuide,
-    // migrateRange sizes the spare envelope, and was missing here: the pool was
-    // built once at mount and never rebuilt, so dragging `migrateRange` changed
-    // the drift while the slots it needed to move into stayed put.
-    founderShare, hopRange, primaryCount, migrateRange,
-    flowerCount, arrangementSeed, roseRatio, spareSlots,
-    bvh, clearanceHosts, meshClearDistance, faceClearRadius, nearBloomScale,
+    founderShare, hopRange, primaryCount,
+    flowerCount, arrangementSeed, roseRatio,
+    bvh, clearanceHosts, meshClearDistance, faceClearRadius,
     boundsVersion, resolvedHeadLocal,
-    lenMin, lenMax, radMin, radMax, leanMin, leanMax,
+    lenMin, lenMax, lengthExp, radMin, radMax, leanMin, leanMax,
     bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
 
   useEffect(() => {
     if (!onStemBases) return;
-    // Report every spawn slot, not just the occupied ones — a plant can respawn
-    // into any of them, and ground foliage must already be cleared there.
-    const bases = reshuffleOnRespawn
-      ? slotPool.map((s) => ({ x: s.x, z: s.z }))
-      : stems.map((s) => ({ x: s.position[0], z: s.position[2] }));
-    onStemBases(bases);
-  }, [stems, slotPool, reshuffleOnRespawn, onStemBases]);
+    onStemBases(stems.map((s) => ({ x: s.position[0], z: s.position[2] })));
+  }, [stems, onStemBases]);
 
   return (
     <group position={position}>
@@ -640,13 +522,8 @@ export function PlantField({
         depth={bvhHelperDepth}
       />
       <CompositionDebug
-        visible={Boolean(compositionGuides || showAnchors || densityField)}
+        visible={Boolean(showAnchors || densityField)}
         anchors={anchorSet.anchors}
-        // Passed in, never re-derived. The old version duplicated the size formula
-        // and silently went stale the moment depth decay and the primary boost were
-        // added — it was under-reporting echo size by ~3x.
-        sizeLegend={sizeLegend}
-        compositionGuides={compositionGuides}
         showAnchors={showAnchors}
         densityField={densityField}
         gridResolution={gridResolution}
@@ -654,15 +531,9 @@ export function PlantField({
         center={compositionGuide.center}
         headLocal={compositionGuide.headLocal}
         faceClearRadius={faceClearRadius}
-        nearR={compositionGuide.nearR}
-        farR={compositionGuide.farR}
-        nearBloomScale={nearBloomScale}
-        meshClearDistance={meshClearDistance}
       />
       <PlantSystem
         stems={stems}
-        slotPool={slotPool}
-        reshuffleOnRespawn={reshuffleOnRespawn}
         leanOut={leanOutward}
         phaseSpread={initialPhaseSpread}
         stemSegments={stemSegments}

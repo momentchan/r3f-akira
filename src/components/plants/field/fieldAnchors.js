@@ -1,4 +1,4 @@
-import { closestDistanceAtXZ } from './bodyBounds';
+import { closestDistanceAtXZ, columnHitsHosts } from './bodyBounds';
 import { valueNoise3D } from '../climb/spatialNoise';
 
 /**
@@ -236,8 +236,8 @@ export function deriveFieldAnchors({
     // Diagnostic ONLY. Its radius is deliberately not used as the density hole:
     // excluding a whole circle around the anchor centre also excluded every bit of
     // near-contact ground, so nothing could grow against the suit or the bag. The
-    // real "do not plant inside the mesh" rule is the nearestHostDistance mask,
-    // which measures from the SURFACE and lets density hug the silhouette.
+    // real "do not plant inside the mesh" rule is the silhouette column + surface
+    // margin mask, which lets density hug the outline without entering it.
     const fit = fitInner(
       src.x, src.z, src.footprint + clearMargin, reach, hosts, clearMargin,
       src.axis, def.elong,
@@ -285,12 +285,11 @@ export function deriveFieldAnchors({
 /**
  * Coherent 2-D domain warp.
  *
- * The crucial difference from `edgeRagged`: that multiplies the field's
- * VALUE, which only varies a ring's intensity — the ring is still a ring. This
- * displaces the sample POSITION before distance is measured, so the shape itself
- * becomes irregular. Because the warp is spatially coherent and shared across
- * anchors, neighbouring blobs deform together and merge believably instead of
- * looking like two circles that happen to overlap.
+ * This displaces the sample POSITION before distance is measured, so the shape
+ * itself becomes irregular rather than a circle of varying intensity. Because
+ * the warp is spatially coherent and shared across anchors, neighbouring blobs
+ * deform together and merge believably instead of looking like two circles
+ * that happen to overlap.
  */
 function warpPoint(x, z, amount, frequency, seed) {
   if (amount <= 0) return { x, z };
@@ -376,8 +375,6 @@ function anchorFalloff(anchor, x, z, cx, cz) {
 export function sampleAnchorField(x, z, anchors, options = {}) {
   const {
     mergeNorm = 1.15,
-    edgeRagged = 0.35,
-    edgeScale = 2.6,
     shapeWarp = 0.3,
     warpScale = 1.6,
     barePatches = 0.4,
@@ -386,7 +383,8 @@ export function sampleAnchorField(x, z, anchors, options = {}) {
     // Optional hard keep-out. A single per-anchor inner radius can only carve a
     // circular hole, but the body is a star shape — arms and legs lie inside the
     // annulus band. Without this the field promises density exactly where the
-    // clearance chain would reject it.
+    // clearance chain would reject it. Measured on the UNWARPED point: warp
+    // changes cluster shape, not which world cell is inside the suit.
     hosts = null,
     meshClearDistance = 0,
     // Migration. `time` 0 or `migrateRange` 0 pins the centres where they were
@@ -414,9 +412,14 @@ export function sampleAnchorField(x, z, anchors, options = {}) {
   if (sum <= 0) return 0;
 
   // Checked after the sum so the BVH cost is only paid where there is density.
-  if (hosts?.length && meshClearDistance > 0) {
-    const d = nearestHostDistance(hosts, x, z);
-    if (d !== null && d < meshClearDistance) return 0;
+  // Column first: unsigned closest-point is large inside a thick torso, so it
+  // cannot be the inside test. Surface distance still keeps stems off the skin.
+  if (hosts?.length) {
+    if (columnHitsHosts(hosts, x, z)) return 0;
+    if (meshClearDistance > 0) {
+      const d = nearestHostDistance(hosts, x, z);
+      if (d !== null && d < meshClearDistance) return 0;
+    }
   }
 
   let field = Math.min(1, sum / Math.max(mergeNorm, 1e-3));
@@ -426,11 +429,5 @@ export function sampleAnchorField(x, z, anchors, options = {}) {
   field *= presenceMask(x, z, barePatches, patchScale, seed);
   if (field <= 0) return 0;
 
-  if (edgeRagged > 0) {
-    const n = valueNoise3D(w.x * edgeScale, 0.37, w.z * edgeScale, seed);
-    // Multiplicative so the noise cannot manufacture density out on bare ground —
-    // it only ragged-edges what the anchors already put there.
-    field *= 1 + n * edgeRagged;
-  }
   return Math.min(1, Math.max(0, field));
 }

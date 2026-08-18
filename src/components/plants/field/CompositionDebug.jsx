@@ -76,7 +76,7 @@ function DiscFill({
 /**
  * Half-side of the debug sampling square, from the body centre.
  *
- * Spawn lives on the anchors, not on `farR`. Each mass is an elongated disc of
+ * Spawn lives on the anchors. Each mass is an elongated disc of
  * radius `reach * reachScale`, plus domain-warp padding, so the window has to
  * cover those discs or a high reach scale silently clips off the overlay while
  * flowers still plant outside it.
@@ -200,35 +200,21 @@ function AnchorMarker({ anchor }) {
 }
 
 /**
- * Composition overlay. Three independently toggled layers:
+ * Composition overlay. Two independently toggled layers:
  *
  * `showAnchors`        — each anchor: reach ring, inner keep-out, and a weight
- *                        dot. Under migration the mass wanders around this
- *                        centre, so the ring shows the cause and the bound, not
- *                        the current mass.
+ *                        dot; plus the hard face pocket. Under migration the
+ *                        mass wanders around this centre, so the ring shows the
+ *                        cause and the bound, not the current mass.
  * `densityField`       — a heat grid sampled through the same `sampleAnchorField`
  *                        the sampler uses, so it shows what the sampler sees.
- * `compositionGuides`  — magenta disc = the hard face pocket; orange/teal rings
- *                        = the near/far band that normalises `rimT`; and three
- *                        discs on +X that are a ROLE size legend (echo /
- *                        secondary / primary), passed in via `sizeLegend`
- *                        rather than derived.
  */
 export function CompositionDebug({
   visible = false,
   center = [0, 0],
   headLocal = null,
   faceClearRadius = 0,
-  nearR = 0,
-  farR = 0,
-  nearBloomScale = 0.5,
-  meshClearDistance = 0.12,
-  // { echo, secondary, primary } relative sizes, computed by the caller.
-  sizeLegend = null,
-  // Anchor layer. The rings describe the radial band that still normalises rimT;
-  // the anchor + field layers describe what actually drives the layout now.
   anchors = null,
-  compositionGuides = true,
   showAnchors = false,
   densityField = false,
   fieldOptions = null,
@@ -240,15 +226,6 @@ export function CompositionDebug({
   const headX = headLocal?.x ?? cx;
   const headZ = headLocal?.z ?? cz;
   const headFound = Boolean(headLocal?.found ?? headLocal);
-
-  const midT = 0.5;
-  const midR = nearR + (farR - nearR) * midT;
-  // Size is no longer a function of radius alone — depth decay and the primary
-  // boost dominate it — so these read as a ROLE legend rather than a radial ramp.
-  const legend = sizeLegend ?? { echo: nearBloomScale, secondary: 1, primary: 1 };
-  const nearBloomR = 0.08 * legend.echo;
-  const midBloomR = 0.08 * legend.secondary;
-  const farBloomR = 0.08 * legend.primary;
 
   return (
     <group>
@@ -269,10 +246,7 @@ export function CompositionDebug({
         </group>
       ) : null}
 
-      {/* The face pocket is drawn with the anchors too: it is the hard floor the
-          helmet negative anchor layers on top of, so the two only make sense
-          together. */}
-      {(compositionGuides || showAnchors) && (
+      {showAnchors && (
         <group position={[headX, 0, headZ]}>
           <DiscFill radius={faceClearRadius} color="#ff4d6d" opacity={0.16} />
           <CircleRing radius={faceClearRadius} color="#ff4d6d" y={0.03} />
@@ -285,32 +259,6 @@ export function CompositionDebug({
             />
           </mesh>
         </group>
-      )}
-
-      {compositionGuides && (
-      <group position={[cx, 0, cz]}>
-        <CircleRing radius={nearR} color="#ff9f1c" y={0.025} opacity={0.9} />
-        <CircleRing radius={farR} color="#2ec4b6" y={0.025} opacity={0.75} />
-        <CircleRing
-          radius={Math.max(nearR * 0.55, meshClearDistance)}
-          color="#ffffff"
-          y={0.02}
-          opacity={0.35}
-        />
-
-        <group position={[nearR, 0, 0]}>
-          <DiscFill radius={nearBloomR} y={0.04} color="#ff9f1c" opacity={0.35} />
-          <CircleRing radius={nearBloomR} y={0.045} color="#ff9f1c" />
-        </group>
-        <group position={[midR, 0, 0]}>
-          <DiscFill radius={midBloomR} y={0.04} color="#ffd166" opacity={0.3} />
-          <CircleRing radius={midBloomR} y={0.045} color="#ffd166" />
-        </group>
-        <group position={[farR, 0, 0]}>
-          <DiscFill radius={farBloomR} y={0.04} color="#2ec4b6" opacity={0.3} />
-          <CircleRing radius={farBloomR} y={0.045} color="#2ec4b6" />
-        </group>
-      </group>
       )}
     </group>
   );

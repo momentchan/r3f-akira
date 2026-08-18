@@ -5,6 +5,7 @@ export const STEM_Y_MAX = 0.05;
 
 export const STEM_RANGES = Object.freeze({
   stemLength: { min: 0.05, max: 2 },
+  lengthExp: { min: 0.5, max: 8 },
   stemRadius: { min: 0.002, max: 0.06 },
   leanAngle: { min: 0, max: 45 },
   bendDegree: { min: 0, max: 0.35 },
@@ -15,7 +16,10 @@ export const STEM_RANGES = Object.freeze({
 /** Defaults owned by the top-level Stem Leva panel. */
 export const STEM_DEFAULTS = Object.freeze({
   geometry: {
-    stemLength: [0.52, 1.12],
+    // Field samples inside this range with a long tail (lengthExp): most stems
+    // sit near min, a few reach max. Standalone stems still roll it uniformly.
+    stemLength: [0.52, 1.5],
+    lengthExp: 6,
     stemRadius: [0.0055, 0.016],
     leanAngle: [10, 20],
     bendDegree: [0.04, 0.1],

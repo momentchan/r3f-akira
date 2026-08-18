@@ -18,9 +18,10 @@ import { sampleAnchorField } from './fieldAnchors';
  *   - parents are drawn from ALL placed points, not just the newest, so growth is
  *     bushy rather than a chain.
  *
- * `generation` and `parentIndex` ride on every slot, so the role hierarchy can
- * later fall out of the dispersal tree — founders are the primaries, first
- * offspring the secondaries, deeper generations the quiet echoes.
+ * `generation` and `clumpId` ride on every slot. `clumpId` is the opening
+ * founder lineage — those points become the runtime HEARTS. Hearts wander on
+ * their own clock; a dying flower picks among them by field × distance, then
+ * hops around the chosen heart.
  */
 
 const S_ANG = 12;
@@ -29,10 +30,17 @@ const S_ROLL = 14;
 const S_HOP_DIR = 15;
 const S_HOP_LEN = 16;
 const S_PARENT = 17;
+const S_PICK = 18;
 const S_APPETITE = 21;
 
 /** Attempts per point before falling back or reporting a shortfall. */
 const MAX_TRIES = 40;
+
+/** Hop length decay per dispersal depth. Matches the opening layout. */
+export const DEFAULT_HOP_DECAY = 0.55;
+
+/** Founder respawn: sit on the clump heart, not a full first-generation hop. */
+const FOUNDER_JITTER = 0.02;
 
 /** Largest-remainder split of `total` across `weights`. */
 function allocateByWeight(weights, total) {
@@ -65,7 +73,9 @@ function allocateByWeight(weights, total) {
  * warp displaces the field outward in places, and candidates only ever generate
  * inside this band, so an unpadded band would leave the warped fringes empty.
  */
-function sampleInSupport(anchor, tryIndex, seed, pad) {
+function sampleInSupport(anchor, tryIndex, seed, pad, origin = null) {
+  const ox = origin?.x ?? anchor.x;
+  const oz = origin?.z ?? anchor.z;
   const angle = stableRandomRange(tryIndex, S_ANG, seed, 0, Math.PI * 2);
   const u = stableRandomRange(tryIndex, S_RAD, seed, 0, 1);
   const innerPad = Math.max(0, anchor.inner - pad);
@@ -77,50 +87,220 @@ function sampleInSupport(anchor, tryIndex, seed, pad) {
   const along = Math.cos(angle) * rr * anchor.elong;
   const across = Math.sin(angle) * rr;
   return {
-    x: anchor.x + along * anchor.axis.ax - across * anchor.axis.az,
-    z: anchor.z + along * anchor.axis.az + across * anchor.axis.ax,
+    x: ox + along * anchor.axis.ax - across * anchor.axis.az,
+    z: oz + along * anchor.axis.az + across * anchor.axis.ax,
   };
+}
+
+function pickAnchorIndex(anchors, tryIndex, seed) {
+  let sum = 0;
+  for (let i = 0; i < anchors.length; i += 1) sum += anchors[i].weight;
+  if (sum <= 1e-8) return 0;
+  let roll = stableRandomRange(tryIndex, S_PARENT, seed, 0, sum);
+  for (let i = 0; i < anchors.length; i += 1) {
+    roll -= anchors[i].weight;
+    if (roll <= 0) return i;
+  }
+  return anchors.length - 1;
+}
+
+/**
+ * Field-weighted accept, then the hard keep-out. `random > field` is the
+ * probability: sparse ground can still win, just rarely. Zero field is the
+ * only hard reject.
+ */
+function acceptCandidate(
+  sx, sz, tryIndex, seed,
+  {
+    anchors, fieldOptions, floor = 0,
+    head, faceClearRadius = 0,
+    clearanceHosts, clearMargin, clearHeights,
+  },
+) {
+  const field = sampleAnchorField(sx, sz, anchors, fieldOptions);
+  if (field <= floor) return null;
+  if (stableRandomRange(tryIndex, S_ROLL, seed, 0, 1) > field) return null;
+
+  let x = sx;
+  let z = sz;
+  if (faceClearRadius > 0 && head) {
+    [x, z] = clearPointFromDisc(x, z, head.x, head.z, faceClearRadius);
+  }
+  const [px, pz, ok] = clearPointFromHosts(x, z, clearanceHosts, clearMargin, clearHeights);
+  if (!ok) return null;
+  x = px;
+  z = pz;
+
+  if (faceClearRadius > 0 && head
+    && Math.hypot(x - head.x, z - head.z) < faceClearRadius * 0.92) return null;
+  const settled = sampleAnchorField(x, z, anchors, fieldOptions);
+  if (settled <= floor) return null;
+  return { x, z, field: settled };
+}
+
+/**
+ * Rejection-sample one point from the live density field.
+ *
+ * Used when a heart's periodic hop fails and it needs to catch the drifted
+ * mass. Pin `anchorIndex` so a hip heart cannot jump to the backpack.
+ */
+export function sampleFieldPosition({
+  anchors,
+  fieldOptions = {},
+  floor = 0,
+  clearanceHosts = [],
+  clearMargin = 0.12,
+  clearHeights,
+  head = null,
+  faceClearRadius = 0,
+  seed = 0,
+  tick = 0,
+  anchorIndex = -1,
+  maxTries = MAX_TRIES,
+}) {
+  if (!anchors?.length) return null;
+  const pad = fieldOptions.shapeWarp ?? 0;
+  const centres = fieldOptions.centres;
+  const ctx = {
+    anchors, fieldOptions, floor,
+    head, faceClearRadius, clearanceHosts, clearMargin, clearHeights,
+  };
+
+  for (let t = 0; t < maxTries; t += 1) {
+    const tryIndex = (tick * 7919 + t * 271) % 2147483647;
+    const ai = anchorIndex >= 0 && anchorIndex < anchors.length
+      ? anchorIndex
+      : pickAnchorIndex(anchors, tryIndex, seed);
+    const anchor = anchors[ai];
+    const origin = centres?.[ai] ?? anchor;
+    const s = sampleInSupport(anchor, tryIndex, seed, pad, origin);
+    const got = acceptCandidate(s.x, s.z, tryIndex, seed, ctx);
+    if (got) return got;
+  }
+  return null;
+}
+
+/**
+ * Hop off `from` the way opening dispersal does: fresh random heading, length
+ * shrinking with generation. Founders (generation 0) sit on the clump heart
+ * with a tiny jitter so they do not pixel-lock across cycles.
+ */
+export function sampleClumpHop({
+  from,
+  generation = 0,
+  hopMin = 0.07,
+  hopMax = 0.2,
+  hopDecay = DEFAULT_HOP_DECAY,
+  anchors,
+  fieldOptions = {},
+  floor = 0,
+  clearanceHosts = [],
+  clearMargin = 0.12,
+  clearHeights,
+  head = null,
+  faceClearRadius = 0,
+  seed = 0,
+  tick = 0,
+  maxTries = MAX_TRIES,
+}) {
+  if (!from || !anchors?.length) return null;
+  const ctx = {
+    anchors, fieldOptions, floor,
+    head, faceClearRadius, clearanceHosts, clearMargin, clearHeights,
+  };
+  const parentGen = Math.max(0, generation - 1);
+  const decay = generation <= 0 ? 1 : 1 / (1 + parentGen * hopDecay);
+  const lo = generation <= 0 ? 0 : hopMin * decay;
+  const hi = generation <= 0 ? FOUNDER_JITTER : hopMax * decay;
+
+  for (let t = 0; t < maxTries; t += 1) {
+    const tryIndex = (tick * 7919 + t * 271) % 2147483647;
+    const dir = stableRandomRange(tryIndex, S_HOP_DIR, seed, 0, Math.PI * 2);
+    const len = stableRandomRange(tryIndex, S_HOP_LEN, seed, lo, hi);
+    const got = acceptCandidate(
+      from.x + Math.cos(dir) * len,
+      from.z + Math.sin(dir) * len,
+      tryIndex, seed, ctx,
+    );
+    if (got) return got;
+  }
+  return null;
+}
+
+/**
+ * Weighted pick among live hearts: P ∝ field(heart) × exp(-dist / attractRadius).
+ *
+ * Distance keeps a dying flower in its neighbourhood so occupancy can follow
+ * likelihood without everyone piling onto whichever heart is hottest.
+ */
+export function pickClumpHeart({
+  hearts,
+  x, z,
+  anchors,
+  fieldOptions = {},
+  floor = 0,
+  attractRadius = 0.6,
+  seed = 0,
+  tick = 0,
+}) {
+  const n = hearts?.length ?? 0;
+  if (!n) return null;
+
+  let total = 0;
+  const weights = new Array(n);
+  const radius = Math.max(attractRadius, 1e-3);
+  for (let i = 0; i < n; i += 1) {
+    const h = hearts[i];
+    const field = sampleAnchorField(h.cx, h.cz, anchors, fieldOptions);
+    if (field <= floor) {
+      weights[i] = 0;
+      continue;
+    }
+    const dist = Math.hypot(x - h.cx, z - h.cz);
+    const w = field * Math.exp(-dist / radius);
+    weights[i] = w;
+    total += w;
+  }
+
+  if (total <= 1e-8) {
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < n; i += 1) {
+      const d = Math.hypot(x - hearts[i].cx, z - hearts[i].cz);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return hearts[best];
+  }
+
+  let roll = stableRandomRange(tick, S_PICK, seed, 0, total);
+  for (let i = 0; i < n; i += 1) {
+    roll -= weights[i];
+    if (roll <= 0) return hearts[i];
+  }
+  return hearts[n - 1];
 }
 
 export function buildAnchorClusterSlots({
   anchors,
-  // Anchors widened by the migration range. LIVE slots are placed against
-  // `anchors` so the opening composition is tight to the field that actually
-  // exists; only the respawn spares are allowed out here, where the field is not
-  // yet but will be. Placing live slots against the envelope was survivable only
-  // while a gate hid the ones in the margin — without it they read as a vague
-  // halo around every mass.
-  envelopeAnchors = null,
-  // How far a respawn spare may sit from its live point. Set to the migration
-  // range: spares are the ONLY slots a respawning plant can move into, so hugging
-  // the parent means the composition can never follow the drifting field, while
-  // scattering scene-wide dissolves the clusters. One cluster-travel is the reach
-  // that gives migration room without costing cluster identity.
-  variantSpread = 0,
   count,
-  slotFactor = 1,
   clearanceHosts = [],
   clearMargin = 0.12,
   clearHeights,
   head = null,
   faceClearRadius = 0,
   bodyCenter = [0, 0],
-  nearR = 0.1,
-  farR = 1,
   arrangementSeed = 0,
   fieldOptions = {},
   founderShare = 0.14,
   hopMin = 0.07,
   hopMax = 0.2,
-  hopDecay = 0.55,
+  hopDecay = DEFAULT_HOP_DECAY,
   clumpVariance = 0.6,
 }) {
   if (!anchors?.length || count < 1) {
     return { slots: [], liveIndices: [], diagnostics: { shortfall: 0, attempts: 0, founders: 0 } };
   }
 
-  const variants = Math.max(1, Math.round(slotFactor));
-  const envelopeSet = envelopeAnchors ?? anchors;
   const pad = fieldOptions.shapeWarp ?? 0;
   const liveByAnchor = allocateByWeight(anchors.map((a) => a.weight), Math.floor(count));
   const [cx, cz] = bodyCenter;
@@ -129,56 +309,27 @@ export function buildAnchorClusterSlots({
   let shortfall = 0;
   let attempts = 0;
   let founderCount = 0;
+  let nextClumpId = 0;
 
-  /**
-   * Field roll, then the hard keep-out. Everything above the clearance call is
-   * arithmetic, so rejection stays cheap against a chain that runs ~100
-   * closest-point queries. Note `fieldOptions` carries no `hosts` here — the
-   * clearance below PUSHES points out rather than discarding them.
-   */
-  const tryAccept = (sx, sz, tryIndex, envelope = false) => {
-    const against = envelope ? envelopeSet : anchors;
-    const field = sampleAnchorField(sx, sz, against, fieldOptions);
-    if (field <= 0) return null;
-    if (stableRandomRange(tryIndex, S_ROLL, arrangementSeed, 0, 1) > field) return null;
-
-    let x = sx;
-    let z = sz;
-    if (faceClearRadius > 0 && head) {
-      [x, z] = clearPointFromDisc(x, z, head.x, head.z, faceClearRadius);
-    }
-    const [px, pz, ok] = clearPointFromHosts(x, z, clearanceHosts, clearMargin, clearHeights);
-    if (!ok) return null;
-    x = px;
-    z = pz;
-
-    // The push moved the point. Re-verify the cheap invariants, but never push
-    // again — it can ping-pong between the face disc and the mesh.
-    if (faceClearRadius > 0 && head
-      && Math.hypot(x - head.x, z - head.z) < faceClearRadius * 0.92) return null;
-    // Measured AFTER the push, so it describes where the flower actually stands.
-    const settled = sampleAnchorField(x, z, against, fieldOptions);
-    if (settled <= 0) return null;
-    return { x, z, field: settled };
+  const ctx = {
+    anchors, fieldOptions, floor: 0,
+    head, faceClearRadius, clearanceHosts, clearMargin, clearHeights,
   };
 
-  const pushSlot = (anchor, ai, p, generation, parentIndex, variant, ownerSlot = -1) => {
-    const distC = Math.hypot(p.x - cx, p.z - cz);
+  const tryAccept = (sx, sz, tryIndex) => {
+    attempts += 1;
+    return acceptCandidate(sx, sz, tryIndex, arrangementSeed, ctx);
+  };
+
+  const pushSlot = (anchor, ai, p, generation, clumpId) => {
     const index = slots.length;
     slots.push({
       x: p.x,
       z: p.z,
-      rimT: Math.min(1, Math.max(0, (distC - nearR) / Math.max(farR - nearR, 1e-4))),
       leanOutwardAngle: Math.atan2(p.x - cx, p.z - cz),
-      anchorId: anchor.id,
       anchorIndex: ai,
       generation,
-      parentIndex,
-      variant,
-      // For a variant, the slot index of the live plant it belongs to; -1 for a
-      // live slot. Role is classified only for live slots, so a variant inherits
-      // its owner's role and lands in the same respawn bucket.
-      ownerSlot,
+      clumpId,
       // Local density at this slot. Role and bloom derive from this rather than from
       // dispersal depth, which was an artifact of traversal order with no relation
       // to the field.
@@ -190,7 +341,6 @@ export function buildAnchorClusterSlots({
   /** Rejection-sample a founder anywhere in the anchor's support. */
   const placeFounder = (anchor, ai, salt) => {
     for (let t = 0; t < MAX_TRIES; t += 1) {
-      attempts += 1;
       const tryIndex = ((ai * 7919 + salt * 271) * 61 + t) % 2147483647;
       const s = sampleInSupport(anchor, tryIndex, arrangementSeed, pad);
       const got = tryAccept(s.x, s.z, tryIndex);
@@ -212,7 +362,6 @@ export function buildAnchorClusterSlots({
     const lo = hopMin * decay;
     const hi = hopMax * decay;
     for (let t = 0; t < MAX_TRIES; t += 1) {
-      attempts += 1;
       const tryIndex = (salt * 31 + t) % 2147483647;
       const dir = stableRandomRange(tryIndex, S_HOP_DIR, arrangementSeed, 0, Math.PI * 2);
       const len = stableRandomRange(tryIndex, S_HOP_LEN, arrangementSeed, lo, hi);
@@ -220,32 +369,6 @@ export function buildAnchorClusterSlots({
         from.x + Math.cos(dir) * len,
         from.z + Math.sin(dir) * len,
         tryIndex,
-      );
-      if (got) return got;
-    }
-    return null;
-  };
-
-  /**
-   * A respawn target for the live point `from`.
-   *
-   * Reaches further than a dispersal hop — out to `variantSpread` — and is tested
-   * against the ENVELOPE rather than the live field, because a spare's whole job
-   * is to already exist where the drifting field is heading. No generation decay:
-   * a deep-generation plant needs the same room to follow the mass as a founder.
-   */
-  const placeSpare = (from, salt) => {
-    const hi = Math.max(hopMax, variantSpread);
-    for (let t = 0; t < MAX_TRIES; t += 1) {
-      attempts += 1;
-      const tryIndex = (salt * 31 + t) % 2147483647;
-      const dir = stableRandomRange(tryIndex, S_HOP_DIR, arrangementSeed, 0, Math.PI * 2);
-      const len = stableRandomRange(tryIndex, S_HOP_LEN, arrangementSeed, hopMin, hi);
-      const got = tryAccept(
-        from.x + Math.cos(dir) * len,
-        from.z + Math.sin(dir) * len,
-        tryIndex,
-        true,
       );
       if (got) return got;
     }
@@ -263,7 +386,12 @@ export function buildAnchorClusterSlots({
     const placed = [];
     for (let f = 0; f < founders; f += 1) {
       const got = placeFounder(anchor, ai, f);
-      if (got) placed.push({ p: got, gen: 0, parent: -1, root: placed.length });
+      if (got) {
+        placed.push({
+          p: got, gen: 0, parent: -1, root: placed.length, clumpId: nextClumpId,
+        });
+        nextClumpId += 1;
+      }
     }
     if (!placed.length) { shortfall += budget; continue; }
     founderCount += placed.length;
@@ -293,31 +421,43 @@ export function buildAnchorClusterSlots({
       }
       const parent = placed[pick];
       const got = placeHop(parent.p, salt, parent.gen);
-      if (got) placed.push({ p: got, gen: parent.gen + 1, parent: pick, root: parent.root ?? pick });
+      if (got) {
+        placed.push({
+          p: got, gen: parent.gen + 1, parent: pick,
+          root: parent.root ?? pick, clumpId: parent.clumpId,
+        });
+      }
     }
 
     // Dispersal can stall where the field is tight. Top up by plain field
-    // sampling so the count is met rather than silently thinning out.
+    // sampling so the count is met rather than silently thinning out. Attach the
+    // extra to the nearest founder so it stays in a bouquet instead of becoming
+    // a one-flower "clump" that relocates every death.
     let topUp = 0;
     while (placed.length < budget && topUp < budget) {
       topUp += 1;
       const got = placeFounder(anchor, ai, 1000 + topUp);
       if (!got) break;
-      placed.push({ p: got, gen: 1, parent: -1 });
+      let nearest = 0;
+      let best = Infinity;
+      for (let i = 0; i < placed.length; i += 1) {
+        if (placed[i].gen !== 0) continue;
+        const d = Math.hypot(got.x - placed[i].p.x, got.z - placed[i].p.z);
+        if (d < best) { best = d; nearest = i; }
+      }
+      const founder = placed[nearest];
+      placed.push({
+        p: got, gen: 1, parent: nearest,
+        root: founder.root ?? nearest, clumpId: founder.clumpId,
+      });
     }
     if (placed.length < budget) shortfall += budget - placed.length;
 
-    // Emit each live point followed by its respawn spares. A spare stays within one
-    // cluster-travel of the live point, so a respawning plant follows its own
-    // cluster as the field drifts rather than teleporting across the composition.
     for (let i = 0; i < placed.length; i += 1) {
       const entry = placed[i];
-      const liveIndex = pushSlot(anchor, ai, entry.p, entry.gen, entry.parent, 0);
-      liveIndices.push(liveIndex);
-      for (let v = 1; v < variants; v += 1) {
-        const got = placeSpare(entry.p, (ai * 1299721 + i * 131 + v * 17) % 2147483647);
-        if (got) pushSlot(anchor, ai, got, entry.gen, i, v, liveIndex);
-      }
+      liveIndices.push(pushSlot(
+        anchor, ai, entry.p, entry.gen, entry.clumpId,
+      ));
     }
   }
 

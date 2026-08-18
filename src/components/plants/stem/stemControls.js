@@ -10,6 +10,7 @@ export function createStemGeometrySchema(defaults = STEM_DEFAULTS.geometry) {
   const R = STEM_RANGES;
   return {
     stemLength: { value: d.stemLength, min: R.stemLength.min, max: R.stemLength.max, step: 0.01, label: 'length' },
+    lengthExp: { value: d.lengthExp, min: R.lengthExp.min, max: R.lengthExp.max, step: 0.05 },
     stemRadius: { value: d.stemRadius, min: R.stemRadius.min, max: R.stemRadius.max, step: 0.001, label: 'radius' },
     leanAngle: { value: d.leanAngle, min: R.leanAngle.min, max: R.leanAngle.max, step: 0.5, label: 'lean °' },
     bendDegree: { value: d.bendDegree, min: R.bendDegree.min, max: R.bendDegree.max, step: 0.005, label: 'bend' },

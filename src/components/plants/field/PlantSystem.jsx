@@ -28,9 +28,52 @@ import {
   updateFlowerBatchTips,
 } from '../vat/FlowerTypeBatch';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
-import { stableRandomRange } from '@core';
-import { animatedCentre, sampleAnchorField } from './fieldAnchors';
+import { animatedCentre } from './fieldAnchors';
+import {
+  DEFAULT_HOP_DECAY,
+  pickClumpHeart,
+  sampleClumpHop,
+  sampleFieldPosition,
+} from './fieldClusterLayout';
 import { getSimSpeed } from '../lifecycle/simSpeed';
+
+/**
+ * One heart per opening founder. Hearts wander on their own clock; dying
+ * flowers pick among them by field × distance. The list is the pick target —
+ * the Map is only for looking a founder up while building.
+ */
+function buildHeartRuntime(plants) {
+  const byId = new Map();
+  const list = [];
+  for (let i = 0; i < plants.length; i += 1) {
+    const p = plants[i];
+    const id = p.clumpId ?? i;
+    let h = byId.get(id);
+    if (!h) {
+      h = {
+        id,
+        anchorIndex: p.anchorIndex ?? 0,
+        cx: p.position[0],
+        cz: p.position[2],
+        beat: -1,
+        relocateTick: 0,
+      };
+      byId.set(id, h);
+      list.push(h);
+    }
+    if ((p.generation ?? 1) === 0) {
+      h.cx = p.position[0];
+      h.cz = p.position[2];
+      h.anchorIndex = p.anchorIndex ?? h.anchorIndex;
+    }
+  }
+  return { byId, list };
+}
+
+/** Sim-seconds between heart hops. Default migrateSpeed 0.035 → 10s. */
+function heartPeriod(migrateSpeed) {
+  return 0.35 / Math.max(migrateSpeed, 0.001);
+}
 
 const _lightWorld = new THREE.Vector3();
 const _lightTarget = new THREE.Vector3();
@@ -43,12 +86,6 @@ const _lightTarget = new THREE.Vector3();
  * merged stem geometry.
  */
 const PLANT_DATA_ROWS = 2;
-
-/** Salt for the seeded respawn pick. */
-const S_RESPAWN = 20;
-
-/** Scratch for the respawn weighting, so the hot path allocates nothing. */
-const _slotWeights = [];
 
 function createPlantDataTexture(count, rows = PLANT_DATA_ROWS) {
   const width = Math.max(1, THREE.MathUtils.ceilPowerOfTwo(count));
@@ -63,96 +100,11 @@ function createPlantDataTexture(count, rows = PLANT_DATA_ROWS) {
 }
 
 /**
- * Take a free slot for a respawning plant, preferring one at a similar distance
- * from the body: stem size is baked per slot, so a rim-sized plant reappearing
- * next to the suit would break the near/far size hierarchy. Picks randomly among
- * the closest few so the field still reshuffles.
- */
-/**
- * Hand a respawning plant a free slot from its OWN anchor + role bucket, so a
- * rebirth reshuffles inside its cluster instead of dissolving it. Matching on
- * radius alone let a plant at one cluster reappear at another with the same
- * distance-from-body, and over a few minutes the clusters homogenized back into
- * the even ring the anchors exist to replace.
- *
- * Seeded on the plant's own respawn counter rather than Math.random(): lifecycle
- * timings, positions and colours are all already seeded, so this was the last
- * source of nondeterminism, and CanvasCapture needs the same tableau twice.
- * Also O(1) instead of a map+sort over every free slot on every respawn.
- */
-function takeGroupSlot(byGroup, groupKey, plantSeed, tick, pool, fieldAt) {
-  const bucket = byGroup.get(groupKey);
-  if (!bucket || !bucket.length) return -1;
-
-  let at = -1;
-  if (fieldAt && pool) {
-    // Weighted by the density at each candidate RIGHT NOW. This is what makes the
-    // composition migrate: the field drifts, and every flower that finishes its
-    // cycle is more likely to reappear where the field currently is. Clumps creep
-    // across the ground over a few generations, and no lifecycle is ever cut short
-    // to achieve it — which is the whole reason the old fade gate is gone.
-    //
-    // A bucket holds ~20 slots and this runs only on respawn, so it is a handful
-    // of arithmetic evaluations. No BVH: pool slots are already keep-out validated.
-    let total = 0;
-    for (let k = 0; k < bucket.length; k += 1) {
-      const slot = pool[bucket[k]];
-      const w = slot ? Math.max(0, fieldAt(slot.x, slot.z) - fieldAt.floor) : 0;
-      _slotWeights[k] = w;
-      total += w;
-    }
-    if (total <= 1e-6) {
-      // Every spare in this cluster is in dead ground — the field has drifted past
-      // this whole bucket. Decline the move and leave the plant where it is: it
-      // stands on a slot the builder accepted, which beats relocating it into the
-      // margin. `generationSeen` still advances, so this costs one attempt per
-      // lifecycle rather than retrying every frame.
-      return -1;
-    }
-    let roll = stableRandomRange(plantSeed, S_RESPAWN, tick, 0, total);
-    at = bucket.length - 1;
-    for (let k = 0; k < bucket.length; k += 1) {
-      roll -= _slotWeights[k];
-      if (roll <= 0) { at = k; break; }
-    }
-  } else {
-    // No migration to consult, so any spare in the cluster is as good as another.
-    at = Math.min(
-      bucket.length - 1,
-      Math.floor(stableRandomRange(plantSeed, S_RESPAWN, tick, 0, bucket.length)),
-    );
-  }
-  const slotIndex = bucket[at];
-  bucket.splice(at, 1);
-  return slotIndex;
-}
-
-function takeSimilarSlot(pool, freeSlots, targetRimT) {
-  if (!freeSlots.length) return -1;
-  let bestAt = 0;
-  if (freeSlots.length > 1) {
-    const ranked = freeSlots
-      .map((slotIndex, at) => ({
-        at,
-        d: Math.abs((pool[slotIndex]?.rimT ?? 0) - targetRimT),
-      }))
-      .sort((a, b) => a.d - b.d);
-    const k = Math.min(4, ranked.length);
-    bestAt = ranked[Math.floor(Math.random() * k)].at;
-  }
-  const slotIndex = freeSlots[bestAt];
-  freeSlots.splice(bestAt, 1);
-  return slotIndex;
-}
-
-/**
  * Single plant field system: one merged stem mesh + instanced VAT heads per type.
  * Leaves are deferred (v1) for density.
  */
 export function PlantSystem({
   stems,
-  slotPool = null, // validated spawn slots; plants hop between them on respawn
-  reshuffleOnRespawn = true,
   leanOut = 0,
   phaseSpread = 1,
   stemSegments = 32,
@@ -178,10 +130,10 @@ export function PlantSystem({
     stemMesh: null,
     flowerBatches: {},
     light: null,
-    freeSlots: [],
     // Reused every frame so the respawn field sampler allocates nothing.
     migrateOptions: null,
     migrateCentres: [],
+    hearts: [],
     // Scaled, pausable simulation time. Kept here rather than read off the render
     // clock so speed changes and the Space pause apply to the field drift too.
     simTime: 0,
@@ -234,16 +186,8 @@ export function PlantSystem({
         // is the delta from this, which keeps "lean outward" pointing outward.
         slotIndex: stem.slotIndex ?? -1,
         baseLeanAngle: stem.leanOutwardAngle ?? 0,
-        // Immutable: the band this plant's size was baked for. Matching against
-        // the *current* slot instead would let it random-walk inward or outward
-        // over many respawns and wreck the near/far size hierarchy.
-        homeRimT: stem.rimT ?? 0,
         // Normalized once here so the per-frame loop needs no fallback.
         bloomCeiling: stem.bloomCeiling ?? 1,
-        // 0 so a plant grows IN rather than popping when its slot first gains density.
-        // Anchor + role identity. Matched on respawn so a plant can only take a
-        // slot from its own cluster, or the clusters homogenize over minutes.
-        homeGroupKey: stem.groupKey ?? -1,
         respawnTick: 0,
         generationSeen: 0,
         lifecycle: createLifecycleState({
@@ -287,36 +231,16 @@ export function PlantSystem({
             prev[i].lifecycle,
             lifecycleRanges,
           );
+          // Layout rebuilds reset generationSeen to 0; a restored lifecycle that
+          // already wrapped would otherwise hop on the first frame.
+          next[i].generationSeen = prev[i].generationSeen;
         }
       }
     }
     runtimeRef.current.plants = next;
     runtimeRef.current.plantData = stemBuild.plantData;
-    // Slots not occupied by a live plant are the respawn targets.
-    const taken = new Set(next.map((p) => p.slotIndex));
-    runtimeRef.current.freeSlots = (slotPool ?? [])
-      .map((_, idx) => idx)
-      .filter((idx) => !taken.has(idx));
-    // Also bucketed by anchor+role so a respawn can be constrained to its own
-    // cluster. Falls back to the flat list when the layout has no groups.
-    const byGroup = new Map();
-    (slotPool ?? []).forEach((slot, idx) => {
-      if (taken.has(idx)) return;
-      const key = slot.groupKey ?? -1;
-      const bucket = byGroup.get(key);
-      if (bucket) bucket.push(idx); else byGroup.set(key, [idx]);
-    });
-    runtimeRef.current.freeSlotsByGroup = byGroup;
-    if (byGroup.size === 1 && byGroup.has(-1)) {
-      // Every free slot landed in the fallback bucket, which means no plant can
-      // ever match one and the respawn reshuffle is dead. This exact bug shipped
-      // once already.
-      console.warn(
-        `[PlantSystem] respawn reshuffle disabled: ${byGroup.get(-1).length}`
-        + ' free slots have no groupKey',
-      );
-    }
-  }, [stemBuild, slotPool]);
+    runtimeRef.current.hearts = buildHeartRuntime(next).list;
+  }, [stemBuild]);
 
   useEffect(() => () => {
     stemBuild.geometry?.dispose();
@@ -380,8 +304,7 @@ export function PlantSystem({
     // centres depend only on time, and the options object is mutated in place so
     // the hot loop allocates nothing.
     let migrateOptions = null;
-    let fieldAt = null;
-    if (migration) {
+    if (migration?.anchors?.length) {
       if (!rt.migrateOptions) rt.migrateOptions = { ...migration.options };
       migrateOptions = rt.migrateOptions;
       Object.assign(migrateOptions, migration.options);
@@ -393,21 +316,66 @@ export function PlantSystem({
           // rate and freeze with the Space pause. On the render clock, pausing the
           // flowers left the masses sliding along underneath them.
           migration.anchors[a], simTime,
-          migration.options.migrateRange, migration.options.migrateSpeed,
+          migration.options.migrateRange ?? 0, migration.options.migrateSpeed ?? 0,
         );
       }
       migrateOptions.centres = centres;
-      // Consumed only on respawn, so this closure is built once per frame and on
-      // most frames is never called.
-      fieldAt = (x, z) => sampleAnchorField(
-        x, z, migration.anchors, migrateOptions,
-      );
-      fieldAt.floor = migration.threshold ?? 0;
+
+      // Hearts hop on their own clock, staggered per id so the whole field does
+      // not jump in one frame. migrateRange 0 freezes them; flowers still pick
+      // among the frozen set.
+      const range = migration.options.migrateRange ?? 0;
+      const speed = migration.options.migrateSpeed ?? 0;
+      if (range > 0 && speed > 0 && rt.hearts.length) {
+        const period = heartPeriod(speed);
+        const hopDecay = migration.hopDecay ?? DEFAULT_HOP_DECAY;
+        for (let h = 0; h < rt.hearts.length; h += 1) {
+          const heart = rt.hearts[h];
+          const phase = (heart.id * 0.728) % 1;
+          const beat = Math.floor(simTime / period - phase);
+          // First observe: sync the counter without hopping, so spawn layout
+          // is the opening composition rather than an instant relocate.
+          if (heart.beat < 0) {
+            heart.beat = beat;
+            continue;
+          }
+          if (beat === heart.beat) continue;
+          heart.beat = beat;
+          const sample = {
+            anchors: migration.anchors,
+            fieldOptions: migrateOptions,
+            clearanceHosts: migration.clearanceHosts,
+            clearMargin: migration.meshClearDistance,
+            clearHeights: migration.clearHeights,
+            head: migration.head,
+            faceClearRadius: migration.faceClearRadius,
+            seed: heart.id * 17 + 1,
+            tick: heart.relocateTick,
+          };
+          // Creep first: a field-weighted hop of up to migrateRange. If the
+          // local patch has gone bare, catch the drifted mass on this anchor.
+          const crept = sampleClumpHop({
+            ...sample,
+            from: { x: heart.cx, z: heart.cz },
+            generation: 1,
+            hopMin: range * 0.25,
+            hopMax: range,
+            hopDecay,
+          });
+          const next = crept ?? sampleFieldPosition({
+            ...sample,
+            anchorIndex: heart.anchorIndex,
+          });
+          if (next) {
+            heart.cx = next.x;
+            heart.cz = next.z;
+          }
+          heart.relocateTick += 1;
+        }
+      }
     }
     const { data, width, tex } = plantData;
     const time = clock.elapsedTime;
-    const pool = slotPool ?? [];
-    const freeSlots = rt.freeSlots ?? (rt.freeSlots = []);
 
     for (let i = 0; i < plants.length; i++) {
       const plant = plants[i];
@@ -437,42 +405,56 @@ export function PlantSystem({
       // Read once and never scaled: the lifecycle alone owns how grown a stem is.
       const stemGrow = growthState.growth;
 
-      // Respawn shuffle: the clock wrapped, so hand this plant a different slot.
-      // Gated on stemGrow ~ 0 so it only ever teleports while fully retracted —
-      // if the wrap frame is already visible we simply retry once it is not.
+      // Respawn: pick a live heart by field × distance, then hop around it.
+      // Hearts have already moved on their own clock this frame. Gated on
+      // stemGrow ~ 0 so it only ever teleports while fully retracted.
       if (
-        reshuffleOnRespawn
-        && plant.lifecycle.generation !== plant.generationSeen
+        plant.lifecycle.generation !== plant.generationSeen
         && stemGrow <= 0.001
       ) {
-        const byGroup = runtimeRef.current.freeSlotsByGroup;
-        const grouped = plant.homeGroupKey >= 0 && byGroup;
-        const nextSlot = grouped
-          ? takeGroupSlot(
-            byGroup, plant.homeGroupKey, plant.seed, plant.respawnTick, pool, fieldAt,
-          )
-          : takeSimilarSlot(pool, freeSlots, plant.homeRimT);
-        if (nextSlot >= 0) {
-          if (plant.slotIndex >= 0) {
-            if (grouped) {
-              // Released to homeGroupKey, never to the slot's own group. They are
-              // equal by construction; writing it this way stops a mislabelled slot
-              // from leaking a plant into a neighbouring cluster.
-              const home = byGroup.get(plant.homeGroupKey);
-              if (home) home.push(plant.slotIndex);
-              else byGroup.set(plant.homeGroupKey, [plant.slotIndex]);
-            } else {
-              freeSlots.push(plant.slotIndex);
+        if (migrateOptions && rt.hearts.length) {
+          const [bx, bz] = migration.bodyCenter ?? [0, 0];
+          const hopMin = migration.hopMin ?? 0.07;
+          const hopMax = migration.hopMax ?? 0.2;
+          const hopDecay = migration.hopDecay ?? DEFAULT_HOP_DECAY;
+          const sample = {
+            anchors: migration.anchors,
+            fieldOptions: migrateOptions,
+            clearanceHosts: migration.clearanceHosts,
+            clearMargin: migration.meshClearDistance,
+            clearHeights: migration.clearHeights,
+            head: migration.head,
+            faceClearRadius: migration.faceClearRadius,
+            seed: plant.seed,
+            tick: plant.respawnTick,
+          };
+          const heart = pickClumpHeart({
+            hearts: rt.hearts,
+            x: plant.position[0],
+            z: plant.position[2],
+            anchors: migration.anchors,
+            fieldOptions: migrateOptions,
+            attractRadius: hopMax * 3,
+            seed: plant.seed,
+            tick: plant.respawnTick,
+          });
+          if (heart) {
+            const got = sampleClumpHop({
+              ...sample,
+              from: { x: heart.cx, z: heart.cz },
+              generation: plant.generation ?? 1,
+              hopMin,
+              hopMax,
+              hopDecay,
+            });
+            if (got) {
+              plant.position[0] = got.x;
+              plant.position[2] = got.z;
+              plant.yaw = Math.atan2(got.x - bx, got.z - bz) - plant.baseLeanAngle;
+              plant.clumpId = heart.id;
             }
+            plant.respawnTick += 1;
           }
-          const slot = pool[nextSlot];
-          plant.slotIndex = nextSlot;
-          plant.position[0] = slot.x;
-          plant.position[2] = slot.z;
-          // Turn by the change in outward azimuth so the stem keeps leaning away
-          // from the body at its new spot (and reads as a different plant).
-          plant.yaw = slot.leanOutwardAngle - plant.baseLeanAngle;
-          plant.respawnTick += 1;
         }
         plant.generationSeen = plant.lifecycle.generation;
       }
@@ -484,8 +466,9 @@ export function PlantSystem({
       // count in permanently dormant plants.
       //
       // Migration now expresses itself through WHERE the next flower appears, not
-      // by retracting live ones: the field weights the respawn pick above, so every
-      // plant runs a full grow/hold/shed/retract cycle wherever it stands.
+      // by retracting live ones: hearts wander on a timer, a death picks among
+      // them by field × distance, then hops. Every plant still runs a full
+      // grow/hold/shed/retract cycle wherever it stands.
       plant.stemGrow = stemGrow;
       // Ceiling applied HERE rather than inside computeBloomLifecycle: that
       // function deliberately forces flowerFrame to 1 during petal shed to avoid
