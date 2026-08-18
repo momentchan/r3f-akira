@@ -25,7 +25,7 @@
  * that Space is a toggle a reviewer can hit without losing the slider position.
  */
 
-const authoredScaleRef = { current: 1 };
+const authoredScaleRef = { current: 0 };
 const debugMulRef = { current: 1 };
 
 function finiteNonNeg(value, fallback) {

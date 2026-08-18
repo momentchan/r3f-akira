@@ -34,11 +34,13 @@ const FLOW_REST_Y = FLOW_Y_PAD
  *
  * Camera motion is independent: this never reads orbit speed.
  * FLOW maps pointer Y (lower band = 0x, upper band = 8x; edges clamp early).
- * Explore (D) maps stillness. Other modes hold 1x.
+ * Explore (D) maps stillness. Frozen at 0 until ENTER.
+ * FLOW holds 1x through the camera intro, then damps toward pointer Y.
  */
 export function usePlantTimeScale({ enabled = true } = {}) {
   const cameraMode = useExperienceStore((state) => state.cameraMode);
   const stillness = useExperienceStore((state) => state.stillness);
+  const flowIntroDone = useExperienceStore((state) => state.flowIntroDone);
   const setPlantTimeScale = useExperienceStore((state) => state.setPlantTimeScale);
   const pointerY = useRef(FLOW_REST_Y);
   const smoothed = useRef(1);
@@ -53,17 +55,23 @@ export function usePlantTimeScale({ enabled = true } = {}) {
 
   useFrame((_, delta) => {
     if (!enabled) {
-      setAuthoredSimScale(1);
-      setPlantTimeScale(1);
+      setAuthoredSimScale(0);
+      setPlantTimeScale(0);
       return;
     }
 
     const dt = Math.min(delta, 0.1);
 
     if (cameraMode === CAMERA_MODE.Flow) {
+      if (!flowIntroDone) {
+        smoothed.current = 1;
+        setAuthoredSimScale(1);
+        setPlantTimeScale(1);
+        return;
+      }
       const u = flowTimeUnit(pointerY.current);
       const target = lerp(FLOW_TIME_MIN, FLOW_TIME_MAX, u);
-      smoothed.current = THREE.MathUtils.damp(smoothed.current, target, 4, dt);
+      smoothed.current = THREE.MathUtils.damp(smoothed.current, target, 1.8, dt);
       setAuthoredSimScale(smoothed.current);
       setPlantTimeScale(smoothed.current);
       return;

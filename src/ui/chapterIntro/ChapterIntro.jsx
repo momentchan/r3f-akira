@@ -11,6 +11,7 @@ export function ChapterIntro({
   loadingLabel = CHAPTER_CONTENT.loadingLabel,
   isMobile = false,
   status,
+  onEnter,
   onExited,
 }) {
   const [isExiting, setIsExiting] = useState(false);
@@ -25,10 +26,21 @@ export function ChapterIntro({
     return () => window.removeEventListener('resize', checkOrientation);
   }, []);
 
-  const handleEnter = () => {
+  const handleEnter = useCallback(() => {
     if (!status?.isReady || status.error || isExiting) return;
     setIsExiting(true);
-  };
+    onEnter?.();
+  }, [status, isExiting, onEnter]);
+
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.code !== 'Enter' && event.code !== 'NumpadEnter') return;
+      if (event.repeat) return;
+      handleEnter();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleEnter]);
 
   const handleTransitionEnd = useCallback(
     (event) => {

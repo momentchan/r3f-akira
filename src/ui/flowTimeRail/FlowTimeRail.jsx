@@ -18,11 +18,13 @@ export function FlowTimeRail() {
   const isStarted = useExperienceStore((state) => state.isStarted);
   const cameraMode = useExperienceStore((state) => state.cameraMode);
   const plantTimeScale = useExperienceStore((state) => state.plantTimeScale);
+  const flowIntroDone = useExperienceStore((state) => state.flowIntroDone);
   const [liveOn, setLiveOn] = useState(false);
   const prevScale = useRef(plantTimeScale);
   const hideTimer = useRef(0);
 
-  const visible = isStarted && cameraMode === CAMERA_MODE.Flow;
+  const visible =
+    isStarted && cameraMode === CAMERA_MODE.Flow && flowIntroDone;
 
   useEffect(() => {
     if (!visible) {

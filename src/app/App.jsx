@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { LevaWrapper, useDeviceDetection } from '@core';
 import { ExperienceCanvas } from './ExperienceCanvas';
 import { isDebugRoute } from '../core/debugRoute';
@@ -9,13 +9,13 @@ import { CHAPTER_CONTENT } from '../ui/chapterIntro/chapterContent';
 import { FlowTimeRail } from '../ui/flowTimeRail/FlowTimeRail';
 
 export default function App() {
-  const isStarted = useExperienceStore((state) => state.isStarted);
   const setStarted = useExperienceStore((state) => state.setStarted);
   const gpuError = useExperienceStore((state) => state.gpuError);
   const setGpuError = useExperienceStore((state) => state.setGpuError);
   const setIsMobile = useExperienceStore((state) => state.setIsMobile);
   const isMobile = useDeviceDetection();
   const { status } = useExperienceReady();
+  const [showIntro, setShowIntro] = useState(() => !isDebugRoute());
 
   useEffect(() => {
     setIsMobile(isMobile);
@@ -41,9 +41,9 @@ export default function App() {
 
   return (
     <>
-      <LevaWrapper />
+      <LevaWrapper initialHidden={!isDebugRoute()} />
 
-      {!isStarted && !isDebugRoute() && (
+      {showIntro && (
         <ChapterIntro
           chapter={CHAPTER_CONTENT.chapter}
           title={CHAPTER_CONTENT.title}
@@ -53,7 +53,8 @@ export default function App() {
           loadingLabel={CHAPTER_CONTENT.loadingLabel}
           isMobile={isMobile}
           status={status}
-          onExited={() => setStarted(true)}
+          onEnter={() => setStarted(true)}
+          onExited={() => setShowIntro(false)}
         />
       )}
 

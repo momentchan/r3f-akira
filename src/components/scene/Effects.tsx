@@ -7,6 +7,7 @@ import { useControls, folder } from 'leva';
 import Stats from 'stats-gl';
 import { createSilkWeaveNode, createSilkWeaveUniforms } from '../postfx/createSilkWeaveNode';
 import { SILK_WEAVE_DEFAULTS } from '../postfx/silkWeaveDefaults';
+import { isDebugRoute } from '../../core/debugRoute';
 import 'stats-gl/addons/StatsGLNode';
 
 export default function Effects() {
@@ -49,18 +50,21 @@ export default function Effects() {
     useEffect(() => {
         if (!gl || !(gl instanceof WebGPURenderer)) return;
 
-        const stats = new Stats({
-            logsPerSecond: 20,
-            samplesLog: 100,
-            samplesGraph: 10,
-            precision: 2,
-            horizontal: true,
-            minimal: false,
-            mode: 0,
-        });
-        document.body.appendChild(stats.dom);
-        stats.init(gl);
-        statsRef.current = stats;
+        const showStats = isDebugRoute();
+        if (showStats) {
+            const stats = new Stats({
+                logsPerSecond: 20,
+                samplesLog: 100,
+                samplesGraph: 10,
+                precision: 2,
+                horizontal: true,
+                minimal: false,
+                mode: 0,
+            });
+            document.body.appendChild(stats.dom);
+            stats.init(gl);
+            statsRef.current = stats;
+        }
 
         const renderer = gl as WebGPURenderer;
         const pp = new THREE.PostProcessing(renderer);
@@ -70,8 +74,10 @@ export default function Effects() {
         postProcessingRef.current = pp;
 
         return () => {
-            document.body.removeChild(stats.dom);
-            statsRef.current = null;
+            if (statsRef.current) {
+                document.body.removeChild(statsRef.current.dom);
+                statsRef.current = null;
+            }
             postProcessingRef.current = null;
         };
     }, [gl, scene, camera, silkUniforms]);

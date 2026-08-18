@@ -2,7 +2,7 @@ export const CAMERA_DEFAULTS = {
   // Look-at for FLOW orbit (world space). Field group sits at y = -1.
   target: [0.0, -0.12, -0.2],
   // Camera sits toward -X so a top-down view reads head-up / feet-down.
-  startAngle: -Math.PI / 2,
+  startAngle: 0,
 
   // Near-nadir still. Small XZ radius so startAngle can hold 頭上腳下.
   overheadHeight: 18,

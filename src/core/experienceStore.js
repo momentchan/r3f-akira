@@ -51,4 +51,11 @@ export const useExperienceStore = create((set, get) => ({
         ? state
         : { plantTimeScale },
     ),
+
+  // False until FLOW camera intro hands off to the live orbit.
+  flowIntroDone: false,
+  setFlowIntroDone: (flowIntroDone) =>
+    set((state) =>
+      state.flowIntroDone === flowIntroDone ? state : { flowIntroDone },
+    ),
 }));

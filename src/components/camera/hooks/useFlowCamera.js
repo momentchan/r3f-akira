@@ -14,18 +14,19 @@ function sineInOut(u) {
   return 0.5 - 0.5 * Math.cos(Math.PI * u);
 }
 
-/** Cubic from 0→1 with endpoint slopes v0 / v1 (in units of the normalized clock). */
-function hermite01(u, v0, v1) {
-  const u2 = u * u;
-  const u3 = u2 * u;
-  return 3 * u2 - 2 * u3 + v0 * (u3 - 2 * u2 + u) + v1 * (u3 - u2);
+/**
+ * 0→1 with rest + flat accel at the start (quartic), slope v1 at the end.
+ * Flatter than a cubic ease-in so the first seconds barely yaw, then catch
+ * FLOW orbitSpeed at handoff.
+ */
+function easeInRest(u, v1) {
+  const u3 = u * u * u;
+  return (4 - v1) * u3 + (v1 - 3) * u3 * u;
 }
 
 const WHEEL_TO_RADIUS = 0.0025;
-const INTRO_DURATION = 15;
+const INTRO_DURATION = 20;
 const INTRO_TURNS = Math.PI * 2;
-/** Start swirl slope. Does not move the t=0 pose. */
-const INTRO_START_SLOPE = 2.4;
 
 function applyLookAt(controls, angle, radius, height, target) {
   const look = Array.isArray(target) ? target : CAMERA_DEFAULTS.target;
@@ -60,6 +61,7 @@ export function useFlowCamera({
   restartKey = 0,
 }) {
   const setStillness = useExperienceStore((state) => state.setStillness);
+  const setFlowIntroDone = useExperienceStore((state) => state.setFlowIntroDone);
   const angleRef = useRef(startAngle);
   const liveRadiusRef = useRef(radius);
   const smoothRadiusRef = useRef(radius);
@@ -103,6 +105,7 @@ export function useFlowCamera({
         angleRef.current = startAngle + INTRO_TURNS;
         liveRadiusRef.current = radius;
         smoothRadiusRef.current = radius;
+        setFlowIntroDone(true);
       },
     });
 
@@ -117,8 +120,9 @@ export function useFlowCamera({
     if (enabled || !isStarted) return undefined;
     introDoneRef.current = true;
     introRef.current.p = 1;
+    setFlowIntroDone(true);
     return undefined;
-  }, [enabled, isStarted]);
+  }, [enabled, isStarted, setFlowIntroDone]);
 
   useEffect(() => {
     if (!enabled || !isStarted) return undefined;
@@ -160,7 +164,7 @@ export function useFlowCamera({
       restR = THREE.MathUtils.lerp(overheadRadius, radius, s);
       amp = s;
       angleRef.current =
-        startAngle + INTRO_TURNS * hermite01(u, INTRO_START_SLOPE, intro.endSlope);
+        startAngle + INTRO_TURNS * easeInRest(u, intro.endSlope);
     } else {
       restH = height;
       amp = 1;
