@@ -15,7 +15,7 @@ import Effects from '../components/scene/Effects';
 import { ShadowCatcher } from '../components/scene/ShadowCatcher';
 import { setSimSpeedMul } from '../components/plants/lifecycle/simSpeed';
 import { SCENE_DEFAULTS } from '../components/scene/sceneDefaults';
-import { FLOW_START } from '../components/camera/cameraShots';
+import { FLOW_OVERHEAD } from '../components/camera/cameraShots';
 import { TIER1_TARGETS, useExperienceStore } from '../core/experienceStore';
 
 function createWebGPURenderer(canvas) {
@@ -122,7 +122,7 @@ export const ExperienceCanvas = memo(function ExperienceCanvas() {
         fov: 45,
         near: 0.1,
         far: 200,
-        position: FLOW_START.position,
+        position: FLOW_OVERHEAD.position,
       }}
       gl={createWebGPURenderer}
       dpr={[1, 2]}

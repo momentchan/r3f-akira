@@ -23,7 +23,21 @@ export function flowStartPose(params = CAMERA_DEFAULTS) {
   };
 }
 
+export function flowOverheadPose(params = CAMERA_DEFAULTS) {
+  const target = params.target;
+  return {
+    position: pointOnOrbit(
+      params.startAngle,
+      params.overheadRadius,
+      params.overheadHeight,
+      target,
+    ),
+    target,
+  };
+}
+
 export const FLOW_START = flowStartPose();
+export const FLOW_OVERHEAD = flowOverheadPose();
 
 export const FRAME_SHOTS = [
   {

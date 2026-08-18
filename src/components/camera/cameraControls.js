@@ -1,43 +1,35 @@
 import { button, folder } from 'leva';
-import { CAMERA_MODE, CAMERA_MODE_LABELS } from './cameraModes';
 import { CAMERA_DEFAULTS } from './cameraDefaults';
-import { FRAME_SHOTS } from './cameraShots';
-
-const MODE_OPTIONS = {
-  [CAMERA_MODE_LABELS[CAMERA_MODE.Flow]]: CAMERA_MODE.Flow,
-  [CAMERA_MODE_LABELS[CAMERA_MODE.Explore]]: CAMERA_MODE.Explore,
-  [CAMERA_MODE_LABELS[CAMERA_MODE.Frames]]: CAMERA_MODE.Frames,
-};
 
 export function createCameraControlsSchema(
   defaults = CAMERA_DEFAULTS,
-  { onLogLookAt, onRestartFlow, onModeChange, onFrameChange } = {},
+  { onLogLookAt, onRestartFlow } = {},
 ) {
   const d = defaults;
   return {
-    mode: {
-      value: d.mode,
-      options: MODE_OPTIONS,
-      label: 'Mode',
-      onChange: (value, _path, context) => {
-        if (!context?.fromPanel) return;
-        onModeChange?.(value);
-      },
-    },
-    frame: {
-      value: 0,
-      min: 0,
-      max: Math.max(0, FRAME_SHOTS.length - 1),
-      step: 1,
-      label: 'Frame',
-      onChange: (value, _path, context) => {
-        if (!context?.fromPanel) return;
-        onFrameChange?.(value);
-      },
-    },
-
     Flow: folder({
       target: { value: d.target, label: 'Target' },
+      startAngle: {
+        value: d.startAngle,
+        min: -Math.PI,
+        max: Math.PI,
+        step: 0.01,
+        label: 'Start Angle',
+      },
+      overheadHeight: {
+        value: d.overheadHeight,
+        min: 3,
+        max: 20,
+        step: 0.05,
+        label: 'Overhead Height',
+      },
+      overheadRadius: {
+        value: d.overheadRadius,
+        min: 0.15,
+        max: 2,
+        step: 0.01,
+        label: 'Overhead Radius',
+      },
       radius: {
         value: d.radius,
         min: d.radiusMin,

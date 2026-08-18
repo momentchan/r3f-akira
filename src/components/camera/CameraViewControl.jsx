@@ -9,7 +9,13 @@ import { createCameraControlsSchema } from './cameraControls';
 import { CAMERA_MODE } from './cameraModes';
 import { useExploreStillness } from './hooks/useExploreStillness';
 import { useFlowCamera } from './hooks/useFlowCamera';
-import { useFrameCamera } from './hooks/useFrameCamera';
+
+function isTypingTarget(target) {
+  if (!target || typeof target !== 'object') return false;
+  const el = target;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+}
 
 export function CameraViewControl() {
   const controlsRef = useRef(null);
@@ -17,14 +23,10 @@ export function CameraViewControl() {
   const isStarted = useExperienceStore((state) => state.isStarted);
   const cameraMode = useExperienceStore((state) => state.cameraMode);
   const setCameraMode = useExperienceStore((state) => state.setCameraMode);
-  const frameIndex = useExperienceStore((state) => state.frameIndex);
-  const setFrameIndex = useExperienceStore((state) => state.setFrameIndex);
 
   const schema = useMemo(
     () =>
       createCameraControlsSchema(CAMERA_DEFAULTS, {
-        onModeChange: setCameraMode,
-        onFrameChange: setFrameIndex,
         onLogLookAt: () => {
           const controls = controlsRef.current;
           if (!controls) return;
@@ -39,27 +41,34 @@ export function CameraViewControl() {
         },
         onRestartFlow: () => setFlowGeneration((n) => n + 1),
       }),
-    [setCameraMode, setFrameIndex],
+    [],
   );
 
-  const [params, setParams] = useControls('Camera', () => schema, { collapsed: true });
+  const [params] = useControls('Camera', () => schema, { collapsed: true });
 
   useEffect(() => {
-    if (params.mode !== cameraMode) setParams({ mode: cameraMode });
-  }, [cameraMode, params.mode, setParams]);
+    if (!isStarted) return undefined;
+    const onKey = (event) => {
+      if (event.code !== 'KeyD' || event.repeat) return;
+      if (isTypingTarget(event.target)) return;
+      const next =
+        useExperienceStore.getState().cameraMode === CAMERA_MODE.Flow
+          ? CAMERA_MODE.Explore
+          : CAMERA_MODE.Flow;
+      setCameraMode(next);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isStarted, setCameraMode]);
 
-  useEffect(() => {
-    if (params.frame !== frameIndex) setParams({ frame: frameIndex });
-  }, [frameIndex, params.frame, setParams]);
-
-  const flowEnabled = isStarted && cameraMode === CAMERA_MODE.Flow;
-  const framesEnabled = isStarted && cameraMode === CAMERA_MODE.Frames;
+  const flowEnabled = cameraMode === CAMERA_MODE.Flow;
   const exploreEnabled = isStarted && cameraMode === CAMERA_MODE.Explore;
 
   usePlantTimeScale({ enabled: isStarted });
   useFlowCamera({
     controlsRef,
     enabled: flowEnabled,
+    isStarted,
     target: params.target,
     radius: params.radius,
     radiusAmp: params.radiusAmp,
@@ -68,9 +77,11 @@ export function CameraViewControl() {
     heightAmp: params.heightAmp,
     heightCycles: params.heightCycles,
     orbitSpeed: params.orbitSpeed,
+    startAngle: params.startAngle,
+    overheadHeight: params.overheadHeight,
+    overheadRadius: params.overheadRadius,
     restartKey: flowGeneration,
   });
-  useFrameCamera({ controlsRef, enabled: framesEnabled, frameIndex });
   useExploreStillness({ controlsRef, enabled: exploreEnabled });
 
   return (

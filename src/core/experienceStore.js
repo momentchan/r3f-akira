@@ -1,5 +1,4 @@
 import { getInitialCameraMode } from '../components/camera/cameraModes';
-import { FRAME_SHOTS } from '../components/camera/cameraShots';
 import { isDebugRoute } from './debugRoute';
 import { create } from 'zustand';
 
@@ -37,15 +36,6 @@ export const useExperienceStore = create((set, get) => ({
   setCameraMode: (cameraMode) =>
     set((state) => (state.cameraMode === cameraMode ? state : { cameraMode })),
 
-  frameIndex: 0,
-  setFrameIndex: (frameIndex) => {
-    const count = FRAME_SHOTS.length;
-    const next = ((frameIndex % count) + count) % count;
-    set((state) => (state.frameIndex === next ? state : { frameIndex: next }));
-  },
-  nextFrame: () => get().setFrameIndex(get().frameIndex + 1),
-  prevFrame: () => get().setFrameIndex(get().frameIndex - 1),
-
   // 0 = active looking, 1 = sustained stillness. For environmental systems.
   stillness: 0,
   setStillness: (stillness) =>
@@ -53,7 +43,7 @@ export const useExperienceStore = create((set, get) => ({
       Math.abs(state.stillness - stillness) < 0.002 ? state : { stillness },
     ),
 
-  // Authored plant-time multiplier (FLOW pointer Y, EXPLORE stillness, FRAMES 1).
+  // Authored plant-time multiplier (FLOW pointer Y, EXPLORE stillness).
   plantTimeScale: 1,
   setPlantTimeScale: (plantTimeScale) =>
     set((state) =>

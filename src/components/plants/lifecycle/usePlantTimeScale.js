@@ -11,7 +11,7 @@ export const FLOW_TIME_MAX = 8;
 const FLOW_Y_PAD = 0.2;
 const EXPLORE_MIN = 1;
 const EXPLORE_MAX = 8;
-const FRAMES_SCALE = 1;
+const HOLD_SCALE = 1;
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -34,7 +34,7 @@ const FLOW_REST_Y = FLOW_Y_PAD
  *
  * Camera motion is independent: this never reads orbit speed.
  * FLOW maps pointer Y (lower band = 0x, upper band = 8x; edges clamp early).
- * FRAMES holds 1x.
+ * Explore (D) maps stillness. Other modes hold 1x.
  */
 export function usePlantTimeScale({ enabled = true } = {}) {
   const cameraMode = useExperienceStore((state) => state.cameraMode);
@@ -76,7 +76,7 @@ export function usePlantTimeScale({ enabled = true } = {}) {
       return;
     }
 
-    setAuthoredSimScale(FRAMES_SCALE);
-    setPlantTimeScale(FRAMES_SCALE);
+    setAuthoredSimScale(HOLD_SCALE);
+    setPlantTimeScale(HOLD_SCALE);
   });
 }

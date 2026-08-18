@@ -1,11 +1,12 @@
-import { getInitialCameraMode } from './cameraModes';
-
 export const CAMERA_DEFAULTS = {
-  mode: getInitialCameraMode(),
-
   // Look-at for FLOW orbit (world space). Field group sits at y = -1.
   target: [0.0, -0.12, -0.2],
-  startAngle: 0.35,
+  // Camera sits toward -X so a top-down view reads head-up / feet-down.
+  startAngle: -Math.PI / 2,
+
+  // Near-nadir still. Small XZ radius so startAngle can hold 頭上腳下.
+  overheadHeight: 18,
+  overheadRadius: 0.35,
 
   radius: 3,
   radiusAmp: 0.7,
