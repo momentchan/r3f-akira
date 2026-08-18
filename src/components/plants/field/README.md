@@ -41,20 +41,17 @@ PlantSystem             (PlantSystem.jsx)    merged tube geometry + VAT flower b
 `sampleAnchorField` is the single source of truth for density. The debug heat map
 calls the *same function* the sampler does — never write a second copy of it.
 
-### Two layout modes
-
-`layoutMode` = `anchors` (live) or `spiral` (original golden-angle). Both call the
-shared `buildStem`. The spiral branch is kept switchable but the A/B is **already
-invalid** — the height/size split only exists in the anchor path, so the two
-branches no longer differ by layout alone.
+Layout is **always** the anchor field. The golden-angle spiral branch and its
+knobs (`layoutMode`, `positionJitter`, `contactPow`) were removed; do not
+reintroduce a second layout without a reason.
 
 ### Slot pool
 
-`count` live slots plus `slotFactor - 1` spares each. A plant **hops between slots**
+`flowerCount` live slots plus `spareSlots - 1` spares each. A plant **hops between slots**
 at respawn by writing DataTexture row 1 — the merged geometry is never rebuilt.
 
 - **Live slots** are placed against the **true** field.
-- **Spare slots** are placed against an **envelope** (anchor radius + `migrateDist`)
+- **Spare slots** are placed against an **envelope** (anchor radius + `migrateRange`)
   and may sit up to `variantSpread` from their live point.
 
 Getting that backwards puts live plants out in the margin where the field is zero,
@@ -77,16 +74,15 @@ hid them; there is no gate now.
    first point repeated. Every ring in `CompositionDebug` silently drew nothing and
    emitted one error per ring per frame (31,748 of them) before this was found.
 
-3. **Leva keys are load-bearing; labels and folders are not.** `useControls`
-   returns a **flat** object, so folders can be reorganised freely — but renaming a
-   key breaks `PlantField`'s destructuring silently (you get `undefined`, not an
-   error).
+3. **Leva keys are the names on screen.** There is no separate `label`.
+   `useControls` returns a **flat** object, so folders can be reorganised freely —
+   but renaming a key breaks `PlantField`'s destructuring silently (you get
+   `undefined`, not an error).
 
-4. **A knob that does nothing in the current mode must be hidden**, via leva's
-   `render` predicate — not parked in a folder. A folder may only be hidden
-   wholesale when *every* member is mode-specific; `Evolution` and `Keep-out` are
-   mixed and gate per input. Hiding a live control is the same bug as showing a
-   dead one.
+4. **A knob that does nothing right now must be hidden**, via leva's `render`
+   predicate — not parked in a folder. A folder may only be hidden wholesale when
+   *every* member is unused; otherwise gate per input. Hiding a live control is
+   the same bug as showing a dead one.
 
 5. **Stem geometry is baked in plant-local space.** Placement lives in DataTexture
    row 1 (`[offsetX, offsetY, offsetZ, yaw]`), row 0 is
@@ -130,19 +126,20 @@ someone before:
 
 | Knob | Trap |
 |---|---|
-| `size ramp radius` (`spreadRadius`) | A **size** control in `anchors` mode (→ `farR` → `rimT` → `sizeMul`), the **placement radius** in `spiral`. The only knob whose meaning changes between layouts. Clamps up to bodyDiagonal + 0.6, so lowering past ~1.8 does nothing. |
-| `flower count` | Was inflated to 230 to offset the removed gate. Built count now equals visible count — **this is very likely too high and wants retuning down** (try 150–170). |
-| `shape warp` | The only knob that makes a mass stop being an ellipse. `edge ragged` is multiplicative on the field *value*, so it can roughen an outline but never manufacture density on bare ground, and never changes the gross form. |
-| `migrate range` | Also sizes the spare envelope **at build time**, so changing it rebuilds the slot pool. Was missing from the memo deps, which froze the envelope at its mount value. |
-| `regrow floor` | Density floor for the respawn pick. Steers new growth; cannot cull a live plant. |
-| `spare slots x` | At 1 the reshuffle has nowhere to go. |
+| `sizeRampRadius` | A **size** control (→ `farR` → `rimT` → `sizeMul`), not a placement radius. Clamps up to bodyDiagonal + 0.6, so lowering past ~1.8 does nothing. |
+| `flowerCount` | Was inflated to 230 to offset the removed gate. Built count now equals visible count — **this is very likely too high and wants retuning down** (try 150–170). |
+| `shapeWarp` | The only knob that makes a mass stop being an ellipse. `edgeRagged` is multiplicative on the field *value*, so it can roughen an outline but never manufacture density on bare ground, and never changes the gross form. |
+| `migrateRange` | Also sizes the spare envelope **at build time**, so changing it rebuilds the slot pool. Was missing from the memo deps, which froze the envelope at its mount value. |
+| `regrowFloor` | Density floor for the respawn pick. Steers new growth; cannot cull a live plant. |
+| `spareSlots` | At 1 the reshuffle has nowhere to go. |
 
-**Removed, do not reintroduce without a reason:** `minGap` (misnamed — nothing
-enforces flower separation; its only effect was silently raising the size ramp
-radius), `anchorDrift` / `fieldX` / `fieldZ` (redundant with the migration walk,
-and inert whenever `migrateDist > 0`), `negativeStrength` / `negativeMask` (the
-hard `faceClearRadius` pocket is now the only helmet protection), `migrateBand`
-(width of a fade that no longer exists).
+**Removed, do not reintroduce without a reason:** `layoutMode` / `positionJitter` /
+`contactPow` (golden-angle spiral layout and its knobs), `minGap` (misnamed —
+nothing enforces flower separation; its only effect was silently raising the size
+ramp radius), `anchorDrift` / `fieldX` / `fieldZ` (redundant with the migration
+walk, and inert whenever `migrateRange > 0`), `negativeStrength` / `negativeMask`
+(the hard `faceClearRadius` pocket is now the only helmet protection),
+`migrateBand` (width of a fade that no longer exists).
 
 ---
 
@@ -168,16 +165,10 @@ console.**
 
 ### Reading the density field
 
-`Debug > density field` draws the field through `sampleAnchorField`. It shows the
+`Debug > densityField` draws the field through `sampleAnchorField`. It shows the
 **static** field — `anchorFieldOptions` carries no `centres` — so it will not move
-under migration. Judge migration from the flowers, not the heat map.
-
-`↳ as solid mask` is the mode for tuning `Mass Shape`. As a heat map, brightness
-variation reads as shape variation and `shape warp` vs `edge ragged` are nearly
-indistinguishable. As a solid mask at one threshold, only the outline is on screen:
-warp deforms it, edge noise roughens it, bare patches hole it. Sweep `↳ threshold`
-to walk the iso-contours. Drop `flower count` to ~40 so the flowers don't occlude
-the mask.
+under migration. Judge migration from the flowers, not the heat map. Drop
+`flowerCount` if the flowers occlude the overlay.
 
 ---
 
@@ -190,11 +181,7 @@ the mask.
   wreath comes back.
 - **Migration has never been verified as evolution.** No time-lapse has been taken.
   Stills at 0 / 45 / 90 / 180 s from a fixed frame, diffed.
-- **`flower count` retune** after the gate removal (see table above).
-- **The leva `render` gating depends on the path `'Field.Layout.layoutMode'`.** Both
-  predicates default to *visible* when `get()` returns undefined, so a wrong path
-  shows everything rather than emptying the panel. If switching `layout` to
-  `spiral` does not hide `Mass Shape`, that path is wrong — one-line fix.
+- **`flowerCount` retune** after the gate removal (see table above).
 - **Side view / height rhythm** (plan step 4). `HEIGHT_MIN/MAX/BIAS` in
   `PlantField.jsx` separate stem height from head size; whether that is enough has
   not been judged from a grazing camera.
@@ -205,10 +192,10 @@ the mask.
 |---|---|
 | `fieldAnchors.js` | Anchor derivation, `sampleAnchorField`, domain warp, presence mask, `animatedCentre` |
 | `fieldClusterLayout.js` | Dispersal slot sampling: founders, hops, spares |
-| `PlantField.jsx` | Leva wiring, both layout branches, `buildStem`, role classification |
+| `PlantField.jsx` | Leva wiring, slot build, `buildStem`, role classification |
 | `PlantSystem.jsx` | Merged geometry, DataTexture, lifecycle stepping, field-weighted respawn |
-| `CompositionDebug.jsx` | Anchor rings, density grid / solid mask, composition guides |
+| `CompositionDebug.jsx` | Anchor rings, density heat grid, composition guides |
 | `bodyBounds.js` | BVH keep-out: `clearPointFromHosts`, `clearPointFromDisc` |
-| `fieldControls.js` | Leva schema — grouping and mode gating |
+| `fieldControls.js` | Leva schema — grouping and unused-knob gating |
 | `fieldDefaults.js` | Default values with rationale |
 | `../lifecycle/simSpeed.js` | Global sim rate shared across all plant systems |

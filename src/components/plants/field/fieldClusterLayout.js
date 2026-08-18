@@ -121,7 +121,7 @@ export function buildAnchorClusterSlots({
 
   const variants = Math.max(1, Math.round(slotFactor));
   const envelopeSet = envelopeAnchors ?? anchors;
-  const pad = fieldOptions.warpAmount ?? 0;
+  const pad = fieldOptions.shapeWarp ?? 0;
   const liveByAnchor = allocateByWeight(anchors.map((a) => a.weight), Math.floor(count));
   const [cx, cz] = bodyCenter;
   const slots = [];

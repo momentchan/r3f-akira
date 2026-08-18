@@ -285,7 +285,7 @@ export function deriveFieldAnchors({
 /**
  * Coherent 2-D domain warp.
  *
- * The crucial difference from `edgeNoiseAmount`: that multiplies the field's
+ * The crucial difference from `edgeRagged`: that multiplies the field's
  * VALUE, which only varies a ring's intensity — the ring is still a ring. This
  * displaces the sample POSITION before distance is measured, so the shape itself
  * becomes irregular. Because the warp is spatially coherent and shared across
@@ -329,7 +329,7 @@ export function animatedCentre(anchor, time, dist, speed) {
   if (!(dist > 0) || !(speed > 0)) return { x: anchor.x, z: anchor.z };
   const t = time * speed;
   // valueNoise3D is -1..1, so the walk is centred on the anchor and the slot
-  // envelope (radius + migrateDist about the same point) covers it exactly.
+  // envelope (radius + migrateRange about the same point) covers it exactly.
   //
   // This walk is also the ONLY thing that offsets a mass from its cause. A static
   // `centre drift` used to sit underneath it and was removed: at 0.18 against a
@@ -376,23 +376,23 @@ function anchorFalloff(anchor, x, z, cx, cz) {
 export function sampleAnchorField(x, z, anchors, options = {}) {
   const {
     mergeNorm = 1.15,
-    edgeNoiseAmount = 0.35,
-    edgeNoiseFrequency = 2.6,
-    warpAmount = 0.3,
-    warpFrequency = 1.6,
-    gapAmount = 0.4,
-    gapFrequency = 1.1,
+    edgeRagged = 0.35,
+    edgeScale = 2.6,
+    shapeWarp = 0.3,
+    warpScale = 1.6,
+    barePatches = 0.4,
+    patchScale = 1.1,
     seed = 0,
     // Optional hard keep-out. A single per-anchor inner radius can only carve a
     // circular hole, but the body is a star shape — arms and legs lie inside the
     // annulus band. Without this the field promises density exactly where the
     // clearance chain would reject it.
     hosts = null,
-    clearMargin = 0,
-    // Migration. `time` 0 or `migrateDist` 0 pins the centres where they were
+    meshClearDistance = 0,
+    // Migration. `time` 0 or `migrateRange` 0 pins the centres where they were
     // derived, so a still field is exactly the old behaviour.
     time = 0,
-    migrateDist = 0,
+    migrateRange = 0,
     migrateSpeed = 0,
     // Precomputed animated centres, one per anchor. They depend only on `time`,
     // so a per-frame caller should compute them ONCE and pass them in rather
@@ -402,35 +402,35 @@ export function sampleAnchorField(x, z, anchors, options = {}) {
 
   // Warp once, then measure every anchor from the warped point, so all the blobs
   // distort consistently and their overlaps stay coherent.
-  const w = warpPoint(x, z, warpAmount, warpFrequency, seed);
+  const w = warpPoint(x, z, shapeWarp, warpScale, seed);
 
   let sum = 0;
   for (let i = 0; i < anchors.length; i += 1) {
     const anchor = anchors[i];
-    const c = centres ? centres[i] : animatedCentre(anchor, time, migrateDist, migrateSpeed);
+    const c = centres ? centres[i] : animatedCentre(anchor, time, migrateRange, migrateSpeed);
     const falloff = anchorFalloff(anchor, w.x, w.z, c.x, c.z);
     if (falloff > 0) sum += anchor.weight * falloff;
   }
   if (sum <= 0) return 0;
 
   // Checked after the sum so the BVH cost is only paid where there is density.
-  if (hosts?.length && clearMargin > 0) {
+  if (hosts?.length && meshClearDistance > 0) {
     const d = nearestHostDistance(hosts, x, z);
-    if (d !== null && d < clearMargin) return 0;
+    if (d !== null && d < meshClearDistance) return 0;
   }
 
   let field = Math.min(1, sum / Math.max(mergeNorm, 1e-3));
 
   // Gaps use the UNWARPED position: the clearings should be a property of the
   // ground, not of whichever anchor happens to reach there.
-  field *= presenceMask(x, z, gapAmount, gapFrequency, seed);
+  field *= presenceMask(x, z, barePatches, patchScale, seed);
   if (field <= 0) return 0;
 
-  if (edgeNoiseAmount > 0) {
-    const n = valueNoise3D(w.x * edgeNoiseFrequency, 0.37, w.z * edgeNoiseFrequency, seed);
+  if (edgeRagged > 0) {
+    const n = valueNoise3D(w.x * edgeScale, 0.37, w.z * edgeScale, seed);
     // Multiplicative so the noise cannot manufacture density out on bare ground —
     // it only ragged-edges what the anchors already put there.
-    field *= 1 + n * edgeNoiseAmount;
+    field *= 1 + n * edgeRagged;
   }
   return Math.min(1, Math.max(0, field));
 }

@@ -393,7 +393,7 @@ export function PlantSystem({
           // rate and freeze with the Space pause. On the render clock, pausing the
           // flowers left the masses sliding along underneath them.
           migration.anchors[a], simTime,
-          migration.options.migrateDist, migration.options.migrateSpeed,
+          migration.options.migrateRange, migration.options.migrateSpeed,
         );
       }
       migrateOptions.centres = centres;

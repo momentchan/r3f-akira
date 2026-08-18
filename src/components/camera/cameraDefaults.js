@@ -19,7 +19,7 @@ export const CAMERA_DEFAULTS = {
   orbitDuration: 6.5,
 
   minDistance: 0.55,
-  maxDistance: 9,
+  maxDistance: 15,
   maxPolarAngle: Math.PI / 2.08,
   exploreSmoothTime: 0.45,
 };

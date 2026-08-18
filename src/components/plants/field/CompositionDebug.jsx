@@ -2,6 +2,9 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three/webgpu';
 import { sampleAnchorField } from './fieldAnchors';
 
+/** Skip cells below this so the overlay does not paint bare ground. */
+const EMPTY_CELL = 0.06;
+
 function CircleRing({
   radius,
   y = 0.02,
@@ -71,6 +74,35 @@ function DiscFill({
 }
 
 /**
+ * Half-side of the debug sampling square, from the body centre.
+ *
+ * Spawn lives on the anchors, not on `farR`. Each mass is an elongated disc of
+ * radius `reach * reachScale`, plus domain-warp padding, so the window has to
+ * cover those discs or a high reach scale silently clips off the overlay while
+ * flowers still plant outside it.
+ */
+function fieldGridExtent(anchors, center, shapeWarp = 0) {
+  const pad = Math.max(0, shapeWarp);
+  const [cx, cz] = center;
+  let half = 1;
+  for (let i = 0; i < anchors.length; i += 1) {
+    const a = anchors[i];
+    const rAlong = (a.radius + pad) * Math.max(a.elong ?? 1, 1e-3);
+    const rAcross = a.radius + pad;
+    const ax = a.axis?.ax ?? 1;
+    const az = a.axis?.az ?? 0;
+    for (const s1 of [-1, 1]) {
+      for (const s2 of [-1, 1]) {
+        const px = a.x + s1 * rAlong * ax + s2 * rAcross * -az;
+        const pz = a.z + s1 * rAlong * az + s2 * rAcross * ax;
+        half = Math.max(half, Math.abs(px - cx), Math.abs(pz - cz));
+      }
+    }
+  }
+  return half * 1.05;
+}
+
+/**
  * The anchor probability field, as a coarse grid of shaded discs.
  *
  * Rings alone are not enough to review this. Cluster centres drift off their
@@ -79,18 +111,7 @@ function DiscFill({
  * sampler will actually see.
  *
  * One InstancedMesh, built once per anchor/knob change — never per frame.
- *
- * `flat` is what makes the Mass Shape knobs reviewable. As a heat map, a warped
- * mass and a merely noisy one look alike: brightness variation reads as shape
- * variation. Drawn as a solid mask at one threshold, the outline is the only thing
- * on screen, and the three shape knobs separate cleanly —
- *
- *   `shape warp`   deforms the outline itself (the mass stops being an ellipse)
- *   `edge ragged`  roughens that outline but leaves its gross form alone
- *   `bare patches` punches holes through the interior
- *
- * Sweeping `threshold` in flat mode walks the iso-contours, which is how you see
- * how steeply a mass falls off rather than just where it ends.
+ * Empty cells are skipped so bare ground stays visible.
  */
 function AnchorFieldGrid({
   anchors,
@@ -98,8 +119,6 @@ function AnchorFieldGrid({
   extent,
   resolution,
   fieldOptions,
-  threshold = 0.06,
-  flat = false,
 }) {
   const mesh = useMemo(() => {
     if (!anchors?.length) return null;
@@ -110,21 +129,17 @@ function AnchorFieldGrid({
         const x = center[0] - extent + (ix + 0.5) * step;
         const z = center[1] - extent + (iz + 0.5) * step;
         const v = sampleAnchorField(x, z, anchors, fieldOptions);
-        // Skipping empty cells is the point of the view: what is NOT drawn is
-        // the bare ground the composition depends on.
-        if (v > threshold) cells.push({ x, z, v });
+        if (v > EMPTY_CELL) cells.push({ x, z, v });
       }
     }
     if (!cells.length) return null;
 
-    // Flat cells tile edge to edge so the mask reads as one silhouette; heat-map
-    // cells keep a gap so individual sample values stay separable.
-    const cellSize = step * (flat ? 1 : 0.86);
+    const cellSize = step * 0.86;
     const geo = new THREE.PlaneGeometry(cellSize, cellSize);
     geo.rotateX(-Math.PI / 2);
     const mat = new THREE.MeshBasicMaterial({
       transparent: true,
-      opacity: flat ? 0.8 : 0.55,
+      opacity: 0.55,
       depthTest: false,
       depthWrite: false,
       side: THREE.DoubleSide,
@@ -136,22 +151,16 @@ function AnchorFieldGrid({
     for (let i = 0; i < cells.length; i += 1) {
       const cell = cells[i];
       m.makeScale(1, 1, 1);
-      // Flat mode holds every cell at one height: a value-driven height offset is
-      // itself an intensity cue, which is what this mode exists to suppress.
-      m.setPosition(cell.x, flat ? 0.01 : 0.008 + cell.v * 0.004, cell.z);
+      m.setPosition(cell.x, 0.008 + cell.v * 0.004, cell.z);
       inst.setMatrixAt(i, m);
-      if (flat) {
-        color.setRGB(0.16, 0.62, 0.55);
-      } else {
-        // Cool = sparse, warm = dense. Reads as a heat map at a glance.
-        color.setHSL(0.58 - 0.58 * cell.v, 0.75, 0.28 + 0.34 * cell.v);
-      }
+      // Cool = sparse, warm = dense. Reads as a heat map at a glance.
+      color.setHSL(0.58 - 0.58 * cell.v, 0.75, 0.28 + 0.34 * cell.v);
       inst.setColorAt(i, color);
     }
     inst.instanceMatrix.needsUpdate = true;
     if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
     return inst;
-  }, [anchors, center, extent, resolution, fieldOptions, threshold, flat]);
+  }, [anchors, center, extent, resolution, fieldOptions]);
 
   useEffect(() => () => {
     if (!mesh) return;
@@ -193,15 +202,17 @@ function AnchorMarker({ anchor }) {
 /**
  * Composition overlay. Three independently toggled layers:
  *
- * `showAnchors`   — each anchor: reach ring, inner keep-out, and a weight dot.
- *                   Under migration the mass wanders around this centre, so the
- *                   ring shows the cause and the bound, not the current mass.
- * `showAnchorField` — a heat grid sampled through the same `sampleAnchorField`
- *                   the sampler uses, so it shows what the sampler sees.
- * `showGuides`    — magenta disc = the hard face pocket; orange/teal rings =
- *                   the near/far band that normalises `rimT`; and three discs
- *                   on +X that are a ROLE size legend (echo / secondary /
- *                   primary), passed in via `sizeLegend` rather than derived.
+ * `showAnchors`        — each anchor: reach ring, inner keep-out, and a weight
+ *                        dot. Under migration the mass wanders around this
+ *                        centre, so the ring shows the cause and the bound, not
+ *                        the current mass.
+ * `densityField`       — a heat grid sampled through the same `sampleAnchorField`
+ *                        the sampler uses, so it shows what the sampler sees.
+ * `compositionGuides`  — magenta disc = the hard face pocket; orange/teal rings
+ *                        = the near/far band that normalises `rimT`; and three
+ *                        discs on +X that are a ROLE size legend (echo /
+ *                        secondary / primary), passed in via `sizeLegend`
+ *                        rather than derived.
  */
 export function CompositionDebug({
   visible = false,
@@ -210,20 +221,18 @@ export function CompositionDebug({
   faceClearRadius = 0,
   nearR = 0,
   farR = 0,
-  nearSizeMin = 0.5,
-  clearMargin = 0.12,
+  nearBloomScale = 0.5,
+  meshClearDistance = 0.12,
   // { echo, secondary, primary } relative sizes, computed by the caller.
   sizeLegend = null,
   // Anchor layer. The rings describe the radial band that still normalises rimT;
   // the anchor + field layers describe what actually drives the layout now.
   anchors = null,
-  showGuides = true,
+  compositionGuides = true,
   showAnchors = false,
-  showAnchorField = false,
+  densityField = false,
   fieldOptions = null,
-  fieldResolution = 56,
-  fieldThreshold = 0.06,
-  fieldFlat = false,
+  gridResolution = 56,
 }) {
   if (!visible) return null;
 
@@ -236,22 +245,20 @@ export function CompositionDebug({
   const midR = nearR + (farR - nearR) * midT;
   // Size is no longer a function of radius alone — depth decay and the primary
   // boost dominate it — so these read as a ROLE legend rather than a radial ramp.
-  const legend = sizeLegend ?? { echo: nearSizeMin, secondary: 1, primary: 1 };
+  const legend = sizeLegend ?? { echo: nearBloomScale, secondary: 1, primary: 1 };
   const nearBloomR = 0.08 * legend.echo;
   const midBloomR = 0.08 * legend.secondary;
   const farBloomR = 0.08 * legend.primary;
 
   return (
     <group>
-      {showAnchorField && anchors?.length ? (
+      {densityField && anchors?.length ? (
         <AnchorFieldGrid
           anchors={anchors}
           center={center}
-          extent={Math.max(farR, 1) * 1.05}
-          resolution={fieldResolution}
+          extent={fieldGridExtent(anchors, center, fieldOptions?.shapeWarp ?? 0)}
+          resolution={gridResolution}
           fieldOptions={fieldOptions ?? {}}
-          threshold={fieldThreshold}
-          flat={fieldFlat}
         />
       ) : null}
       {showAnchors && anchors?.length ? (
@@ -265,7 +272,7 @@ export function CompositionDebug({
       {/* The face pocket is drawn with the anchors too: it is the hard floor the
           helmet negative anchor layers on top of, so the two only make sense
           together. */}
-      {(showGuides || showAnchors) && (
+      {(compositionGuides || showAnchors) && (
         <group position={[headX, 0, headZ]}>
           <DiscFill radius={faceClearRadius} color="#ff4d6d" opacity={0.16} />
           <CircleRing radius={faceClearRadius} color="#ff4d6d" y={0.03} />
@@ -280,12 +287,12 @@ export function CompositionDebug({
         </group>
       )}
 
-      {showGuides && (
+      {compositionGuides && (
       <group position={[cx, 0, cz]}>
         <CircleRing radius={nearR} color="#ff9f1c" y={0.025} opacity={0.9} />
         <CircleRing radius={farR} color="#2ec4b6" y={0.025} opacity={0.75} />
         <CircleRing
-          radius={Math.max(nearR * 0.55, clearMargin)}
+          radius={Math.max(nearR * 0.55, meshClearDistance)}
           color="#ffffff"
           y={0.02}
           opacity={0.35}
