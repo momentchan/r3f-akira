@@ -7,7 +7,6 @@ export const FIELD_DEFAULTS = {
     leanOut: 1.0,
     // Fan stems across both sides of a ground route instead of tracing one line.
     flowerBandSpread: 0.78,
-    bloomClusterCount: 8,
     clusterShare: 0.75,
     arrangementSeed: 0,
     positionJitter: 0.1,

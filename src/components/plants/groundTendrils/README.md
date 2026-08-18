@@ -92,6 +92,33 @@ Current defaults:
 - Child radius exactly matches the parent's local radius at the joint, then
   decays by `radiusDecay` toward its own tip.
 
+### Logical graph versus rendered traces
+
+The complete procedural graph is intentionally larger than the visible mesh.
+Every path remains available to flower sampling, lifecycle distance, and the
+regenerated-route registry, but each logical tree receives a stable
+`groundRole`:
+
+- `hero`: principal long tree. Render its trunk and one deterministic depth-1
+  branch.
+- `nearby`: short local tree. Render only its trunk.
+- `guide`: keep all paths logical-only; do not pack them into the visible mesh.
+
+Current default allocation:
+
+| Host | Hero trees | Visible nearby trees |
+| --- | ---: | ---: |
+| Body | 3 | 4 |
+| Backpack | 2 | 3 |
+
+With the default branch settings this produces 135 logical paths but only 17
+rendered paths: 5 hero trunks, 5 hero depth-1 branches, and 7 nearby trunks.
+This separation is the hybrid art direction: retain causal growth structure
+without showing a horizontal procedural skeleton under every flower.
+
+Ground debug colors are role-based: cyan = hero, yellow = nearby, translucent
+magenta = hidden guide.
+
 ### Stable identity
 
 The following IDs are contracts, not cosmetic labels:
@@ -105,22 +132,26 @@ Dynamic route replacement assumes every generation has identical path topology
 and vertex counts. Changing tree count, branch depth, children per parent, or
 tube segmentation requires a full geometry rebuild.
 
-## Route personalities
+`GroundTendrils.jsx` must publish all paths to `PlantField` and update all paths
+in `groundRouteRegistryRef`, while packing and buffer-patching only paths whose
+`renderGroundTendril` flag is true. Filtering the public path array would make
+flowers disappear from hidden guide routes.
 
-Main trees receive a personality by cycling through their host profile using
-`treeIndex % profile.length`. Children inherit their parent's personality.
-Nearby trees currently have no personality and therefore use neutral values.
+## Ground roles and flower hierarchy
 
-A personality now controls only:
+The former poetic route personalities were removed. The explicit `groundRole`
+now controls both visibility hierarchy and per-tree flower allocation:
 
-- `stemDensity`: relative chance that the route receives flower roots.
-- `flowerSizeScale`: relative flower-head scale along that route.
+| Role | Default flowers/tree | Relative flower size |
+| --- | ---: | ---: |
+| Hero | 7–9 | 1.0 |
+| Nearby | 3–4 | 0.82 |
+| Guide | 1–2 | 0.72 |
 
-It must **not** control Rose/Dahlia species selection. Species mix is a global,
-predictable composition control. Personality names are descriptive presets;
-they are not inferred from scene semantics or spatial analysis.
-
-Profiles live in `groundTendrilDefaults.js`.
+With the current 17 logical trees and requested count of 80, allocation is
+approximately 45 hero flowers, 28 nearby flowers, and 7 guide flowers. Every
+logical tree receives at least one flower whenever the requested count is at
+least the logical-tree count.
 
 ## Ground-flower layout
 
@@ -134,7 +165,6 @@ Flowers currently sample route depths 0 and 1 only. Each eligible route gets:
 ```text
 weight = curve length
        * (1.6 for a depth-0 trunk, otherwise 1.0)
-       * route personality stemDensity
 ```
 
 Every accepted root is an exact `curve.getPointAt(t)` position. Never move a
@@ -146,20 +176,21 @@ Current defaults:
 
 - Requested flowers: `80` (an upper bound, not a guaranteed count).
 - Root gap: `0.14` in XZ, checked globally across accepted roots.
-- Bloom clusters: `8`.
 - Flowers in clusters: `0.75`.
 - Route sample range: `t = 0.18 ... 0.92`.
 
 Cluster creation:
 
-1. Pick distinct trunk routes where possible.
-2. Guarantee at least one cluster source for each available host (body and
-   backpack).
-3. Fill remaining cluster sources using route weights.
-4. Give each cluster a deterministic centre and a varied 0.32–0.56 world-unit
-   half-span along its route.
-5. Sample about 75% of candidates near those centres; sample the remaining 25%
-   from the full weighted route set to create sparse visual connections.
+1. Group eligible paths by `logicalTreeId`.
+2. Give every tree a deterministic cluster centre on its trunk.
+3. Allocate the requested count by role minima and maxima before distributing
+   overflow, biased toward hero trees.
+4. Use a wider cluster span for hero trees and smaller spans for nearby/guide
+   trees.
+5. Sample about 75% of each tree's candidates near its centre; sample the
+   remaining 25% from that tree's complete eligible path set.
+6. Hero and nearby clusters use a slightly tighter role-specific local gap to
+   create bouquets without changing the global root-gap control.
 
 `minGap` rejection and the finite attempt budget mean the actual accepted count
 can be lower than the requested count, especially where routes overlap.
@@ -180,13 +211,41 @@ Stem base radius inherits the source branch's local tapered radius, with only a
 restrained variation from the shared Stem controls. This makes ground tree and
 flower stem read as one organism.
 
+### Height and posture hierarchy
+
+Ground flowers do not share one height or one lean profile. Each accepted
+flower receives two deterministic attributes that remain stable until the
+layout seed changes:
+
+- `stemPosture`: `short`, `medium`, or `tall`.
+- `leanStyle`: `upright`, `soft`, or `expressive`.
+
+Posture is weighted by ground role so hero routes create the vertical skyline
+while nearby and guide routes fill the lower volume:
+
+| Role | Short | Medium | Tall |
+| --- | ---: | ---: | ---: |
+| Hero | 12% | 57% | 31% |
+| Nearby | 42% | 48% | 10% |
+| Guide | 50% | 43% | 7% |
+
+The posture selects a subrange of the shared Stem Length range: short uses the
+lower 38%, medium spans roughly 30-78%, and tall uses the upper 32%. A small
+0.94-1.06 multiplier prevents hard height shelves.
+
+Lean style is independent of height: approximately 65% upright, 25% soft, and
+10% expressive. It scales route fan, lean, and bend rather than inventing a
+new root position. The result should read as a flower region from a side view,
+not as one straight row and not as an evenly filled field.
+
 ### Flower species
 
 Ground flowers currently use only Dahlia and Rose:
 
 - `roseRatio = 0.45` means approximately 45% Rose and 55% Dahlia.
-- This is seeded probabilistic selection, not an exact quota.
-- Route personalities do not override the ratio.
+- A seeded low-discrepancy sequence keeps the accepted population close to the
+  target ratio even when spatial candidates are rejected.
+- Ground roles do not override the species ratio.
 - Flower type remains stable when a route regenerates.
 
 Plumera is currently used by body/backpack climb tendrils. Jasmine and Plumera
@@ -229,6 +288,10 @@ does move spatially, but it stays on the same logical route at the same `t`.
 Ground tendrils:
 
 - One packed mesh and one plant-data texture.
+- The default layout keeps 135 logical paths for flower attachment and
+  lifecycle routing, but packs only 17 visible paths. This removes about 87%
+  of the ground-tendril tube paths from rendering without deleting their
+  composition data.
 - GPU growth animation.
 - Current internal geometry: 48 longitudinal segments and 5 radial segments.
 - On route regeneration, only `position`, `normal`, `center`,
@@ -269,10 +332,10 @@ Live controls do not rebuild the route topology:
 Relevant arrangement controls:
 
 - `flower count`
+- `accepted flowers` (read-only; the actual count after spacing rejection)
 - `flower root gap`
 - `lean outward`
 - `flower band width`
-- `bloom clusters`
 - `flowers in clusters`
 - `rose ratio`
 - `seed`
@@ -295,7 +358,7 @@ stem layout rebuild.
 | `groundTendrils/GroundTendrils.jsx` | Render system, tree lifecycle, route regeneration, GPU buffer patching. |
 | `groundTendrils/buildGroundTrees.js` | Host contact extraction and parent/child curve construction. |
 | `groundTendrils/buildGroundFlowerStems.js` | Route weighting, cluster sampling, species, fan direction, inherited stem parameters. |
-| `groundTendrils/groundTendrilDefaults.js` | Host profiles, personalities, geometry/lifecycle defaults. |
+| `groundTendrils/groundTendrilDefaults.js` | Host visibility profiles and geometry/lifecycle defaults. |
 | `groundTendrils/groundTendrilControls.js` | Ground Tendrils Leva schema. |
 | `groundTendrils/GroundTendrilDebug.jsx` | Tree/path debug rendering. |
 | `field/PlantField.jsx` | Chooses ground-route mode and publishes per-tree flower timings. |
@@ -315,10 +378,12 @@ stem layout rebuild.
 6. Lifecycle resampling happens while geometry is fully retracted; never expose
    a buffer swap as a visible pop or flicker.
 7. Logical path topology remains stable across dynamic generations.
-8. Route personality may bias density and scale, but global species mix remains
-   understandable and directly controllable.
+8. Ground role controls per-tree density and scale, while global species mix
+   remains understandable and directly controllable.
 9. Preserve asymmetric main paths, nearby short paths, bloom clusters, and
    negative space. More count alone is not a composition strategy.
+10. Visibility is not eligibility: hiding a guide path must never remove it
+    from flower sampling, lifecycle timing, or route regeneration.
 
 ## Verification checklist
 
@@ -329,7 +394,8 @@ After changing this system:
    contact surfaces and all child junctions meet their parents.
 3. Inspect at grazing angle: tendril tubes should touch the ground without a
    visible gap from their shadows.
-4. Verify flower stems begin exactly on visible tendril curves.
+4. Verify flower stems begin exactly on their source curves: visible for
+   hero/nearby routes and translucent magenta in debug for guide routes.
 5. Confirm body and backpack both receive clusters and the requested flower
    count is not being heavily reduced by `minGap`.
 6. Watch at least one full cycle: ground growth, flowers, flower death, ground
@@ -341,8 +407,32 @@ After changing this system:
 
 ## Current checkpoint
 
-The latest static-layout checkpoint introduced bloom clustering and a 55%
-Dahlia / 45% Rose target. Production build passes. Runtime art-direction review
-is still required to decide whether `80 / 8 / 0.75` (flowers / clusters /
-cluster share) gives enough visual tension without becoming uniformly busy.
+The five hybrid-layout milestones are implemented:
+
+1. Keep the full procedural graph, but render only the curated hero and nearby
+   traces.
+2. Allocate flowers per logical tree and ground role, with a stable global
+   Dahlia/Rose ratio.
+3. Add deterministic short/medium/tall posture and restrained lean styles for
+   top- and side-view volume.
+4. Coordinate each tree and its flowers through parent-to-child growth,
+   flower hold, child-to-parent retraction, and hidden route resampling.
+5. Reduce the ground-mode Field panel to meaningful controls and expose the
+   actual accepted flower count.
+
+The default system keeps 135 logical paths, renders 17 hero/nearby traces, and
+gives every one of the 17 logical trees a flower budget. The current flower
+checkpoint is `80 / 0.75` (requested flowers / cluster share) with a stable 55%
+Dahlia / 45% Rose target.
+
+Deterministic zero-gap layout verification accepts all 80 requested stems,
+flowers all 17 trees, allocates 45/28/7 stems to hero/nearby/guide, and produces
+15/45/20 short/medium/tall stems for the tested seed. With the authored root
+gap and overlapping real routes, the accepted count may be slightly lower and
+is shown live in Leva.
+
+Lifecycle verification confirms that the parent interval becomes visible
+before the child interval, the child retracts while the parent remains, and the
+parent retracts last. Production build passes. Final top/side runtime review is
+still an art-direction check rather than a structural milestone.
 

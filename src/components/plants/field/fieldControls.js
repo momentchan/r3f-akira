@@ -1,4 +1,4 @@
-import { folder } from 'leva';
+import { folder, monitor } from 'leva';
 import { FIELD_DEFAULTS } from './fieldDefaults';
 
 export function createArrangementSchema(defaults = FIELD_DEFAULTS.arrangement) {
@@ -14,13 +14,6 @@ export function createArrangementSchema(defaults = FIELD_DEFAULTS.arrangement) {
       max: 1,
       step: 0.01,
       label: 'flower band width',
-    },
-    bloomClusterCount: {
-      value: d.bloomClusterCount ?? 8,
-      min: 1,
-      max: 16,
-      step: 1,
-      label: 'bloom clusters',
     },
     clusterShare: {
       value: d.clusterShare ?? 0.75,
@@ -54,6 +47,62 @@ export function createArrangementSchema(defaults = FIELD_DEFAULTS.arrangement) {
       max: 6,
       step: 1,
       label: 'spawn slots x',
+    },
+  };
+}
+
+export function createGroundArrangementSchema(
+  defaults = FIELD_DEFAULTS.arrangement,
+  acceptedCountRef = null,
+) {
+  const d = defaults;
+  return {
+    count: { value: d.count, min: 1, max: 256, step: 1, label: 'Flower Count' },
+    'Accepted Flowers': monitor(
+      () => acceptedCountRef?.current ?? 0,
+      { interval: 250 },
+    ),
+    minGap: {
+      value: d.minGap,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      label: 'Flower Root Gap',
+    },
+    leanOut: {
+      value: d.leanOut,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      label: 'Lean Outward',
+    },
+    flowerBandSpread: {
+      value: d.flowerBandSpread ?? 0.78,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      label: 'Flower Band Width',
+    },
+    clusterShare: {
+      value: d.clusterShare ?? 0.75,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      label: 'Flowers In Clusters',
+    },
+    roseRatio: {
+      value: d.roseRatio ?? 0.45,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      label: 'Rose Ratio',
+    },
+    arrangementSeed: {
+      value: d.arrangementSeed,
+      min: 0,
+      max: 999,
+      step: 1,
+      label: 'Seed',
     },
   };
 }
@@ -170,10 +219,20 @@ export function createPetalShedSchema(defaults = FIELD_DEFAULTS.petalShed) {
   };
 }
 
-export function createFieldControlsSchema(defaults = FIELD_DEFAULTS) {
+export function createFieldControlsSchema(
+  defaults = FIELD_DEFAULTS,
+  { groundMode = false, acceptedCountRef = null } = {},
+) {
   return {
-    Arrangement: folder(createArrangementSchema(defaults.arrangement), { collapsed: true }),
-    Surround: folder(createSurroundSchema(defaults.surround), { collapsed: true }),
+    Arrangement: folder(
+      groundMode
+        ? createGroundArrangementSchema(defaults.arrangement, acceptedCountRef)
+        : createArrangementSchema(defaults.arrangement),
+      { collapsed: true },
+    ),
+    ...(!groundMode && {
+      Surround: folder(createSurroundSchema(defaults.surround), { collapsed: true }),
+    }),
     Lifecycle: folder(createLifecycleSchema(defaults.lifecycle), { collapsed: true }),
     'Petal Shed': folder(createPetalShedSchema(defaults.petalShed), { collapsed: true }),
   };

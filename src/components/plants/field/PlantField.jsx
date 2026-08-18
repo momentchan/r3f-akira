@@ -5,6 +5,7 @@ import { preloadVATAssets } from '@core/vat';
 import { createFlowerControlsSchema } from '../look/flowerControls';
 import { clearPointFromBvh } from './bodyBounds';
 import { createFieldControlsSchema } from './fieldControls';
+import { FIELD_DEFAULTS } from './fieldDefaults';
 import { createStemSchema } from '../stem/stemControls';
 import { STEM_DEFAULTS } from '../stem/stemDefaults';
 import { useLifecyclePauseHotkey } from '../lifecycle/useLifecyclePauseHotkey';
@@ -78,22 +79,34 @@ export function PlantField({
 }) {
   const lifecyclePausedRef = useLifecyclePauseHotkey();
   const usesGroundPaths = Array.isArray(groundPaths);
+  const acceptedFlowerCountRef = useRef(0);
 
-  const fieldSchema = useMemo(() => createFieldControlsSchema(), []);
+  const fieldSchema = useMemo(() => createFieldControlsSchema(
+    FIELD_DEFAULTS,
+    { groundMode: usesGroundPaths, acceptedCountRef: acceptedFlowerCountRef },
+  ), [usesGroundPaths]);
   const {
-    count, spreadRadius, minGap, leanOut, phaseSpread, arrangementSeed,
-    flowerBandSpread, bloomClusterCount, clusterShare,
-    positionJitter, roseRatio, reshuffleOnRespawn, slotFactor,
+    count,
+    spreadRadius = FIELD_DEFAULTS.arrangement.spreadRadius,
+    minGap,
+    leanOut,
+    phaseSpread,
+    arrangementSeed,
+    flowerBandSpread, clusterShare,
+    positionJitter = FIELD_DEFAULTS.arrangement.positionJitter,
+    roseRatio,
+    reshuffleOnRespawn = FIELD_DEFAULTS.arrangement.reshuffleOnRespawn,
+    slotFactor = FIELD_DEFAULTS.arrangement.slotFactor,
     petalShedFrac, shedStemOverlap,
     shedRise, shedRiseVariance, shedSpread, shedStagger,
-    enabled: surroundEnabled,
-    showDebug,
-    clearMargin,
-    faceClearRadius,
-    contactPow,
-    nearSizeMin,
-    showCompositionDebug,
-    bvhDepth,
+    enabled: surroundEnabled = false,
+    showDebug = false,
+    clearMargin = FIELD_DEFAULTS.surround.clearMargin,
+    faceClearRadius = FIELD_DEFAULTS.surround.faceClearRadius,
+    contactPow = FIELD_DEFAULTS.surround.contactPow,
+    nearSizeMin = FIELD_DEFAULTS.surround.nearSizeMin,
+    showCompositionDebug = false,
+    bvhDepth = FIELD_DEFAULTS.surround.bvhDepth,
     delay: [delayMin, delayMax],
     grow: [growMin, growMax],
     keep: [keepMin, keepMax],
@@ -264,7 +277,6 @@ export function PlantField({
           dahliaType: DAHLIA_TYPE,
           maxPathDepth: 1,
           flowerBandSpread,
-          bloomClusterCount,
           clusterShare,
           stemGeometry: {
             stemLength: [lenMin, lenMax],
@@ -398,12 +410,16 @@ export function PlantField({
 
     return { stems: out, slotPool: slots };
   }, [usesGroundPaths, groundPaths, count, minGap, flowerBandSpread,
-    bloomClusterCount, clusterShare,
+    clusterShare,
     effectiveSpread, arrangementSeed, positionJitter, roseRatio, slotFactor,
     bvh, clearMargin, faceClearRadius, contactPow, nearSizeMin,
     boundsVersion, bodyBounds, resolvedHeadLocal,
     lenMin, lenMax, radMin, radMax, leanMin, leanMax,
     bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
+
+  useEffect(() => {
+    acceptedFlowerCountRef.current = stems.length;
+  }, [stems]);
 
   useEffect(() => {
     if (!groundFlowerTimingRef) return;

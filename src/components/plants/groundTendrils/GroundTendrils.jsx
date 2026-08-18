@@ -174,6 +174,12 @@ export function GroundTendrils({
     () => (hosts.length ? buildGroundTrees(treeBuildOptions) : []),
     [hosts.length, treeBuildOptions],
   );
+  // `paths` is the complete generation graph used by flowers and lifecycle.
+  // Only this curated subset is packed into visible ground-tendril geometry.
+  const renderPaths = useMemo(
+    () => paths.filter((path) => path.renderGroundTendril !== false),
+    [paths],
+  );
 
   const treeVariants = useMemo(() => {
     const result = new Map();
@@ -198,13 +204,13 @@ export function GroundTendrils({
     return uniforms;
   }, []);
 
-  const tendrilBuild = useMemo(() => buildPackedTendrilSystem(paths, {
+  const tendrilBuild = useMemo(() => buildPackedTendrilSystem(renderPaths, {
     stemRadius: rebuild.tendrilRadius,
     stemSegments: GROUND_TENDRIL_INTERNALS.stemSegments,
     radialSegments: GROUND_TENDRIL_INTERNALS.radialSegments,
     radiusAttenuation: rebuild.tipRadiusScale,
     baseFlare: GROUND_TENDRIL_DEFAULTS.baseFlare,
-  }), [paths, rebuild.tendrilRadius, rebuild.tipRadiusScale]);
+  }), [renderPaths, rebuild.tendrilRadius, rebuild.tipRadiusScale]);
 
   const material = useMemo(() => {
     if (!tendrilBuild.plantData) return null;
@@ -247,16 +253,18 @@ export function GroundTendrils({
     pathIndexByIdRef.current.clear();
     routeGenerationsRef.current.clear();
     routeRegistryRef.current.clear();
-    paths.forEach((path, index) => {
+    paths.forEach((path) => {
       const pathId = path.logicalPathId ?? path.id;
-      pathIndexByIdRef.current.set(pathId, index);
       routeRegistryRef.current.set(pathId, path);
       routeGenerationsRef.current.set(
         path.logicalTreeId ?? path.treeId,
         path.routeGeneration ?? 0,
       );
     });
-  }, [tendrilBuild, paths, routeRegistryRef]);
+    renderPaths.forEach((path, index) => {
+      pathIndexByIdRef.current.set(path.logicalPathId ?? path.id, index);
+    });
+  }, [tendrilBuild, paths, renderPaths, routeRegistryRef]);
 
   useEffect(() => {
     onGroundPaths?.(controls.enabled ? paths : []);
@@ -391,7 +399,18 @@ export function GroundTendrils({
       const replacementPaths = generatedPaths.filter((path) => (
         treesToResample.has(path.logicalTreeId ?? path.treeId)
       ));
-      const replacementBuild = buildPackedTendrilSystem(replacementPaths, {
+      // Hidden guide paths still need fresh registry curves so their flowers
+      // move with the regenerated logical tree.
+      replacementPaths.forEach((replacement) => {
+        routeRegistryRef.current.set(
+          replacement.logicalPathId ?? replacement.id,
+          replacement,
+        );
+      });
+      const replacementRenderPaths = replacementPaths.filter(
+        (path) => path.renderGroundTendril !== false,
+      );
+      const replacementBuild = buildPackedTendrilSystem(replacementRenderPaths, {
         stemRadius: rebuild.tendrilRadius,
         stemSegments: GROUND_TENDRIL_INTERNALS.stemSegments,
         radialSegments: GROUND_TENDRIL_INTERNALS.radialSegments,
@@ -422,7 +441,6 @@ export function GroundTendrils({
         const targetPlant = plants[targetIndex];
         const plantId = targetPlant.plantId;
         Object.assign(targetPlant, replacement, { plantId });
-        routeRegistryRef.current.set(pathId, replacement);
       });
 
       for (const treeId of treesToResample) {

@@ -2,25 +2,20 @@ export const GROUND_TENDRIL_HOST_PROFILES = Object.freeze({
   body: Object.freeze({
     treeCount: 4,
     shortTreeCount: 6,
+    heroTreeCount: 3,
+    visibleNearbyTreeCount: 4,
     seedOffset: 0,
     lengthScale: 1,
     directionOffset: 0,
-    routePersonalities: Object.freeze([
-      Object.freeze({ id: 'quiet-bloom', stemDensity: 0.65, flowerSizeScale: 0.78 }),
-      Object.freeze({ id: 'bloom-corridor', stemDensity: 1.5, flowerSizeScale: 1 }),
-      Object.freeze({ id: 'escape-bloom', stemDensity: 0.5, flowerSizeScale: 0.82 }),
-    ]),
   }),
   backpack: Object.freeze({
     treeCount: 3,
     shortTreeCount: 4,
+    heroTreeCount: 2,
+    visibleNearbyTreeCount: 3,
     seedOffset: 1009,
     lengthScale: 0.82,
     directionOffset: 28,
-    routePersonalities: Object.freeze([
-      Object.freeze({ id: 'backpack-memory', stemDensity: 0.8, flowerSizeScale: 0.85 }),
-      Object.freeze({ id: 'backpack-bridge', stemDensity: 0.6, flowerSizeScale: 0.8 }),
-    ]),
   }),
 });
 

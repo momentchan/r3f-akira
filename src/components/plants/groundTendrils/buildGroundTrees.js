@@ -202,8 +202,15 @@ function addChildren(paths, parent, options, rng, depth) {
       attachT,
       junction: start.clone(),
       radialOrigin: parent.radialOrigin,
-      routePersonality: parent.routePersonality,
       treeKind: parent.treeKind,
+      treeIndex: parent.treeIndex,
+      groundRole: parent.groundRole,
+      // Hero trees expose one first-generation branch. Nearby trees show only
+      // their short trunk, while guide paths remain available to flowers and
+      // lifecycle logic without drawing the full procedural graph.
+      renderGroundTendril: parent.groundRole === 'hero'
+        && depth === 0
+        && childIndex === parent.treeIndex % childCount,
       stemRadius: parent.stemRadius,
       layoutSeed: parent.layoutSeed,
       routeGeneration: parent.routeGeneration,
@@ -230,6 +237,10 @@ function buildHostTrees(host, count, options) {
   const directionSpread = THREE.MathUtils.degToRad(options.directionSpread);
   for (let treeIndex = 0; treeIndex < count; treeIndex += 1) {
     const treeKind = options.treeKind ?? 'main';
+    const visibleTreeCount = Math.max(0, options.visibleTreeCount ?? count);
+    const groundRole = treeIndex < visibleTreeCount
+      ? treeKind === 'main' ? 'hero' : 'nearby'
+      : 'guide';
     const logicalTreeId = `ground:${host.id}:${treeKind}:${treeIndex}`;
     const routeGeneration = options.treeGenerations?.[logicalTreeId] ?? 0;
     const routeVariant = 0;
@@ -237,10 +248,6 @@ function buildHostTrees(host, count, options) {
     const seed = options.layoutSeed + options.seedOffset + treeIndex * 101
       + routeGeneration * (options.generationSeedStep ?? 0);
     const rng = seededRng(seed);
-    const routePersonalities = options.routePersonalities ?? [];
-    const routePersonality = routePersonalities.length
-      ? routePersonalities[treeIndex % routePersonalities.length]
-      : null;
     const fanT = count <= 1 ? 0 : treeIndex / (count - 1) - 0.5;
     const corridorWidth = directionSpread / Math.max(count, 1);
     const angle = directionCenter + fanT * directionSpread
@@ -288,8 +295,10 @@ function buildHostTrees(host, count, options) {
       root: root.clone(),
       rootSurfacePoint: rootSurfacePoint.clone(),
       radialOrigin,
-      routePersonality,
       treeKind,
+      treeIndex,
+      groundRole,
+      renderGroundTendril: groundRole !== 'guide',
       stemRadius: options.tendrilRadius,
       layoutSeed: options.layoutSeed,
       routeGeneration,
@@ -325,18 +334,18 @@ export function buildGroundTrees({ hosts, profiles, ...options }) {
     };
     const mainTrees = buildHostTrees(host, mainCount, {
       ...shared,
-      routePersonalities: profile.routePersonalities,
+      visibleTreeCount: profile.heroTreeCount,
       treeKind: 'main',
       flowerEligible: true,
     });
     const shortTrees = buildHostTrees(host, shortCount, {
       ...shared,
+      visibleTreeCount: profile.visibleNearbyTreeCount,
       seedOffset: profile.seedOffset + options.shortTreeSeedOffset,
       trunkLength: options.trunkLength * options.shortTreeLengthScale,
       branchDepth: options.shortTreeBranchDepth,
       branchLengthScale: Math.min(options.branchLengthScale, 0.52),
       directionSpread: options.shortTreeDirectionSpread,
-      routePersonalities: [],
       treeKind: 'nearby',
       flowerEligible: true,
     });
