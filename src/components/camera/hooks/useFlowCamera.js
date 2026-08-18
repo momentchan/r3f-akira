@@ -1,116 +1,91 @@
-import { useExperienceStore } from '../../../core/experienceStore';
-import { FLOW_LOOP_FROM, FLOW_SHOTS } from '../cameraShots';
+import { useFrame } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
+import * as THREE from 'three/webgpu';
+import { useExperienceStore } from '../../../core/experienceStore';
+import { CAMERA_DEFAULTS } from '../cameraDefaults';
+import { pointOnOrbit } from '../cameraShots';
 
-function sleep(ms, signal) {
-  return new Promise((resolve) => {
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener('abort', () => {
-      clearTimeout(t);
-      resolve();
-    }, { once: true });
-  });
+function alongPath(angle, amp, cycles) {
+  return amp * Math.sin(angle * cycles);
 }
 
-async function lookAtShot(controls, shot, duration, signal) {
-  const prevSmooth = controls.smoothTime;
-  controls.smoothTime = duration;
-  try {
-    await controls.setLookAt(
-      shot.position[0],
-      shot.position[1],
-      shot.position[2],
-      shot.target[0],
-      shot.target[1],
-      shot.target[2],
-      true,
-    );
-  } catch {
-    // CameraControls rejects if interrupted.
-  } finally {
-    if (controls.smoothTime === duration) controls.smoothTime = prevSmooth;
-  }
-  if (shot.fov != null && controls.camera) {
-    controls.camera.fov = shot.fov;
-    controls.camera.updateProjectionMatrix();
-  }
-  return !signal.aborted;
-}
+const WHEEL_TO_RADIUS = 0.0025;
 
 /**
- * Authored drifting attention. Owns CameraControls while FLOW is active.
+ * Slow continuous orbit along a fixed path. Height and radius breathe as
+ * functions of orbit angle, so one `orbitSpeed` is the only tempo.
+ *
+ * Wall-clock only: plant time-lapse must not change how fast the camera moves.
+ * Wheel dolly: scroll up closer, scroll down farther.
  */
 export function useFlowCamera({
   controlsRef,
   enabled,
-  shots = FLOW_SHOTS,
-  loopFrom = FLOW_LOOP_FROM,
+  target = CAMERA_DEFAULTS.target,
+  radius = CAMERA_DEFAULTS.radius,
+  height = CAMERA_DEFAULTS.height,
+  startAngle = CAMERA_DEFAULTS.startAngle,
+  orbitSpeed = CAMERA_DEFAULTS.orbitSpeed,
+  heightAmp = CAMERA_DEFAULTS.heightAmp,
+  heightCycles = CAMERA_DEFAULTS.heightCycles,
+  radiusAmp = CAMERA_DEFAULTS.radiusAmp,
+  radiusCycles = CAMERA_DEFAULTS.radiusCycles,
+  radiusMin = CAMERA_DEFAULTS.radiusMin,
+  radiusMax = CAMERA_DEFAULTS.radiusMax,
   restartKey = 0,
 }) {
   const setStillness = useExperienceStore((state) => state.setStillness);
-  const generationRef = useRef(0);
+  const angleRef = useRef(startAngle);
+  const liveRadiusRef = useRef(radius);
+  const smoothRadiusRef = useRef(radius);
+
+  useEffect(() => {
+    liveRadiusRef.current = radius;
+    smoothRadiusRef.current = radius;
+  }, [radius, restartKey]);
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+    setStillness(1);
+    angleRef.current = startAngle;
+    controlsRef.current?.stop?.();
+    return undefined;
+  }, [controlsRef, enabled, restartKey, setStillness, startAngle]);
 
   useEffect(() => {
     if (!enabled) return undefined;
 
-    const abort = new AbortController();
-    generationRef.current += 1;
-    const generation = generationRef.current;
-    let running = true;
-    const path = shots.length ? shots : FLOW_SHOTS;
-    const loopStart = Math.min(loopFrom, path.length);
-
-    const run = async (controls) => {
-      let pass = 0;
-      while (running && generation === generationRef.current) {
-        const start = pass === 0 ? 0 : loopStart;
-        for (let i = start; i < path.length; i += 1) {
-          const shot = path[i];
-          if (!running || abort.signal.aborted) return;
-          setStillness(0.85);
-          const moved = await lookAtShot(
-            controls,
-            shot,
-            shot.duration ?? 6,
-            abort.signal,
-          );
-          if (!moved || abort.signal.aborted) return;
-          const hold = shot.holdDuration ?? 0;
-          if (hold > 0) {
-            setStillness(1);
-            await sleep(hold * 1000, abort.signal);
-          }
-        }
-        pass += 1;
-      }
+    const onWheel = (event) => {
+      event.preventDefault();
+      const next = liveRadiusRef.current + event.deltaY * WHEEL_TO_RADIUS;
+      liveRadiusRef.current = THREE.MathUtils.clamp(next, radiusMin, radiusMax);
     };
 
-    const waitForControls = () => {
-      const controls = controlsRef.current;
-      if (controls) {
-        run(controls);
-        return;
-      }
-      const id = window.setInterval(() => {
-        if (!running) {
-          window.clearInterval(id);
-          return;
-        }
-        const next = controlsRef.current;
-        if (next) {
-          window.clearInterval(id);
-          run(next);
-        }
-      }, 50);
-    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => window.removeEventListener('wheel', onWheel);
+  }, [enabled, radiusMin, radiusMax]);
 
-    waitForControls();
+  useFrame((_, delta) => {
+    if (!enabled) return;
+    const controls = controlsRef.current;
+    if (!controls) return;
 
-    return () => {
-      running = false;
-      abort.abort();
-      generationRef.current += 1;
-      controlsRef.current?.stop?.();
-    };
-  }, [controlsRef, enabled, loopFrom, restartKey, setStillness, shots]);
+    const dt = Math.min(delta, 0.1);
+    angleRef.current += orbitSpeed * dt;
+    const angle = angleRef.current;
+    const elev = height + alongPath(angle, heightAmp, heightCycles);
+    smoothRadiusRef.current = THREE.MathUtils.damp(
+      smoothRadiusRef.current,
+      liveRadiusRef.current,
+      6,
+      dt,
+    );
+    const r = Math.max(
+      radiusMin,
+      smoothRadiusRef.current + alongPath(angle, radiusAmp, radiusCycles),
+    );
+    const look = Array.isArray(target) ? target : CAMERA_DEFAULTS.target;
+    const pos = pointOnOrbit(angle, r, elev, look);
+    controls.setLookAt(pos[0], pos[1], pos[2], look[0], look[1], look[2], false);
+  });
 }

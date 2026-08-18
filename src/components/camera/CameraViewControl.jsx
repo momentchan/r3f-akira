@@ -3,10 +3,10 @@ import { useControls } from 'leva';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three/webgpu';
 import { useExperienceStore } from '../../core/experienceStore';
+import { usePlantTimeScale } from '../plants/lifecycle/usePlantTimeScale';
 import { CAMERA_DEFAULTS } from './cameraDefaults';
 import { createCameraControlsSchema } from './cameraControls';
 import { CAMERA_MODE } from './cameraModes';
-import { buildFlowPath } from './cameraShots';
 import { useExploreStillness } from './hooks/useExploreStillness';
 import { useFlowCamera } from './hooks/useFlowCamera';
 import { useFrameCamera } from './hooks/useFrameCamera';
@@ -52,51 +52,22 @@ export function CameraViewControl() {
     if (params.frame !== frameIndex) setParams({ frame: frameIndex });
   }, [frameIndex, params.frame, setParams]);
 
-  const tx = params.target[0];
-  const ty = params.target[1];
-  const tz = params.target[2];
-
-  const flowPath = useMemo(
-    () =>
-      buildFlowPath({
-        target: [tx, ty, tz],
-        startAngle: params.startAngle,
-        turns: params.turns,
-        startRadius: params.startRadius,
-        endRadius: params.endRadius,
-        startHeight: params.startHeight,
-        endHeight: params.endHeight,
-        spiralSteps: params.spiralSteps,
-        spiralDuration: params.spiralDuration,
-        orbitSteps: params.orbitSteps,
-        orbitDuration: params.orbitDuration,
-      }),
-    [
-      params.endHeight,
-      params.endRadius,
-      params.orbitDuration,
-      params.orbitSteps,
-      params.spiralDuration,
-      params.spiralSteps,
-      params.startAngle,
-      params.startHeight,
-      params.startRadius,
-      params.turns,
-      tx,
-      ty,
-      tz,
-    ],
-  );
-
   const flowEnabled = isStarted && cameraMode === CAMERA_MODE.Flow;
   const framesEnabled = isStarted && cameraMode === CAMERA_MODE.Frames;
   const exploreEnabled = isStarted && cameraMode === CAMERA_MODE.Explore;
 
+  usePlantTimeScale({ enabled: isStarted });
   useFlowCamera({
     controlsRef,
     enabled: flowEnabled,
-    shots: flowPath.shots,
-    loopFrom: flowPath.loopFrom,
+    target: params.target,
+    radius: params.radius,
+    radiusAmp: params.radiusAmp,
+    radiusCycles: params.radiusCycles,
+    height: params.height,
+    heightAmp: params.heightAmp,
+    heightCycles: params.heightCycles,
+    orbitSpeed: params.orbitSpeed,
     restartKey: flowGeneration,
   });
   useFrameCamera({ controlsRef, enabled: framesEnabled, frameIndex });

@@ -1,0 +1,84 @@
+.flow-time-rail {
+  --mark-col: 1.55rem;
+  --rail-gutter: 8px;
+  position: fixed;
+  left: max(10px, env(safe-area-inset-left));
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  height: min(46vh, 340px);
+  padding-left: var(--mark-col);
+  pointer-events: none;
+  user-select: none;
+  font-family: Cousine, Arial, Helvetica, sans-serif;
+  color: #2a241c;
+  text-shadow:
+    0 0 10px rgba(237, 228, 211, 1),
+    0 1px 0 rgba(237, 228, 211, 0.9);
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+
+.flow-time-rail--visible {
+  opacity: 1;
+}
+
+.flow-time-rail__title {
+  margin-left: calc(-1 * var(--mark-col));
+  font-size: 0.62rem;
+  letter-spacing: 0.28em;
+  opacity: 0.7;
+}
+
+.flow-time-rail__track {
+  position: relative;
+  flex: 1;
+  width: 1px;
+  background: rgba(42, 36, 28, 0.42);
+  box-shadow: 0 0 8px rgba(237, 228, 211, 0.85);
+}
+
+.flow-time-rail__mark {
+  position: absolute;
+  right: calc(100% + var(--rail-gutter));
+  left: auto;
+  transform: translateY(50%);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  opacity: 0.5;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.flow-time-rail__tick {
+  position: absolute;
+  left: 50%;
+  width: 11px;
+  height: 1px;
+  margin-left: -5.5px;
+  background: #2a241c;
+  box-shadow: 0 0 8px rgba(237, 228, 211, 0.95);
+  transform: translateY(50%);
+  transition: bottom 0.12s linear;
+}
+
+.flow-time-rail__live {
+  position: absolute;
+  left: calc(50% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.flow-time-rail__live--on {
+  opacity: 0.42;
+  transition: opacity 0.2s ease;
+}

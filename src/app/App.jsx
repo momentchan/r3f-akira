@@ -7,6 +7,7 @@ import { useExperienceReady } from '../core/useExperienceReady';
 import { ChapterIntro } from '../ui/chapterIntro/ChapterIntro';
 import { CHAPTER_CONTENT } from '../ui/chapterIntro/chapterContent';
 import { CameraModeBar } from '../ui/cameraModeBar/CameraModeBar';
+import { FlowTimeRail } from '../ui/flowTimeRail/FlowTimeRail';
 
 export default function App() {
   const isStarted = useExperienceStore((state) => state.isStarted);
@@ -59,6 +60,7 @@ export default function App() {
 
       {!gpuError && <ExperienceCanvas />}
       <CameraModeBar />
+      <FlowTimeRail />
     </>
   );
 }

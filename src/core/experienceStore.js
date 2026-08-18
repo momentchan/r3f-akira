@@ -52,4 +52,13 @@ export const useExperienceStore = create((set, get) => ({
     set((state) =>
       Math.abs(state.stillness - stillness) < 0.002 ? state : { stillness },
     ),
+
+  // Authored plant-time multiplier (FLOW pointer Y, EXPLORE stillness, FRAMES 1).
+  plantTimeScale: 1,
+  setPlantTimeScale: (plantTimeScale) =>
+    set((state) =>
+      Math.abs(state.plantTimeScale - plantTimeScale) < 0.03
+        ? state
+        : { plantTimeScale },
+    ),
 }));
