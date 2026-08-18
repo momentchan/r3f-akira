@@ -68,6 +68,8 @@ function clearPointFromDisc(x, z, cx, cz, radius) {
 export function PlantField({
   position = [0, 0, 0],
   bodyBounds = null,
+  // Used only to keep ground flowers from growing up through the backpack.
+  backpackBounds = null,
   groundPaths = null,
   groundOffsetY = 0,
   groundCompletedTreesRef = null,
@@ -93,6 +95,8 @@ export function PlantField({
     phaseSpread,
     arrangementSeed,
     flowerBandSpread, clusterShare,
+    shootShare = FIELD_DEFAULTS.arrangement.shootShare,
+    satelliteShare = FIELD_DEFAULTS.arrangement.satelliteShare,
     positionJitter = FIELD_DEFAULTS.arrangement.positionJitter,
     roseRatio,
     reshuffleOnRespawn = FIELD_DEFAULTS.arrangement.reshuffleOnRespawn,
@@ -260,6 +264,12 @@ export function PlantField({
     };
   }, [bodyBounds, effectiveSpread, resolvedHeadLocal]);
 
+  // Both hosts sit above ground routes, so both must be tested. Rebuilt only
+  // when a posed BVH changes, not per frame.
+  const groundClearanceHosts = useMemo(() => (
+    [bodyBounds, backpackBounds].filter((host) => host?.bvh && host?.localBox)
+  ), [bodyBounds, backpackBounds]);
+
   const { stems, slotPool } = useMemo(() => {
     // Ground-vine mode is authoritative: an empty array means the vine layout
     // is still loading, not that the field should fall back to its old layout.
@@ -278,6 +288,9 @@ export function PlantField({
           maxPathDepth: 1,
           flowerBandSpread,
           clusterShare,
+          shootShare,
+          satelliteShare,
+          clearanceHosts: groundClearanceHosts,
           stemGeometry: {
             stemLength: [lenMin, lenMax],
             stemRadius: [radMin, radMax],
@@ -410,7 +423,7 @@ export function PlantField({
 
     return { stems: out, slotPool: slots };
   }, [usesGroundPaths, groundPaths, count, minGap, flowerBandSpread,
-    clusterShare,
+    clusterShare, shootShare, satelliteShare, groundClearanceHosts,
     effectiveSpread, arrangementSeed, positionJitter, roseRatio, slotFactor,
     bvh, clearMargin, faceClearRadius, contactPow, nearSizeMin,
     boundsVersion, bodyBounds, resolvedHeadLocal,

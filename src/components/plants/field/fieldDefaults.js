@@ -6,8 +6,17 @@ export const FIELD_DEFAULTS = {
     minGap: 0.14,
     leanOut: 1.0,
     // Fan stems across both sides of a ground route instead of tracing one line.
-    flowerBandSpread: 0.78,
+    // Lowered from 0.78 now that shoots and satellites give the crown real
+    // off-route width. The fan only ever faked width for collinear roots, so
+    // leaving it high on top of genuine displacement reads as scatter.
+    flowerBandSpread: 0.42,
     clusterShare: 0.75,
+    // Attachment mix, after the art-direction note: roughly 40% of ground
+    // flowers on a main trace, 35% on short side shoots, 25% as independent
+    // upright stems standing off-route. Shares are cumulative bands, so these
+    // two plus the remainder are the literal ratio.
+    shootShare: 0.35,
+    satelliteShare: 0.25,
     arrangementSeed: 0,
     positionJitter: 0.1,
     roseRatio: 0.45,

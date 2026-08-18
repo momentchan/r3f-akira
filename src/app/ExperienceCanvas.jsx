@@ -95,6 +95,7 @@ function SceneContent() {
         <Suspense fallback={null}>
           <PlantField
             bodyBounds={bodyBounds}
+            backpackBounds={backpackBounds}
             groundPaths={groundPaths}
             groundOffsetY={groundPathOffsetY}
             groundCompletedTreesRef={groundCompletedTreesRef}

@@ -49,6 +49,18 @@ export const GROUND_TENDRIL_DEFAULTS = Object.freeze({
   trunkLength: 1.85,
   branchLengthScale: 0.58,
   branchAngleRange: [14, 36],
+
+  // Short side shoots off the drawn traces. These exist so flowers have
+  // somewhere to sit other than the main line — a flower rooted directly on a
+  // trunk reads as threaded onto a guide curve, however much its crown leans.
+  // The angle range is deliberately far wider than `branchAngleRange`: a shoot
+  // must visibly leave its parent to do its job.
+  shootsPerPath: 2,
+  // Verified against a close crop: at 0.18 a shoot off a short nearby trunk is
+  // only ~0.11 units and the flower still reads as sitting on the trunk. A shoot
+  // has to be long enough to carry its flower clear of the parent line.
+  shootLengthScale: 0.34,
+  shootAngleRange: [52, 84],
   curvature: 0.16,
   lengthVariation: 0.28,
 

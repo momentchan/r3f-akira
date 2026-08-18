@@ -90,6 +90,20 @@ export function createGroundArrangementSchema(
       step: 0.01,
       label: 'Flowers In Clusters',
     },
+    shootShare: {
+      value: d.shootShare ?? 0.35,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      label: 'Flowers On Side Shoots',
+    },
+    satelliteShare: {
+      value: d.satelliteShare ?? 0.25,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      label: 'Independent Stems',
+    },
     roseRatio: {
       value: d.roseRatio ?? 0.45,
       min: 0,

@@ -338,12 +338,17 @@ export function PlantSystem({
           if (routeTangent.lengthSq() < 1e-8) routeTangent.set(0, 0, 1);
           routeTangent.normalize();
           const motionPoint = routePath.curve.getPointAt(0.5);
-          plant.anchorPosition[0] = routePoint.x;
+          // Satellite stems stand off their route by a stored offset. Without
+          // reapplying it here they would snap onto the curve on the first
+          // regeneration, collapsing back into the line they exist to break.
+          const rootOffsetX = plant.rootOffset?.[0] ?? 0;
+          const rootOffsetZ = plant.rootOffset?.[1] ?? 0;
+          plant.anchorPosition[0] = routePoint.x + rootOffsetX;
           plant.anchorPosition[1] = routePoint.y;
-          plant.anchorPosition[2] = routePoint.z;
-          plant.position[0] = routePoint.x;
+          plant.anchorPosition[2] = routePoint.z + rootOffsetZ;
+          plant.position[0] = routePoint.x + rootOffsetX;
           plant.position[1] = routePoint.y;
-          plant.position[2] = routePoint.z;
+          plant.position[2] = routePoint.z + rootOffsetZ;
           plant.yaw = Math.atan2(routeTangent.x, routeTangent.z)
             + (plant.routeFanOffset ?? 0)
             - plant.baseLeanAngle;

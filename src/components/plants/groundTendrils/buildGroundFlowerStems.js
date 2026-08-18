@@ -1,3 +1,4 @@
+import * as THREE from 'three/webgpu';
 import { stableRandomRange } from '@core';
 import { STEM_DEFAULTS } from '../stem/stemDefaults';
 import { GROUND_TENDRIL_INTERNALS } from './groundTendrilDefaults';
@@ -25,7 +26,25 @@ const S_CLUSTER_SPAN = 20;
 const S_BUDGET_ORDER = 21;
 const S_POSTURE = 22;
 const S_LEAN_STYLE = 23;
+const S_SHOOT_MODE = 24;
+const S_SHOOT_PATH = 25;
+const S_SHOOT_T = 26;
+const S_SAT_DIR = 27;
+const S_SAT_DIST = 28;
+const S_SAT_T = 29;
 const SPECIES_SEQUENCE_STEP = (Math.sqrt(5) - 1) * 0.5;
+// A shoot already carries its flower clear of the main line, so the crown fan
+// that compensates for collinear roots would double-count into scatter here.
+const SHOOT_FAN_SCALE = 0.35;
+// Sit toward the shoot tip, so the flower belongs to the shoot rather than to
+// the junction it grew from.
+const SHOOT_T_RANGE = [0.5, 0.95];
+// Satellites read as their own small plant standing near a route rather than as
+// part of it, so they hold an upright posture and take no crown fan at all.
+const SATELLITE_LEAN_STYLE = 'upright';
+// Sampled from the inner half of a route: independent stems belong around the
+// character, not out at the rim where they would just look detached.
+const SATELLITE_T_RANGE = [0.15, 0.62];
 
 const ROLE_FLOWER_PROFILE = Object.freeze({
   hero: Object.freeze({
@@ -72,6 +91,50 @@ function farEnough(point, accepted, minSpacingSq) {
     const dz = point.z - stem.position[2];
     return dx * dx + dz * dz >= minSpacingSq;
   });
+}
+
+const _clearRay = new THREE.Ray(new THREE.Vector3(), new THREE.Vector3(0, 1, 0));
+// Sampled around the root as well as on it, so a leaning crown or a wide head
+// is covered rather than only the exact centreline.
+const CLEAR_OFFSETS = [[0, 0], [0.05, 0], [-0.05, 0], [0, 0.05], [0, -0.05]];
+const CLEAR_FOOTPRINT_MARGIN = 0.06;
+// Allowance above the stem tip for the flower head itself.
+const CLEAR_HEAD_MARGIN = 0.05;
+
+/**
+ * True when a stem rooted at `point` would grow up into a host mesh.
+ *
+ * Ground routes legitimately run underneath the character and the backpack, but
+ * a flower rooted on that stretch grows vertically and pushes its stem through
+ * the suit. Roots must stay exactly on their source route (README invariant 3),
+ * so the sampler rejects these candidates rather than displacing them.
+ *
+ * Height-aware on purpose: a short flower under a raised arm clears it and is
+ * worth keeping, while a tall one in the same spot is not.
+ */
+function blocksOverhead(point, height, hosts) {
+  if (!hosts?.length || height <= 0) return false;
+  for (const host of hosts) {
+    const box = host?.localBox;
+    const bvh = host?.bvh;
+    if (!box || !bvh) continue;
+    // Cheap reject: only a column inside the host footprint can be blocked.
+    if (
+      point.x < box.min.x - CLEAR_FOOTPRINT_MARGIN
+      || point.x > box.max.x + CLEAR_FOOTPRINT_MARGIN
+      || point.z < box.min.z - CLEAR_FOOTPRINT_MARGIN
+      || point.z > box.max.z + CLEAR_FOOTPRINT_MARGIN
+      || point.y > box.max.y
+    ) continue;
+
+    const distance = height + CLEAR_HEAD_MARGIN;
+    for (const [offsetX, offsetZ] of CLEAR_OFFSETS) {
+      _clearRay.origin.set(point.x + offsetX, point.y - 0.02, point.z + offsetZ);
+      _clearRay.direction.set(0, 1, 0);
+      if (bvh.raycastFirst(_clearRay, THREE.DoubleSide, 0, distance)) return true;
+    }
+  }
+  return false;
 }
 
 function pickWeighted(entries, sampleIndex, salt, seed) {
@@ -144,12 +207,19 @@ function buildTreePlans(weighted, count, pathMin, pathMax, layoutSeed) {
     const profile = profileForRole(groundRole);
     const trunks = group.entries.filter(({ path }) => (path.depth ?? 0) === 0);
     const clusterEntries = trunks.length ? trunks : group.entries;
+    // Shoots are sampled from their own bucket with an explicit share. Length
+    // weighting alone would never reach them — they are an order of magnitude
+    // shorter than a trunk.
+    const shootEntries = group.entries.filter(({ path }) => path.isGroundShoot === true);
+    const mainEntries = group.entries.filter(({ path }) => path.isGroundShoot !== true);
     const treeSeed = layoutSeed + hashIdentity(group.treeId);
     return {
       ...group,
       groundRole,
       profile,
       treeSeed,
+      shootEntries,
+      mainEntries: mainEntries.length ? mainEntries : group.entries,
       clusterId: index,
       clusterEntry: pickWeighted(clusterEntries, index, S_CLUSTER_PATH, treeSeed),
       clusterT: stableRandomRange(index, S_CLUSTER_T, treeSeed, pathMin, pathMax),
@@ -230,12 +300,22 @@ export function buildGroundFlowerStems({
   maxPathDepth = Infinity,
   flowerBandSpread = 0.78,
   clusterShare = 0.75,
+  // Share of flowers rooted on short side shoots rather than on a main trace.
+  shootShare = 0.35,
+  // Share rooted off-route entirely, as independent upright stems near a route.
+  satelliteShare = 0.25,
+  // How far off-route a satellite root may sit, in world units.
+  satelliteRange = [0.12, 0.42],
+  // `{ bvh, localBox }` per host. Candidates whose stem column would intersect
+  // one of these are rejected. Empty means no clearance testing.
+  clearanceHosts = [],
   stemGeometry = STEM_DEFAULTS.geometry,
 }) {
   if (!paths.length || count < 1) return [];
 
   const eligiblePaths = paths.filter((path) => (
-    (path.depth ?? 0) <= maxPathDepth && path.flowerEligible !== false
+    ((path.depth ?? 0) <= maxPathDepth || path.isGroundShoot === true)
+    && path.flowerEligible !== false
   ));
   if (!eligiblePaths.length) return [];
 
@@ -276,10 +356,43 @@ export function buildGroundFlowerStems({
       0,
       1,
     ) < clusteredShare;
+    // One roll with cumulative bands, so `satelliteShare` / `shootShare` are the
+    // literal ratio asked for rather than nested conditional probabilities. When
+    // a tree has no shoots its band collapses and that share falls to 'route'.
+    const kindRoll = stableRandomRange(localAttempt, S_SHOOT_MODE, plan.treeSeed, 0, 1);
+    const satelliteBand = Math.min(1, Math.max(0, satelliteShare));
+    const shootBand = satelliteBand
+      + (plan.shootEntries.length > 0 ? Math.min(1, Math.max(0, shootShare)) : 0);
+    const onSatellite = kindRoll < satelliteBand;
+    const onShoot = !onSatellite && kindRoll < shootBand;
     let selected;
     let t;
+    let rootOffset = null;
 
-    if (useCluster) {
+    if (onShoot) {
+      selected = pickWeighted(
+        plan.shootEntries,
+        localAttempt,
+        S_SHOOT_PATH,
+        plan.treeSeed,
+      );
+      t = stableRandomRange(
+        localAttempt,
+        S_SHOOT_T,
+        plan.treeSeed,
+        SHOOT_T_RANGE[0],
+        SHOOT_T_RANGE[1],
+      );
+    } else if (onSatellite) {
+      selected = pickWeighted(plan.mainEntries, localAttempt, S_PATH, plan.treeSeed);
+      t = stableRandomRange(
+        localAttempt,
+        S_SAT_T,
+        plan.treeSeed,
+        SATELLITE_T_RANGE[0],
+        SATELLITE_T_RANGE[1],
+      );
+    } else if (useCluster) {
       selected = plan.clusterEntry;
       const offsetNoise = stableRandomRange(
         localAttempt,
@@ -303,13 +416,55 @@ export function buildGroundFlowerStems({
         ),
       );
     } else {
-      selected = pickWeighted(plan.entries, localAttempt, S_PATH, plan.treeSeed);
+      selected = pickWeighted(plan.mainEntries, localAttempt, S_PATH, plan.treeSeed);
       t = stableRandomRange(localAttempt, S_T, plan.treeSeed, pathMin, pathMax);
     }
     const point = selected.path.curve.getPointAt(t);
+
+    // Satellites leave the route deliberately. Applied here, before the spacing
+    // and clearance tests, so both judge where the stem actually stands — a
+    // satellite can be displaced under a host just as easily as onto open ground.
+    if (onSatellite) {
+      const direction = stableRandomRange(
+        localAttempt,
+        S_SAT_DIR,
+        plan.treeSeed,
+        0,
+        Math.PI * 2,
+      );
+      const distance = stableRandomRange(
+        localAttempt,
+        S_SAT_DIST,
+        plan.treeSeed,
+        satelliteRange[0],
+        satelliteRange[1],
+      );
+      rootOffset = [Math.cos(direction) * distance, Math.sin(direction) * distance];
+      point.x += rootOffset[0];
+      point.z += rootOffset[1];
+    }
+
     const forceFirstBloom = plan.accepted === 0 && plan.attempts >= 64;
     const roleSpacingSq = minSpacingSq * plan.profile.gapScale ** 2;
     if (!forceFirstBloom && !farEnough(point, stems, roleSpacingSq)) continue;
+
+    // Posture and length are resolved before the clearance test so it can be
+    // height-aware. Both are pure functions of the attempt and the seeds, so
+    // hoisting them does not change what any accepted flower looks like.
+    const posture = pickPosture(
+      plan.groundRole,
+      stableRandomRange(plan.accepted, S_POSTURE, plan.treeSeed, 0, 1),
+    );
+    const lengthVariation = stableRandomRange(attempt, S_SIZE, layoutSeed, 0.94, 1.06);
+    const stemLength = rangeValue(
+      attempt,
+      S_LENGTH,
+      layoutSeed,
+      postureLengthRange(stemGeometry.stemLength, posture),
+    ) * lengthVariation;
+
+    // A route running under a host is fine; a flower growing up out of it is not.
+    if (blocksOverhead(point, stemLength, clearanceHosts)) continue;
 
     const tangent = selected.path.curve.getTangentAt(t);
     tangent.y = 0;
@@ -319,16 +474,19 @@ export function buildGroundFlowerStems({
     // Roots remain attached to the ground route, but the stems open to both
     // sides of it. This turns a one-dimensional row of blooms into a loose
     // flower band without inventing disconnected spawn points.
-    const posture = pickPosture(
-      plan.groundRole,
-      stableRandomRange(plan.accepted, S_POSTURE, plan.treeSeed, 0, 1),
-    );
-    const leanStyleId = pickLeanStyle(
-      stableRandomRange(plan.accepted, S_LEAN_STYLE, plan.treeSeed, 0, 1),
-    );
+    const leanStyleId = onSatellite
+      ? SATELLITE_LEAN_STYLE
+      : pickLeanStyle(
+        stableRandomRange(plan.accepted, S_LEAN_STYLE, plan.treeSeed, 0, 1),
+      );
     const leanStyle = LEAN_STYLE[leanStyleId];
-    const fanStrength = Math.min(1, Math.max(0, flowerBandSpread))
-      * leanStyle.fanScale;
+    // Satellites take no fan: the fan exists to fake width for collinear roots,
+    // and a satellite root is already off the line for real.
+    const fanStrength = onSatellite
+      ? 0
+      : Math.min(1, Math.max(0, flowerBandSpread))
+        * leanStyle.fanScale
+        * (onShoot ? SHOOT_FAN_SCALE : 1);
     const fanSide = stableRandomRange(attempt, S_FAN_SIDE, layoutSeed, 0, 1) < 0.5
       ? -1
       : 1;
@@ -347,7 +505,6 @@ export function buildGroundFlowerStems({
     // rejected spatial candidates can no longer bias the accepted flower mix.
     const typeRoll = (speciesOffset + acceptedIndex * SPECIES_SEQUENCE_STEP) % 1;
     const flowerType = typeRoll < roseRatio ? roseType : dahliaType;
-    const lengthVariation = stableRandomRange(attempt, S_SIZE, layoutSeed, 0.94, 1.06);
     const seed = layoutSeed * 1009
       + hashIdentity(selected.path.logicalTreeId ?? selected.path.treeId)
       + attempt * 37
@@ -393,6 +550,11 @@ export function buildGroundFlowerStems({
       sourceTreeGeneration: 0,
       sourcePathId: logicalPathId,
       sourcePathT: t,
+      // 'route' | 'shoot' | 'satellite'. Satellites carry a stored XZ offset from
+      // their source route, reapplied on regeneration exactly like routeFanOffset,
+      // so they do not snap back onto the curve after the first cycle.
+      groundFlowerKind: onSatellite ? 'satellite' : (onShoot ? 'shoot' : 'route'),
+      rootOffset,
       bloomClusterId: plan.clusterId,
       groundRole: plan.groundRole,
       stemPosture: posture,
@@ -410,12 +572,7 @@ export function buildGroundFlowerStems({
         light: stableRandomRange(attempt, S_LIGHT, layoutSeed, -1, 1),
       },
       params: {
-        stemLength: rangeValue(
-          attempt,
-          S_LENGTH,
-          layoutSeed,
-          postureLengthRange(stemGeometry.stemLength, posture),
-        ) * lengthVariation,
+        stemLength,
         stemRadius: inheritedStemRadius,
         leanAngle: Math.min(
           45,

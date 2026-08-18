@@ -227,6 +227,93 @@ function addChildren(paths, parent, options, rng, depth) {
   }
 }
 
+/**
+ * Short stubs branching off a drawn trace.
+ *
+ * Shoots never recurse and never carry shoots of their own, and they draw from
+ * their own seeded rng so changing `shootsPerPath` cannot shift the trunk and
+ * branch layout underneath them.
+ */
+function addSideShoots(paths, parent, options) {
+  const count = Math.max(0, Math.round(options.shootsPerPath ?? 0));
+  if (!count) return;
+  const rng = seededRng(Math.abs(Math.round(parent.seed)) * 7919 + 13);
+  const parentLength = parent.curve.getLength();
+  const [angleMin, angleMax] = options.shootAngleRange;
+
+  for (let shootIndex = 0; shootIndex < count; shootIndex += 1) {
+    const spread = count === 1
+      ? 0.58
+      : THREE.MathUtils.lerp(0.32, 0.86, shootIndex / (count - 1));
+    const attachT = THREE.MathUtils.clamp(spread + (rng() - 0.5) * 0.14, 0.22, 0.92);
+    const start = parent.curve.getPointAt(attachT, new THREE.Vector3());
+    const tangent = parent.curve.getTangentAt(attachT, new THREE.Vector3()).setY(0);
+    if (tangent.lengthSq() < 1e-8) tangent.set(1, 0, 0);
+    tangent.normalize();
+
+    // Alternate sides so a pair of shoots never stacks on one flank.
+    const side = shootIndex % 2 === 0 ? -1 : 1;
+    const angle = THREE.MathUtils.degToRad(THREE.MathUtils.lerp(
+      Math.min(angleMin, angleMax),
+      Math.max(angleMin, angleMax),
+      rng(),
+    )) * side;
+    const targetDirection = rotateGroundDirection(tangent, angle);
+    const lengthVariation = 1 + (rng() * 2 - 1) * 0.3;
+    const length = Math.max(
+      parentLength * options.shootLengthScale * lengthVariation,
+      0.06,
+    );
+    const startRadius = radiusAt(parent, attachT);
+    const endRadius = startRadius * options.radiusDecay;
+    const curve = makeGroundCurve({
+      start,
+      initialDirection: tangent,
+      targetDirection,
+      length,
+      curvature: options.curvature,
+      groundY: options.groundY,
+      groundGap: options.groundGap,
+      stemRadius: options.tendrilRadius,
+      radiusStartScale: startRadius,
+      radiusEndScale: endRadius,
+      rng,
+    });
+    const startDistance = parent.pathStartDistance + parentLength * attachT;
+
+    paths.push({
+      curve,
+      treeId: parent.treeId,
+      logicalTreeId: parent.logicalTreeId,
+      hostId: parent.hostId,
+      seed: parent.seed * 41 + shootIndex + 7,
+      role: 'ground-shoot',
+      parentId: parent.id,
+      id: `${parent.id}#s${shootIndex}`,
+      logicalPathId: `${parent.logicalPathId}#s${shootIndex}`,
+      depth: (parent.depth ?? 0) + 1,
+      attachT,
+      junction: start.clone(),
+      radialOrigin: parent.radialOrigin,
+      treeKind: parent.treeKind,
+      treeIndex: parent.treeIndex,
+      groundRole: parent.groundRole,
+      isGroundShoot: true,
+      renderGroundTendril: true,
+      stemRadius: parent.stemRadius,
+      layoutSeed: parent.layoutSeed,
+      routeGeneration: parent.routeGeneration,
+      routeVariant: parent.routeVariant,
+      flowerEligible: parent.flowerEligible,
+      pathStartDistance: startDistance,
+      pathEndDistance: startDistance + curve.getLength(),
+      radiusStartScale: startRadius,
+      radiusEndScale: endRadius,
+      baseFlareScale: 0,
+    });
+  }
+}
+
 function buildHostTrees(host, count, options) {
   if (!host?.geometry || !host?.localBox || count < 1) return [];
   const paths = [];
@@ -312,6 +399,15 @@ function buildHostTrees(host, count, options) {
     };
     paths.push(trunk);
     addChildren(paths, trunk, options, rng, 0);
+    // Attach shoots only to traces that are actually drawn, so a flower on a
+    // shoot reads as growing off a visible branch. Snapshot the list first:
+    // shoots must not grow shoots of their own.
+    const drawn = paths.filter((path) => (
+      path.logicalTreeId === logicalTreeId
+      && path.renderGroundTendril !== false
+      && path.isGroundShoot !== true
+    ));
+    for (const drawnPath of drawn) addSideShoots(paths, drawnPath, options);
   }
   return paths;
 }

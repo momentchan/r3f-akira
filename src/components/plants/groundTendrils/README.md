@@ -167,8 +167,14 @@ weight = curve length
        * (1.6 for a depth-0 trunk, otherwise 1.0)
 ```
 
-Every accepted root is an exact `curve.getPointAt(t)` position. Never move a
-flower root away from its source tendril just to make the crown wider.
+Route and shoot flowers use an exact `curve.getPointAt(t)` position. Never move
+such a root away from its source tendril just to make the crown wider — that is
+what `flowerBandSpread` is for, and faking width by displacing roots is the
+failure this rule exists to prevent.
+
+Satellite flowers are the one deliberate exception. They are their own small
+plant standing near a route, not a displaced route flower, and they carry a
+stored `rootOffset` so the displacement survives route regeneration.
 
 ### Bloom clusters
 
@@ -372,7 +378,11 @@ stem layout rebuild.
 1. Every ground tree root comes from a real host contact candidate.
 2. Ground tube lower surfaces and flower roots share the same ground offset.
 3. Every ground flower root has a valid `sourceTreeId`, `sourcePathId`, and
-   `sourcePathT` and remains on that route.
+   `sourcePathT`. Roots of kind `route` and `shoot` stay exactly on that curve.
+   Kind `satellite` may stand off the curve by its stored `rootOffset`, and that
+   offset must be reapplied wherever a route is re-attached (currently
+   `PlantSystem.jsx`, beside the `routeFanOffset` yaw fix-up) or satellites snap
+   back onto the line on the first regeneration.
 4. Parent branches grow before children and retract after children.
 5. A tree waits for its own flowers, not a global field timer.
 6. Lifecycle resampling happens while geometry is fully retracted; never expose

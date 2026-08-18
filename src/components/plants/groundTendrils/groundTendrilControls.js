@@ -112,6 +112,29 @@ export function createGroundTendrilControlsSchema(defaults = GROUND_TENDRIL_DEFA
         step: 1,
         label: 'Branch Angle (deg)',
       },
+      shootsPerPath: {
+        value: d.shootsPerPath,
+        min: 0,
+        max: 4,
+        step: 1,
+        label: 'Side Shoots Per Trace',
+      },
+      shootLengthScale: {
+        value: d.shootLengthScale,
+        min: 0.05,
+        max: 0.45,
+        step: 0.01,
+        label: 'Shoot Length Scale',
+      },
+      // Kept high on purpose: a shoot has to visibly leave its parent, or its
+      // flower still reads as threaded onto the main line.
+      shootAngleRange: {
+        value: d.shootAngleRange,
+        min: 20,
+        max: 90,
+        step: 1,
+        label: 'Shoot Angle (deg)',
+      },
     }, CLOSED),
     'Live Placement': folder({
       groundGap: {
