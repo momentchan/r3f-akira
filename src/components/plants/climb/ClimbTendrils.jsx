@@ -18,6 +18,7 @@ import {
   hashLifecycleIdentity,
 } from '../lifecycle/plantLifecycle';
 import { useLifecyclePauseHotkey } from '../lifecycle/useLifecyclePauseHotkey';
+import { getSimSpeed } from '../lifecycle/simSpeed';
 import { FieldLeaves } from '../stem/FieldLeaves';
 import { STEM_Y_MAX } from '../stem/stemDefaults';
 import {
@@ -640,7 +641,8 @@ export function ClimbTendrils({
     }
 
     const { data, width, tex } = plantData;
-    const dt = Math.min(delta, 0.1);
+    // Shared global rate, so the climbers stay in step with the flower field.
+    const dt = Math.min(delta, 0.1) * getSimSpeed();
     const paused = lifecyclePausedRef.current;
     const treeGrowthFronts = treeGrowthFrontsRef.current;
     const activeTrees = activeTreesRef.current;

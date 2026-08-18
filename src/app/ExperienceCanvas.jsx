@@ -82,6 +82,7 @@ function SceneContent() {
         <Suspense fallback={null}>
           <PlantField
             bodyBounds={bodyBounds}
+            backpackBounds={backpackBounds}
             wind={plantWind}
           />
         </Suspense>

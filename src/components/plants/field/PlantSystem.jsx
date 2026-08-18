@@ -28,6 +28,9 @@ import {
   updateFlowerBatchTips,
 } from '../vat/FlowerTypeBatch';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
+import { stableRandomRange } from '@core';
+import { animatedCentre, sampleAnchorField } from './fieldAnchors';
+import { getSimSpeed } from '../lifecycle/simSpeed';
 
 const _lightWorld = new THREE.Vector3();
 const _lightTarget = new THREE.Vector3();
@@ -40,6 +43,12 @@ const _lightTarget = new THREE.Vector3();
  * merged stem geometry.
  */
 const PLANT_DATA_ROWS = 2;
+
+/** Salt for the seeded respawn pick. */
+const S_RESPAWN = 20;
+
+/** Scratch for the respawn weighting, so the hot path allocates nothing. */
+const _slotWeights = [];
 
 function createPlantDataTexture(count, rows = PLANT_DATA_ROWS) {
   const width = Math.max(1, THREE.MathUtils.ceilPowerOfTwo(count));
@@ -59,6 +68,65 @@ function createPlantDataTexture(count, rows = PLANT_DATA_ROWS) {
  * next to the suit would break the near/far size hierarchy. Picks randomly among
  * the closest few so the field still reshuffles.
  */
+/**
+ * Hand a respawning plant a free slot from its OWN anchor + role bucket, so a
+ * rebirth reshuffles inside its cluster instead of dissolving it. Matching on
+ * radius alone let a plant at one cluster reappear at another with the same
+ * distance-from-body, and over a few minutes the clusters homogenized back into
+ * the even ring the anchors exist to replace.
+ *
+ * Seeded on the plant's own respawn counter rather than Math.random(): lifecycle
+ * timings, positions and colours are all already seeded, so this was the last
+ * source of nondeterminism, and CanvasCapture needs the same tableau twice.
+ * Also O(1) instead of a map+sort over every free slot on every respawn.
+ */
+function takeGroupSlot(byGroup, groupKey, plantSeed, tick, pool, fieldAt) {
+  const bucket = byGroup.get(groupKey);
+  if (!bucket || !bucket.length) return -1;
+
+  let at = -1;
+  if (fieldAt && pool) {
+    // Weighted by the density at each candidate RIGHT NOW. This is what makes the
+    // composition migrate: the field drifts, and every flower that finishes its
+    // cycle is more likely to reappear where the field currently is. Clumps creep
+    // across the ground over a few generations, and no lifecycle is ever cut short
+    // to achieve it — which is the whole reason the old fade gate is gone.
+    //
+    // A bucket holds ~20 slots and this runs only on respawn, so it is a handful
+    // of arithmetic evaluations. No BVH: pool slots are already keep-out validated.
+    let total = 0;
+    for (let k = 0; k < bucket.length; k += 1) {
+      const slot = pool[bucket[k]];
+      const w = slot ? Math.max(0, fieldAt(slot.x, slot.z) - fieldAt.floor) : 0;
+      _slotWeights[k] = w;
+      total += w;
+    }
+    if (total <= 1e-6) {
+      // Every spare in this cluster is in dead ground — the field has drifted past
+      // this whole bucket. Decline the move and leave the plant where it is: it
+      // stands on a slot the builder accepted, which beats relocating it into the
+      // margin. `generationSeen` still advances, so this costs one attempt per
+      // lifecycle rather than retrying every frame.
+      return -1;
+    }
+    let roll = stableRandomRange(plantSeed, S_RESPAWN, tick, 0, total);
+    at = bucket.length - 1;
+    for (let k = 0; k < bucket.length; k += 1) {
+      roll -= _slotWeights[k];
+      if (roll <= 0) { at = k; break; }
+    }
+  } else {
+    // No migration to consult, so any spare in the cluster is as good as another.
+    at = Math.min(
+      bucket.length - 1,
+      Math.floor(stableRandomRange(plantSeed, S_RESPAWN, tick, 0, bucket.length)),
+    );
+  }
+  const slotIndex = bucket[at];
+  bucket.splice(at, 1);
+  return slotIndex;
+}
+
 function takeSimilarSlot(pool, freeSlots, targetRimT) {
   if (!freeSlots.length) return -1;
   let bestAt = 0;
@@ -96,6 +164,7 @@ export function PlantSystem({
   shedStemOverlap = 0, // 0 = stem waits for every petal, 1 = both start together
   shedControls = null,
   lifecycleRanges,
+  migration = null,
   lifecyclePausedRef = null,
   flowerControlsById,
   flowerColorVariationById,
@@ -110,6 +179,12 @@ export function PlantSystem({
     flowerBatches: {},
     light: null,
     freeSlots: [],
+    // Reused every frame so the respawn field sampler allocates nothing.
+    migrateOptions: null,
+    migrateCentres: [],
+    // Scaled, pausable simulation time. Kept here rather than read off the render
+    // clock so speed changes and the Space pause apply to the field drift too.
+    simTime: 0,
   });
 
   // Shared stem look from top-level Stem panel.
@@ -163,6 +238,13 @@ export function PlantSystem({
         // the *current* slot instead would let it random-walk inward or outward
         // over many respawns and wreck the near/far size hierarchy.
         homeRimT: stem.rimT ?? 0,
+        // Normalized once here so the per-frame loop needs no fallback.
+        bloomCeiling: stem.bloomCeiling ?? 1,
+        // 0 so a plant grows IN rather than popping when its slot first gains density.
+        // Anchor + role identity. Matched on respawn so a plant can only take a
+        // slot from its own cluster, or the clusters homogenize over minutes.
+        homeGroupKey: stem.groupKey ?? -1,
+        respawnTick: 0,
         generationSeen: 0,
         lifecycle: createLifecycleState({
           seed: stem.seed,
@@ -215,6 +297,25 @@ export function PlantSystem({
     runtimeRef.current.freeSlots = (slotPool ?? [])
       .map((_, idx) => idx)
       .filter((idx) => !taken.has(idx));
+    // Also bucketed by anchor+role so a respawn can be constrained to its own
+    // cluster. Falls back to the flat list when the layout has no groups.
+    const byGroup = new Map();
+    (slotPool ?? []).forEach((slot, idx) => {
+      if (taken.has(idx)) return;
+      const key = slot.groupKey ?? -1;
+      const bucket = byGroup.get(key);
+      if (bucket) bucket.push(idx); else byGroup.set(key, [idx]);
+    });
+    runtimeRef.current.freeSlotsByGroup = byGroup;
+    if (byGroup.size === 1 && byGroup.has(-1)) {
+      // Every free slot landed in the fallback bucket, which means no plant can
+      // ever match one and the respawn reshuffle is dead. This exact bug shipped
+      // once already.
+      console.warn(
+        `[PlantSystem] respawn reshuffle disabled: ${byGroup.get(-1).length}`
+        + ' free slots have no groupKey',
+      );
+    }
   }, [stemBuild, slotPool]);
 
   useEffect(() => () => {
@@ -266,8 +367,43 @@ export function PlantSystem({
       }
     }
 
-    const dt = Math.min(delta, 0.1);
     const paused = Boolean(lifecyclePausedRef?.current);
+    // Simulation clock. Lifecycle progress and the field drift both read it, so
+    // changing the rate moves the flowers and the masses they sit on together.
+    // Clamp first, then scale: the clamp exists to stop a backgrounded tab from
+    // skipping a whole cycle on refocus, and scaling before it would defeat that.
+    const dt = Math.min(delta, 0.1) * getSimSpeed();
+    if (!paused) rt.simTime += dt;
+    const simTime = rt.simTime;
+
+    // Migration preamble, once per frame rather than once per plant. The animated
+    // centres depend only on time, and the options object is mutated in place so
+    // the hot loop allocates nothing.
+    let migrateOptions = null;
+    let fieldAt = null;
+    if (migration) {
+      if (!rt.migrateOptions) rt.migrateOptions = { ...migration.options };
+      migrateOptions = rt.migrateOptions;
+      Object.assign(migrateOptions, migration.options);
+      const centres = rt.migrateCentres;
+      centres.length = migration.anchors.length;
+      for (let a = 0; a < migration.anchors.length; a += 1) {
+        centres[a] = animatedCentre(
+          // simTime, not clock.elapsedTime: the drift has to scale with the sim
+          // rate and freeze with the Space pause. On the render clock, pausing the
+          // flowers left the masses sliding along underneath them.
+          migration.anchors[a], simTime,
+          migration.options.migrateDist, migration.options.migrateSpeed,
+        );
+      }
+      migrateOptions.centres = centres;
+      // Consumed only on respawn, so this closure is built once per frame and on
+      // most frames is never called.
+      fieldAt = (x, z) => sampleAnchorField(
+        x, z, migration.anchors, migrateOptions,
+      );
+      fieldAt.floor = migration.threshold ?? 0;
+    }
     const { data, width, tex } = plantData;
     const time = clock.elapsedTime;
     const pool = slotPool ?? [];
@@ -298,6 +434,7 @@ export function PlantSystem({
         bloomStart,
         petalShedFrac,
       );
+      // Read once and never scaled: the lifecycle alone owns how grown a stem is.
       const stemGrow = growthState.growth;
 
       // Respawn shuffle: the clock wrapped, so hand this plant a different slot.
@@ -308,9 +445,26 @@ export function PlantSystem({
         && plant.lifecycle.generation !== plant.generationSeen
         && stemGrow <= 0.001
       ) {
-        const nextSlot = takeSimilarSlot(pool, freeSlots, plant.homeRimT);
+        const byGroup = runtimeRef.current.freeSlotsByGroup;
+        const grouped = plant.homeGroupKey >= 0 && byGroup;
+        const nextSlot = grouped
+          ? takeGroupSlot(
+            byGroup, plant.homeGroupKey, plant.seed, plant.respawnTick, pool, fieldAt,
+          )
+          : takeSimilarSlot(pool, freeSlots, plant.homeRimT);
         if (nextSlot >= 0) {
-          if (plant.slotIndex >= 0) freeSlots.push(plant.slotIndex);
+          if (plant.slotIndex >= 0) {
+            if (grouped) {
+              // Released to homeGroupKey, never to the slot's own group. They are
+              // equal by construction; writing it this way stops a mislabelled slot
+              // from leaking a plant into a neighbouring cluster.
+              const home = byGroup.get(plant.homeGroupKey);
+              if (home) home.push(plant.slotIndex);
+              else byGroup.set(plant.homeGroupKey, [plant.slotIndex]);
+            } else {
+              freeSlots.push(plant.slotIndex);
+            }
+          }
           const slot = pool[nextSlot];
           plant.slotIndex = nextSlot;
           plant.position[0] = slot.x;
@@ -318,12 +472,26 @@ export function PlantSystem({
           // Turn by the change in outward azimuth so the stem keeps leaning away
           // from the body at its new spot (and reads as a different plant).
           plant.yaw = slot.leanOutwardAngle - plant.baseLeanAngle;
+          plant.respawnTick += 1;
         }
         plant.generationSeen = plant.lifecycle.generation;
       }
 
+      // No migration gate. It used to scale stemGrow by the local density, which
+      // meant a flower halfway through blooming shrank back down because the field
+      // had moved off it — the lifecycle got interrupted, and it read as a flower
+      // growing in reverse for no visible reason. It also cost ~45% of the built
+      // count in permanently dormant plants.
+      //
+      // Migration now expresses itself through WHERE the next flower appears, not
+      // by retracting live ones: the field weights the respawn pick above, so every
+      // plant runs a full grow/hold/shed/retract cycle wherever it stands.
       plant.stemGrow = stemGrow;
-      plant.flowerFrame = flowerFrame;
+      // Ceiling applied HERE rather than inside computeBloomLifecycle: that
+      // function deliberately forces flowerFrame to 1 during petal shed to avoid
+      // a pop, and the ramp reaches 1 at openEnd, so scaling the result holds the
+      // shed at exactly the value the ramp just arrived at — continuous either way.
+      plant.flowerFrame = flowerFrame * plant.bloomCeiling;
       plant.flowerScale = flowerScale;
       plant.shed = shed;
       plant.swayX = swayX;

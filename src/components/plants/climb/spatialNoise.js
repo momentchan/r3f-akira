@@ -18,8 +18,15 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
-/** Continuous seeded value noise in [-1, 1]. */
-function valueNoise3D(x, y, z, seed) {
+/**
+ * Continuous seeded value noise in [-1, 1].
+ *
+ * Exported because the flower-field anchor mask needs a *spatially coherent*
+ * field: `stableRandomRange` is index-hashed, so neighbouring candidate positions
+ * get unrelated values and a cluster edge ends up looking like a circle with
+ * static on it rather than a ragged boundary.
+ */
+export function valueNoise3D(x, y, z, seed) {
   const x0 = Math.floor(x);
   const y0 = Math.floor(y);
   const z0 = Math.floor(z);

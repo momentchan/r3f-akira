@@ -129,6 +129,87 @@ export function clearPointFromBvh(x, z, bvh, margin, heights) {
   return [px, pz, ok];
 }
 
+/** True when (x,z) is close enough to a box's XZ footprint to possibly be inside `margin` of its mesh. */
+function boxNearXZ(box, x, z, margin) {
+  const slack = margin + 0.02;
+  return x >= box.min.x - slack
+    && x <= box.max.x + slack
+    && z >= box.min.z - slack
+    && z <= box.max.z + slack;
+}
+
+/**
+ * Push (x,z) away from SEVERAL meshes at once until it clears all of them.
+ *
+ * Not equivalent to calling `clearPointFromBvh` once per host: pushing a point
+ * clear of the body can shove it straight into the backpack. Each iteration
+ * re-picks the nearest surface across every host, so the point walks out of
+ * whichever one it currently sits inside.
+ *
+ * `hosts` is `{ bvh, localBox }[]`. The box is an optional cheap reject — a point
+ * further than `margin` from a host's footprint cannot be that host's nearest
+ * surface, and skipping it avoids six BVH queries. This keeps the common case
+ * (nowhere near the backpack) at single-host cost.
+ *
+ * @returns {[number, number, boolean]} [x, z, ok]
+ */
+export function clearPointFromHosts(x, z, hosts, margin, heights) {
+  const list = (hosts ?? []).filter((host) => host?.bvh);
+  if (!list.length) return [x, z, true];
+  if (list.length === 1) {
+    return clearPointFromBvh(x, z, list[0].bvh, margin, heights);
+  }
+
+  const nearest = (px, pz) => {
+    let best = null;
+    for (const host of list) {
+      if (host.localBox && !boxNearXZ(host.localBox, px, pz, margin)) continue;
+      const candidate = closestDistanceAtXZ(host.bvh, px, pz, heights);
+      if (candidate && (!best || candidate.distance < best.distance)) best = candidate;
+    }
+    return best;
+  };
+
+  let px = x;
+  let pz = z;
+  // More iterations than the single-host case: a point can be handed back and
+  // forth between two hosts a few times before it settles outside both.
+  for (let iter = 0; iter < 12; iter += 1) {
+    const hit = nearest(px, pz);
+    if (!hit || hit.distance >= margin) return [px, pz, true];
+
+    let dx = px - hit.point.x;
+    let dz = pz - hit.point.z;
+    let len = Math.hypot(dx, dz);
+    if (len < 1e-4) {
+      const a = iter * 2.399; // golden-ish
+      dx = Math.cos(a);
+      dz = Math.sin(a);
+      len = 1;
+    }
+    const push = (margin - hit.distance) + 0.01;
+    px += (dx / len) * push;
+    pz += (dz / len) * push;
+  }
+
+  const finalHit = nearest(px, pz);
+  const ok = !finalHit || finalHit.distance >= margin * 0.85;
+  return [px, pz, ok];
+}
+
+/** Push XZ away from a soft circular keep-out (helmet pocket). */
+export function clearPointFromDisc(x, z, cx, cz, radius) {
+  if (radius <= 1e-5) return [x, z, true];
+  const dx = x - cx;
+  const dz = z - cz;
+  const d = Math.hypot(dx, dz);
+  if (d >= radius) return [x, z, true];
+  if (d < 1e-5) {
+    return [cx + radius, cz, true];
+  }
+  const s = radius / d;
+  return [cx + dx * s, cz + dz * s, true];
+}
 export function worldBoxToLocal(worldBox, parent) {
   const local = new THREE.Box3();
   const corner = new THREE.Vector3();

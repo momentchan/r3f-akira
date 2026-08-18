@@ -16,6 +16,7 @@ import { computeDurations, computeLifecycle } from './flowerLifecycle';
 import { computeWindSway, windMask, WIND_MASK_POW } from './wind';
 import { StemLeaves } from './StemLeaves';
 import { PLANT_WIND_DEFAULTS } from '../wind/plantWind';
+import { getSimSpeed } from '../lifecycle/simSpeed';
 
 const _up = new THREE.Vector3(0, 1, 0);
 const GROWTH_START_SCALE = 0.1;
@@ -267,7 +268,7 @@ export function ProceduralStem({
     // Space toggles lifecyclePausedRef — freeze age so grow/keep/die stop in place.
     if (!lifecyclePausedRef?.current) {
       const lifetime = durations.delay + durations.grow + durations.keep + durations.die;
-      ageRef.current += Math.min(delta, 0.1);
+      ageRef.current += Math.min(delta, 0.1) * getSimSpeed();
       if (ageRef.current >= lifetime) {
         ageRef.current -= lifetime;
         setGeneration((g) => g + 1); // regrow a fresh flower (new direction + timing)

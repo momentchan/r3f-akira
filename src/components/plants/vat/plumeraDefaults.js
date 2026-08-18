@@ -14,7 +14,11 @@ export const PLUMERA_MATERIAL_DEFAULTS = mergeFlowerDefaults({
     thresholdHigh: 0.32,
   },
   colorVariation: {
-    hueRange: 0.5,
+    // Was 0.5 — the slider maximum — which randomized every instance across the
+    // whole hue wheel, so the body flowers never read as one cream species. The
+    // base palette is already the colour we want; this only needs enough drift to
+    // stop them looking stamped.
+    hueRange: 0.03,
     lightRange: 0.035,
   },
   vein: {

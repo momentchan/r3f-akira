@@ -34,7 +34,10 @@ export const CLIMB_DEFAULTS = {
   enabled: true,
 
   // Distribution along each directed body region.
-  tendrilCount: 256,
+  // Cut from 256: the body-contact layer is meant to read as a few fine tendrils,
+  // not as coverage. Note the built count is `tendrilCount * routePoolFactor`
+  // clamped to MAX_TOTAL_TENDRILS, and only ~tendrilCount are awake at a time.
+  tendrilCount: 180,
   // Relative helmet allocation: 0 = none, 1 = unmodified surface density.
   headDensity: 0.1,
   // Extra dormant routes built per visible wrap, so a regrown tree can appear
@@ -64,7 +67,10 @@ export const CLIMB_DEFAULTS = {
   leafCurl: 0.5,
 
   // Flowers attach at stable random positions along wrapping segments.
-  flowerDensity: 0.18,
+  // Cut from 0.18, which allocated ~92 instances and put 30-60 on the body at
+  // once. Combined with the tendrilCount cut this lands nearer 10-18 visible —
+  // "a small amount of small white flowers" rather than a flowering suit.
+  flowerDensity: 0.08,
   flowerSpan: [0.25, 0.82],
   flowerNormalVariation: 10,
 

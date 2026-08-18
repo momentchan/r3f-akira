@@ -7,7 +7,7 @@ export const SHADOW_DEFAULTS = {
   washNoise: 0.91,
   washScale: 3.1,
   contourColor: '#232a42',
-  contour: 0.6,
+  contour: 0.45,
   contourWidth: 1.5,
   edgeAt: 0.35,
   edgeNoise: 1.25,
