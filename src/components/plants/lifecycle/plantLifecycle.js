@@ -80,13 +80,21 @@ export function createLifecycleState({
   };
 }
 
+/**
+ * Re-derive durations from current ranges without disturbing progress, so a
+ * timing change applies to living organisms without rebuilding any geometry.
+ */
+export function applyLifecycleRanges(state, ranges) {
+  state.durations = computeDurations(generationSeed(state), ranges);
+  return state;
+}
+
 /** Preserve a clock across geometry rebuilds while applying current ranges. */
 export function restoreLifecycleProgress(state, previous, ranges) {
   if (!previous) return state;
   state.age = previous.age;
   state.generation = previous.generation;
-  state.durations = computeDurations(generationSeed(state), ranges);
-  return state;
+  return applyLifecycleRanges(state, ranges);
 }
 
 /**

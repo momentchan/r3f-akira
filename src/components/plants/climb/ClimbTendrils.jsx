@@ -8,6 +8,7 @@ import { createBatchedStemMaterial, createFlowerUniforms } from '../look/createF
 import { FLOWER_DEFAULTS } from '../look/flowerDefaults';
 import { createFlowerControlsSchema } from '../look/flowerControls';
 import {
+  buildCurveSampleTable,
   buildPackedStemTubes,
   GROWTH_START_SCALE,
 } from '../stem/buildStemTube';
@@ -510,6 +511,10 @@ export function ClimbTendrils({
 
       selectedPlants.push({
         ...plant,
+        // Built here, not per wrap: only the few routes that carry a head need a
+        // sample table, and the same segment count as the packed tube keeps the
+        // head on the geometry it is attached to.
+        curveTable: buildCurveSampleTable(plant.curve, TUBE_SEGMENTS),
         colorOverride: {
           hueShift: stableRandomRange(
             plant.plantId,
@@ -635,12 +640,15 @@ export function ClimbTendrils({
       light.target.getWorldPosition(_lightTarget);
       const lightDirection = _lightWorld.sub(_lightTarget).normalize();
       flowerUniforms.lightDir.value.copy(lightDirection);
-      for (const batch of Object.values(flowerRuntimeRef.current.flowerBatches)) {
-        batch.flowerUniforms.lightDir.value.copy(lightDirection);
+      // for..in rather than Object.values: this runs every frame and the latter
+      // allocates an array each time.
+      const batches = flowerRuntimeRef.current.flowerBatches;
+      for (const id in batches) {
+        batches[id].flowerUniforms.lightDir.value.copy(lightDirection);
       }
     }
 
-    const { data, width, tex } = plantData;
+    const { data, tex } = plantData;
     // Shared global rate, so the climbers stay in step with the flower field.
     const dt = Math.min(delta, 0.1) * getSimSpeed();
     const paused = lifecyclePausedRef.current;
@@ -706,13 +714,8 @@ export function ClimbTendrils({
       data[o + 2] = motionZ;
       data[o + 3] = 0;
     }
-    for (let i = plants.length; i < width; i += 1) {
-      const o = i * 4;
-      data[o] = 0;
-      data[o + 1] = 0;
-      data[o + 2] = 0;
-      data[o + 3] = 0;
-    }
+    // Texels past plants.length are never written, and the backing Float32Array
+    // starts zeroed, so there is nothing to clear here.
     tex.needsUpdate = true;
     updateFlowerBatchTips(flowerRuntimeRef.current.flowerBatches, plants);
   }, 1);
@@ -777,6 +780,8 @@ export function ClimbTendrils({
         visible={debugVisible}
         wraps={wraps}
         hosts={hosts}
+        surfaceOffset={debouncedPath.surfaceOffset}
+        noiseAmount={debouncedPath.noiseAmount}
         requestedTendrilCount={Math.min(
           debouncedPath.tendrilCount,
           MAX_TOTAL_TENDRILS,

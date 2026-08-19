@@ -10,12 +10,14 @@ import {
 import { FieldLeaves } from '../stem/FieldLeaves';
 import { syncStemLookControls } from '../stem/stemControls';
 import {
+  buildCurveSampleTable,
   buildStemCurve,
   buildStemTubeGeometry,
   GROWTH_START_SCALE,
 } from '../stem/buildStemTube';
 import {
   advanceLifecycleState,
+  applyLifecycleRanges,
   computeBloomLifecycle,
   computeGrowthLifecycle,
   createLifecycleState,
@@ -100,8 +102,8 @@ function createPlantDataTexture(count, rows = PLANT_DATA_ROWS) {
 }
 
 /**
- * Single plant field system: one merged stem mesh + instanced VAT heads per type.
- * Leaves are deferred (v1) for density.
+ * Single plant field system: one merged stem mesh + instanced VAT heads per type,
+ * plus one instanced leaf mesh.
  */
 export function PlantSystem({
   stems,
@@ -138,6 +140,13 @@ export function PlantSystem({
     // clock so speed changes and the Space pause apply to the field drift too.
     simTime: 0,
   });
+
+  // Lifecycle timing does not shape geometry, so it must not be a rebuild input.
+  // Read through refs and applied in place below; see the stemBuild deps note.
+  const lifecycleRangesRef = useRef(lifecycleRanges);
+  lifecycleRangesRef.current = lifecycleRanges;
+  const phaseSpreadRef = useRef(phaseSpread);
+  phaseSpreadRef.current = phaseSpread;
 
   // Shared stem look from top-level Stem panel.
   const stemFlowerUniforms = useMemo(() => createFlowerUniforms(), []);
@@ -179,6 +188,9 @@ export function PlantSystem({
         ...stem,
         plantId,
         curve,
+        // Same segment count as the tube above, so the head tracks the geometry
+        // it is attached to rather than the ideal curve.
+        curveTable: buildCurveSampleTable(curve, stemSegments),
         // Mutated at runtime, so clone rather than aliasing the layout memo.
         position: [stem.position[0], stem.position[1], stem.position[2]],
         yaw: 0,
@@ -192,8 +204,8 @@ export function PlantSystem({
         generationSeen: 0,
         lifecycle: createLifecycleState({
           seed: stem.seed,
-          ranges: lifecycleRanges,
-          initialStagger: phaseSpread,
+          ranges: lifecycleRangesRef.current,
+          initialStagger: phaseSpreadRef.current,
           rerollEachGeneration: true,
         }),
       };
@@ -203,9 +215,12 @@ export function PlantSystem({
     geos.forEach((g) => g.dispose());
 
     return { geometry: merged, plantData, plants };
-  }, [
-    stems, leanOut, stemSegments, radialSegs, lifecycleRanges, phaseSpread,
-  ]);
+    // lifecycleRanges and phaseSpread are deliberately NOT deps. Neither shapes
+    // geometry, and listing them meant nudging a timing slider rebuilt all 256
+    // tubes and re-ran mergeGeometries. phaseSpread was pure waste either way:
+    // the restore effect below overwrites `age` from the previous generation, so
+    // the fresh stagger was discarded the moment it was computed.
+  }, [stems, leanOut, stemSegments, radialSegs]);
 
   const stemMaterial = useMemo(() => {
     if (!stemBuild.plantData) return null;
@@ -241,6 +256,13 @@ export function PlantSystem({
     runtimeRef.current.plantData = stemBuild.plantData;
     runtimeRef.current.hearts = buildHeartRuntime(next).list;
   }, [stemBuild]);
+
+  // Timing changes reach living plants here instead of through a geometry rebuild.
+  useEffect(() => {
+    for (const plant of runtimeRef.current.plants) {
+      applyLifecycleRanges(plant.lifecycle, lifecycleRanges);
+    }
+  }, [lifecycleRanges]);
 
   useEffect(() => () => {
     stemBuild.geometry?.dispose();
@@ -286,8 +308,10 @@ export function PlantSystem({
       light.target.getWorldPosition(_lightTarget);
       const dir = _lightWorld.sub(_lightTarget).normalize();
       stemFlowerUniforms.lightDir.value.copy(dir);
-      for (const batch of Object.values(flowerBatches)) {
-        batch.flowerUniforms.lightDir.value.copy(dir);
+      // for..in rather than Object.values: this runs every frame and the latter
+      // allocates an array each time.
+      for (const id in flowerBatches) {
+        flowerBatches[id].flowerUniforms.lightDir.value.copy(dir);
       }
     }
 
@@ -492,19 +516,8 @@ export function PlantSystem({
       data[o1 + 2] = plant.position[2];
       data[o1 + 3] = plant.yaw;
     }
-    // Clear unused texels when count < width.
-    for (let i = plants.length; i < width; i++) {
-      const o = i * 4;
-      data[o] = 0;
-      data[o + 1] = 0;
-      data[o + 2] = 0;
-      data[o + 3] = 0;
-      const o1 = (width + i) * 4;
-      data[o1] = 0;
-      data[o1 + 1] = 0;
-      data[o1 + 2] = 0;
-      data[o1 + 3] = 0;
-    }
+    // Texels past plants.length are never written, and the backing Float32Array
+    // starts zeroed, so there is nothing to clear here.
     tex.needsUpdate = true;
 
     updateFlowerBatchTips(flowerBatches, plants);

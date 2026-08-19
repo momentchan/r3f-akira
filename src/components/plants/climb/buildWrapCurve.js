@@ -743,13 +743,30 @@ export function buildWrapCurves({
     out.push(ring);
   }
 
-  const hostById = new Map(hosts.map((host) => [host.id, host]));
-  for (let i = 0; i < out.length; i += 1) {
-    const wrap = out[i];
+  return out;
+}
+
+/**
+ * Annotate each wrap with how far it strays from its host surface.
+ *
+ * Debug-only output, and by far the most expensive thing in this module: 121 BVH
+ * closest-point queries per wrap, so ~40k for a default layout. The debug overlay
+ * calls this while it is mounted instead of every layout build paying for data
+ * that is usually never looked at.
+ */
+export function annotateWrapClearance(
+  wraps,
+  hosts,
+  { surfaceOffset = 0.007, noiseAmount = 0 } = {},
+) {
+  const hostById = new Map((hosts ?? []).map((host) => [host.id, host]));
+  for (let i = 0; i < wraps.length; i += 1) {
+    const wrap = wraps[i];
+    if (!wrap?.debug) continue;
     const host = hostById.get(wrap.hostId);
     const clearanceLimit = hostSurfaceOffset(host, surfaceOffset)
       + Math.max(noiseAmount, 0) + 0.012;
-    const isGroundEntry = wrap.debug?.wrapStyle === 'ground-entry';
+    const isGroundEntry = wrap.debug.wrapStyle === 'ground-entry';
     if (!host?.bvh || isGroundEntry) {
       wrap.debug.maxSurfaceDistance = 0;
       wrap.debug.clearanceLimit = clearanceLimit;
@@ -763,6 +780,5 @@ export function buildWrapCurves({
     wrap.debug.clearanceExceeded = clearance.maxDistance > clearanceLimit;
     wrap.debug.clearancePoint = clearance.maxPoint;
   }
-
-  return out;
+  return wraps;
 }

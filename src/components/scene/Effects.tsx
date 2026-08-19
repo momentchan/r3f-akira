@@ -82,8 +82,16 @@ export default function Effects() {
         };
     }, [gl, scene, camera, silkUniforms]);
 
+    // `enabled` only mixes the weave away at the end of the shader, so the full
+    // per-pixel cost is still paid when it is off. Bypass the whole pass instead
+    // and draw the scene directly — the output is what the mix already produced.
     useFrame(() => {
-        postProcessingRef.current?.render();
+        const pp = postProcessingRef.current;
+        if (pp && silkControls.enabled) {
+            pp.render();
+        } else if (gl) {
+            gl.render(scene, camera);
+        }
         statsRef.current?.update();
     }, 1);
 

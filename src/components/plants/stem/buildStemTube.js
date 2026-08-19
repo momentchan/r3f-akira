@@ -84,6 +84,58 @@ export function buildStemCurve({
 }
 
 /**
+ * Arc-length-uniform samples of `curve`, for callers that look one up per frame.
+ *
+ * `getPointAt`/`getTangentAt` are not cheap: each is a binary search through the
+ * arc-length table, and `getTangentAt` evaluates the curve twice more. Sampling
+ * with the same segment count the tube uses makes interpolation land on the chord
+ * between ring centres — which is exactly where the rendered tube surface is, so
+ * a head placed from this table sits on the tube rather than on the ideal curve
+ * the tube only approximates.
+ */
+export function buildCurveSampleTable(curve, segments) {
+  const count = Math.max(2, Math.floor(segments) + 1);
+  const points = new Float32Array(count * 3);
+  const tangents = new Float32Array(count * 3);
+  const point = new THREE.Vector3();
+  const tangent = new THREE.Vector3();
+  for (let i = 0; i < count; i += 1) {
+    const u = i / (count - 1);
+    curve.getPointAt(u, point);
+    curve.getTangentAt(u, tangent).normalize();
+    const k = i * 3;
+    points[k] = point.x;
+    points[k + 1] = point.y;
+    points[k + 2] = point.z;
+    tangents[k] = tangent.x;
+    tangents[k + 1] = tangent.y;
+    tangents[k + 2] = tangent.z;
+  }
+  return { points, tangents, count };
+}
+
+/** Interpolate a `buildCurveSampleTable` result. `u` is clamped to 0..1. */
+export function sampleCurveTable(table, u, outPoint, outTangent) {
+  const { points, tangents, count } = table;
+  const f = Math.min(Math.max(u, 0), 1) * (count - 1);
+  const i0 = Math.min(Math.floor(f), count - 2);
+  const frac = f - i0;
+  const a = i0 * 3;
+  const b = a + 3;
+  outPoint.set(
+    points[a] + (points[b] - points[a]) * frac,
+    points[a + 1] + (points[b + 1] - points[a + 1]) * frac,
+    points[a + 2] + (points[b + 2] - points[a + 2]) * frac,
+  );
+  outTangent.set(
+    tangents[a] + (tangents[b] - tangents[a]) * frac,
+    tangents[a + 1] + (tangents[b + 1] - tangents[a + 1]) * frac,
+    tangents[a + 2] + (tangents[b + 2] - tangents[a + 2]) * frac,
+  ).normalize();
+  return outPoint;
+}
+
+/**
  * TubeGeometry along `curve` with taper + baked centerline attribute.
  * Optionally stamps `plantId` on every vertex for batched field shading.
  */

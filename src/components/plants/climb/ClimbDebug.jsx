@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three/webgpu';
+import { annotateWrapClearance } from './buildWrapCurve';
 
 const AXIS_LEN = 0.09;
 const SEED_R = 0.012;
@@ -246,8 +247,17 @@ function CapsuleHelper({ capsule, color = '#00ffcc', label = '', showLabel = fal
  * green = climb dir, blue = orbit, red = outward
  * lime wire = limb capsules, cyan/pink boxes = body / backpack AABB
  */
-export function ClimbDebug({
-  visible = false,
+export function ClimbDebug({ visible = false, ...props }) {
+  // The overlay is always mounted, and the content's memos walk every wrap and
+  // spread every capsule. Splitting the body keeps those hooks from existing at
+  // all while it is hidden, which an early return inside them cannot do.
+  if (!visible) return null;
+  return <ClimbDebugContent {...props} />;
+}
+
+function ClimbDebugContent({
+  surfaceOffset = 0.007,
+  noiseAmount = 0,
   wraps = [],
   hosts = [],
   requestedTendrilCount = 0,
@@ -265,9 +275,17 @@ export function ClimbDebug({
   capsuleFilterId = null,
   pathCount = 24,
 }) {
+  // Measured here rather than in the builder: it is ~121 BVH queries per wrap and
+  // only this overlay reads the result. The 'invalid' filter below depends on it,
+  // so it has to run before the subset is taken.
+  const measuredWraps = useMemo(
+    () => annotateWrapClearance(wraps, hosts, { surfaceOffset, noiseAmount }),
+    [wraps, hosts, surfaceOffset, noiseAmount],
+  );
+
   const subset = useMemo(() => {
-    if (!wraps.length) return [];
-    const filtered = wraps.filter((wrap) => matchesDiagnosticMode(wrap, diagnosticMode));
+    if (!measuredWraps.length) return [];
+    const filtered = measuredWraps.filter((wrap) => matchesDiagnosticMode(wrap, diagnosticMode));
     const n = Math.min(Math.max(pathCount, 0), filtered.length);
     if (n >= filtered.length) return filtered;
     const step = filtered.length / n;
@@ -276,7 +294,7 @@ export function ClimbDebug({
       list.push(filtered[Math.min(Math.floor(i * step), filtered.length - 1)]);
     }
     return list;
-  }, [wraps, pathCount, diagnosticMode]);
+  }, [measuredWraps, pathCount, diagnosticMode]);
 
   const debugCapsules = useMemo(() => {
     const list = [];
@@ -316,8 +334,6 @@ export function ClimbDebug({
     point.y = bodyHost.localBox.max.y + 0.18;
     return point;
   }, [bodyHost]);
-
-  if (!visible) return null;
 
   const capsuleCount = debugCapsules.length;
 

@@ -1,10 +1,11 @@
 export const FIELD_DEFAULTS = {
   arrangement: {
     // Fewer stems = readable arcs across the suit (not wire noise).
-    // NOTE: 230 was chosen to offset the old migration gate, which left ~45% of
-    // plants dormant. The gate is gone — built count now equals visible count, and
-    // live slots pack into the true field instead of the wider envelope — so this
-    // is very likely too high and wants retuning downward.
+    // NOTE: this count was inflated to offset the old migration gate, which left
+    // ~45% of plants dormant. The gate is gone — built count now equals visible
+    // count, and live slots pack into the true field instead of the wider
+    // envelope — so it is very likely too high and wants retuning downward. Held
+    // at 256 deliberately until that retune is judged as a visual change.
     flowerCount: 256,
     leanOutward: 1.0,
     arrangementSeed: 0,
@@ -22,7 +23,6 @@ export const FIELD_DEFAULTS = {
     // the cluster SHAPE is irregular rather than a circle of varying intensity.
     shapeWarp: 1,
     warpScale: 5,
-    
     barePatches: 0.25,
     patchScale: 1.7,
     // Dispersal. Fewer founders = fewer, tighter bouquets; a wider hop range

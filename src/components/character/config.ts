@@ -2,10 +2,6 @@ import type { RefObject } from 'react';
 import type { Object3D } from 'three';
 import type { BodyBoundsPayload } from './hooks/useCharacterBodyBounds';
 
-// ============================================================================
-// Constants
-// ============================================================================
-
 /** Physics, movement, and animation blend config. Tweak here instead of in hooks. */
 export const CHARACTER_CONFIG = {
   walkSpeed: 1.0,
@@ -16,7 +12,6 @@ export const CHARACTER_CONFIG = {
   animBlendLerp: 0.15,
 } as const;
 
-// Character mesh name constants
 export const BODY_MESH_NAMES: readonly string[] = [
   'Astronaut_Suit_Body_Detail_01_Mesh',
   'Astronaut_Suit_Body_Mesh',
@@ -57,10 +52,6 @@ export const LOCOMOTION_MODEL_PATHS = [
 
 /** @deprecated use CHARACTER_MODEL_PATH */
 export const MODEL_PATHS = [CHARACTER_MODEL_PATH];
-
-// ============================================================================
-// Types
-// ============================================================================
 
 /** Still subject in the flower bed vs playable locomotion. */
 export type CharacterMode = 'tableau' | 'locomotion';

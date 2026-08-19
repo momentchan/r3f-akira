@@ -349,8 +349,8 @@ export function PlantField({
     const { issues, found, expected } = anchorSet.diagnostics;
     if (!expected) return;
     // Positions are the thing you cannot read off a screenshot, and every
-    // rebalance decision depends on them.
-    // Positions only when the overlay is on: useful when tuning, noise otherwise.
+    // rebalance decision depends on them — but only while the overlay is on,
+    // since they are noise otherwise.
     if (showAnchors && anchorSet.anchors.length) {
       console.info(`[PlantField] anchors ${found}/${expected}`);
       for (const a of anchorSet.anchors) {

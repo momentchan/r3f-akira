@@ -15,7 +15,7 @@ import {
   syncFlowerControls,
 } from '../look/flowerControls';
 import { syncStemLookControls } from '../stem/stemControls';
-import { GROWTH_START_SCALE } from '../stem/buildStemTube';
+import { GROWTH_START_SCALE, sampleCurveTable } from '../stem/buildStemTube';
 import { windMask } from '../stem/wind';
 import {
   configureVatTexture,
@@ -284,8 +284,14 @@ export function updateFlowerBatchTips(flowerBatches, plants) {
       }
 
       const t = hasFixedAttachment ? attachT : Math.max(stemGrow, 0.001);
-      plant.curve.getPointAt(t, _tip);
-      plant.curve.getTangentAt(t, _tangent).normalize();
+      // Baked table when the owner supplied one — getPointAt/getTangentAt here
+      // cost a binary search plus three curve evaluations per head per frame.
+      if (plant.curveTable) {
+        sampleCurveTable(plant.curveTable, t, _tip, _tangent);
+      } else {
+        plant.curve.getPointAt(t, _tip);
+        plant.curve.getTangentAt(t, _tangent).normalize();
+      }
       const attachNormal = attachNormals?.[local];
       if (hasFixedAttachment && attachNormal?.length === 3) {
         _outward.fromArray(attachNormal).normalize();
