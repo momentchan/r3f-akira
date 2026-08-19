@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAnimations } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
 import { useControls } from 'leva';
 import { KeyboardMapper } from '@core';
+import type { DirectionalLight } from 'three/webgpu';
 import { Group, type Object3D } from 'three';
 import { CharacterProps } from './config';
 import { useCharacterAssets } from './hooks/useCharacterAssets';
@@ -29,6 +31,22 @@ export const Character = ({
   const groupRef = useRef<Group>(null);
   const { scene, animations, bodyMat, detailMat, outlineMat } =
     useCharacterAssets();
+
+  const { scene: threeScene } = useThree();
+  const [light, setLight] = useState<DirectionalLight | null>(null);
+  useEffect(() => {
+    let found: DirectionalLight | null = null;
+    threeScene.traverse((o) => {
+      if (!found && (o as any).isDirectionalLight) found = o as DirectionalLight;
+    });
+    setLight(found);
+  }, [threeScene]);
+
+  useEffect(() => {
+    if (!light) return;
+    bodyMat?.userData.patchShadow(light);
+    detailMat?.userData.patchShadow(light);
+  }, [light, bodyMat, detailMat]);
 
   const isTableau = mode === 'tableau';
   const [settledBoundsVersion, setSettledBoundsVersion] = useState(0);

@@ -10,6 +10,7 @@ import {
   mix,
   normalLocal,
   positionLocal,
+  shadow,
   smoothstep,
   texture,
   transformNormal,
@@ -74,7 +75,11 @@ export interface OutlineMaterialOptions {
 }
 
 export type CharacterToonMaterial = THREE.MeshBasicNodeMaterial & {
-  userData: { toonUniforms: WoodblockToonUniforms };
+  userData: {
+    toonUniforms: WoodblockToonUniforms;
+    /** Rebuild fragmentNode to include cast-shadow sampling from a scene light. */
+    patchShadow: (light: THREE.DirectionalLight) => void;
+  };
 };
 
 export type CharacterOutlineMaterial = THREE.MeshBasicNodeMaterial & {
@@ -93,49 +98,14 @@ function uVec3(value: THREE.Vector3) {
   return uniform(value) as unknown as UniformValue<THREE.Vector3>;
 }
 
-export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterToonMaterial {
-  const {
-    textures,
-    colorLevels = CHARACTER_LOOK_DEFAULTS.colorLevels,
-    thresholdLow = CHARACTER_LOOK_DEFAULTS.thresholdLow,
-    thresholdHigh = CHARACTER_LOOK_DEFAULTS.thresholdHigh,
-    shadowTint = CHARACTER_LOOK_DEFAULTS.shadowTint,
-    highlightTint = CHARACTER_LOOK_DEFAULTS.highlightTint,
-    aoIntensity = CHARACTER_LOOK_DEFAULTS.aoIntensity,
-    dirtAmount = CHARACTER_LOOK_DEFAULTS.dirtAmount,
-    dirtLevels = CHARACTER_LOOK_DEFAULTS.dirtLevels,
-    dirtContactCut = CHARACTER_LOOK_DEFAULTS.dirtContactCut,
-    dirtContactFade = CHARACTER_LOOK_DEFAULTS.dirtContactFade,
-    dirtDebug = CHARACTER_LOOK_DEFAULTS.dirtDebug,
-    lightDir = new THREE.Vector3(...CHARACTER_LOOK_DEFAULTS.lightDir),
-  } = options;
-
-  const toonUniforms: WoodblockToonUniforms = {
-    lightDir: uVec3(lightDir.clone().normalize()),
-    colorLevels: uNumber(colorLevels),
-    thresholdLow: uNumber(thresholdLow),
-    thresholdHigh: uNumber(thresholdHigh),
-    shadowTint: uColor(shadowTint),
-    highlightTint: uColor(highlightTint),
-    aoIntensity: uNumber(aoIntensity),
-    dirtAmount: uNumber(dirtAmount),
-    dirtLevels: uNumber(dirtLevels),
-    dirtContactCut: uNumber(dirtContactCut),
-    dirtContactFade: uNumber(dirtContactFade),
-    dirtDebug: uNumber(dirtDebug ? 1 : 0),
-  };
-
-  const albedoMap = textures.map ?? null;
-  const dirtMap = textures.dirtMap ?? null;
-  const aoMap = textures.aoMap ?? null;
-
-  const material = new THREE.MeshBasicNodeMaterial({
-    toneMapped: false,
-    side: THREE.FrontSide,
-    map: albedoMap,
-  }) as CharacterToonMaterial;
-
-  material.fragmentNode = Fn(() => {
+function buildToonFragment(
+  toonUniforms: WoodblockToonUniforms,
+  albedoMap: THREE.Texture | null,
+  dirtMap: THREE.Texture | null,
+  aoMap: THREE.Texture | null,
+  light: THREE.DirectionalLight | null,
+) {
+  return Fn(() => {
     const uvCoord = uv();
     const clean = albedoMap
       ? texture(albedoMap, uvCoord).rgb
@@ -196,12 +166,74 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
       vec3(1.0, 0.2, 0.75),
       contact,
     );
-    const outRgb = mix(litColor, debugCol, toonUniforms.dirtDebug as any);
+    const withDebug = mix(litColor, debugCol, toonUniforms.dirtDebug as any);
 
-    return vec4(clamp(outRgb, 0.0, 1.0), 1.0);
+    // Apply cast shadow from scene light (petals, backpack, etc. onto character).
+    // Uses the same shadowTint as the toon ramp so cast shadows match the style.
+    if (light) {
+      const castShadowVal = shadow(light as any);
+      return vec4(clamp(mix(
+        withDebug.mul(vec3(toonUniforms.shadowTint as any)),
+        withDebug,
+        castShadowVal,
+      ), 0.0, 1.0), 1.0);
+    }
+
+    return vec4(clamp(withDebug, 0.0, 1.0), 1.0);
   })();
+}
+
+export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterToonMaterial {
+  const {
+    textures,
+    colorLevels = CHARACTER_LOOK_DEFAULTS.colorLevels,
+    thresholdLow = CHARACTER_LOOK_DEFAULTS.thresholdLow,
+    thresholdHigh = CHARACTER_LOOK_DEFAULTS.thresholdHigh,
+    shadowTint = CHARACTER_LOOK_DEFAULTS.shadowTint,
+    highlightTint = CHARACTER_LOOK_DEFAULTS.highlightTint,
+    aoIntensity = CHARACTER_LOOK_DEFAULTS.aoIntensity,
+    dirtAmount = CHARACTER_LOOK_DEFAULTS.dirtAmount,
+    dirtLevels = CHARACTER_LOOK_DEFAULTS.dirtLevels,
+    dirtContactCut = CHARACTER_LOOK_DEFAULTS.dirtContactCut,
+    dirtContactFade = CHARACTER_LOOK_DEFAULTS.dirtContactFade,
+    dirtDebug = CHARACTER_LOOK_DEFAULTS.dirtDebug,
+    lightDir = new THREE.Vector3(...CHARACTER_LOOK_DEFAULTS.lightDir),
+  } = options;
+
+  const toonUniforms: WoodblockToonUniforms = {
+    lightDir: uVec3(lightDir.clone().normalize()),
+    colorLevels: uNumber(colorLevels),
+    thresholdLow: uNumber(thresholdLow),
+    thresholdHigh: uNumber(thresholdHigh),
+    shadowTint: uColor(shadowTint),
+    highlightTint: uColor(highlightTint),
+    aoIntensity: uNumber(aoIntensity),
+    dirtAmount: uNumber(dirtAmount),
+    dirtLevels: uNumber(dirtLevels),
+    dirtContactCut: uNumber(dirtContactCut),
+    dirtContactFade: uNumber(dirtContactFade),
+    dirtDebug: uNumber(dirtDebug ? 1 : 0),
+  };
+
+  const albedoMap = textures.map ?? null;
+  const dirtMap = textures.dirtMap ?? null;
+  const aoMap = textures.aoMap ?? null;
+
+  const material = new THREE.MeshBasicNodeMaterial({
+    toneMapped: false,
+    side: THREE.FrontSide,
+    map: albedoMap,
+  }) as CharacterToonMaterial;
+
+  material.fragmentNode = buildToonFragment(toonUniforms, albedoMap, dirtMap, aoMap, null);
+
+  const patchShadow = (newLight: THREE.DirectionalLight) => {
+    material.fragmentNode = buildToonFragment(toonUniforms, albedoMap, dirtMap, aoMap, newLight);
+    material.needsUpdate = true;
+  };
 
   material.userData.toonUniforms = toonUniforms;
+  material.userData.patchShadow = patchShadow;
   return material;
 }
 
