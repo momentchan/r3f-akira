@@ -8,17 +8,21 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
+    /* Let TS infer types from the untyped .js half of src/ so TS files importing
+       them are not all implicit-any. checkJs stays off: turning it on floods on
+       TSL node types, and is its own piece of work. */
+    "allowJs": true,
+    "checkJs": false,
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Path mapping */
-    "baseUrl": ".",
+    /* Path mapping. Relative form (no baseUrl) works on TS 5 and 7 alike. */
     "paths": {
-      "@core": ["packages/three-core/src/index.ts"],
-      "@core/*": ["packages/three-core/src/*"]
+      "@core": ["./packages/three-core/src/index.ts"],
+      "@core/*": ["./packages/three-core/src/*"]
     },
 
     /* Linting */

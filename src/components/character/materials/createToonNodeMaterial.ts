@@ -147,7 +147,9 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
     const contactEnd = contactCut.add(
       max(toonUniforms.dirtContactFade as any, 0.001),
     );
-    const contact = smoothstep(contactCut, contactEnd, contactRaw);
+    // `as any` like the uniforms above: TSL widens attribute()'s 'float'
+    // literal to string, so the node type is lost. Correct at runtime.
+    const contact = smoothstep(contactCut, contactEnd, contactRaw as any);
 
     const N = transformNormal(normalLocal).normalize().toVar();
     const L = vec3(toonUniforms.lightDir as any).normalize().toVar();

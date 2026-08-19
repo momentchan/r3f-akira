@@ -100,29 +100,33 @@ Measurement notes: (1) and (2) are from Node benchmarks against the real modules
 
 - **Shared `useDirectionalLightDir()` hook.** Saves only two matrix updates per frame — a deduplication win, not a perf one — and moving the lookup to priority 0 would make the plant loops read the light one frame later than they do now. Kept as a structural item below.
 - **Climb `drawRange` for dormant routes.** Would be invisible, but the awake set is reshuffled at runtime ([`ClimbTendrils.jsx`](src/components/plants/climb/ClimbTendrils.jsx) wake/sleep), so awake tubes are not contiguous in the index buffer. Real work, not a one-liner.
-- **Baking the silk weave to a texture.** Still the most promising GPU item (see below), but unmeasured. Do not build it before reading the number.
+- **Baking the silk weave to a texture.** Measured and rejected — see the section below. It was a hypothesis stated with more confidence than the evidence supported.
 
 ---
 
-## Open — measure this first
+## Measured — the silk weave is NOT the bottleneck
 
-**The one measurement that decides the next move:** on `/debug`, read stats-gl GPU ms with **PostFX → SilkWeave → enabled** off versus on.
+An earlier version of this file called the silk weave "the single largest GPU item" and proposed baking it to a texture. **Measured on `/debug`, that is wrong. Do not build the bake.**
 
-[`createSilkWeaveNode.js`](src/components/postfx/createSilkWeaveNode.js) is ~12 `hash` + 2 `pow` + 2 `sin` + two value-noise octaves per pixel at `threadCount: 815`. Every term except the final `sceneColor` multiply depends only on `screenUV`, `screenSize`, and the Leva uniforms — nothing time- or scene-varying. So it is bakeable:
+| | FPS | CPU ms |
+|---|---|---|
+| SilkWeave enabled | 60 (60–61) | 3.16 (3.16–5.9) |
+| SilkWeave disabled | 60 (60–61) | 3.81 (3.81–6.5) |
 
-- Render `tint × fabric × blotch` once into a render target sized exactly to the drawing buffer (`NearestFilter`, `HalfFloatType`), regenerated on resize and on uniform change.
-- The per-frame pass becomes one texture fetch and a multiply.
-- Live Leva control survives: a uniform change re-bakes on the next frame, so dragging costs about what it costs today and the steady state costs almost nothing.
-- Cost: ~29 MB of VRAM at 1440p, plus complexity in the post chain.
-- Side effect: makes `threadCount` free, so the old suggestion to retune it to 400–500 becomes unnecessary.
+Both runs are pinned at 60 FPS — **vsync-capped**, so any GPU saving is invisible below the cap. CPU is nominally *higher* with the weave off, and the ranges overlap heavily, so that difference is noise rather than signal.
 
-If the on/off delta is small, this is not worth building and the GPU budget is going somewhere else — most likely the shadow pass.
+Two consequences worth keeping:
+
+1. **There is no performance problem on this hardware.** ~3–4 ms of CPU against a 16.7 ms budget, GPU with enough headroom to hold 60 FPS. Further optimization has no measurable payoff here. Revisit only for a weaker target device, a much larger viewport, or an actual observed drop — and get a number first.
+2. **stats-gl shows no GPU panel** in this build, meaning WebGPU timestamp queries are unavailable. That display *cannot* show GPU cost even in principle. To measure GPU properly you would need timestamp queries enabled, or to uncap vsync (`--disable-gpu-vsync --disable-frame-rate-limit`) and compare achieved frame rate.
+
+The bake idea is preserved below only so nobody re-derives it: the weave depends solely on `screenUV`, `screenSize`, and the Leva uniforms — nothing time- or scene-varying — so `tint × fabric × blotch` *could* be rendered once into a screen-sized `HalfFloatType` target and reduced to one texture fetch. It is simply not worth ~29 MB of VRAM and post-chain complexity to speed up something that is not costing anything.
 
 ---
 
 ## Deferred: costs image quality
 
-Each needs its own before/after judgement from two camera angles. Do not bundle with a structural change.
+**Given the measurement above, none of these should be done now** — they buy performance the project does not currently need, at a cost in image quality. Kept only as the menu to reach for *if* a real target device is found to struggle. Each would need its own before/after judgement from two camera angles, and none should be bundled with a structural change.
 
 | Item | Expected win | Visual cost |
 |---|---|---|
@@ -196,7 +200,7 @@ Do **not** unify the field and climb runtimes until both are split.
 
 ### Convention
 
-1. **`tsconfig.json` `strict` is decorative.** No `allowJs`/`checkJs`, so the 75 `.js`/`.jsx` files under `src/` are ignored despite `include: ["src/**/*"]`, and there is no `typecheck` script — `vite build` uses esbuild, which strips types without checking. Adding one is the highest-leverage item here: it is what would have caught the unused `Environment` import.
+1. ~~**`tsconfig.json` `strict` is decorative.**~~ **Fixed.** It was worse than decorative — `typescript` was not installed at all, so the config was unrunnable. Now: `typescript` pinned to 5.x (npm's latest is 7.x, which removed `baseUrl` and hung on this project), `paths` converted to the relative form that works on both, `allowJs: true` so TS files stop seeing the untyped `.js` half as implicit `any`, and an `npm run typecheck` script. **`src/` is type-clean.** `checkJs` is deliberately still off — turning it on floods on TSL node types and is its own piece of work.
 2. **Duplicate `BufferGeometryUtils` specifier** — `three/addons/utils/…` in `field/bodyBounds.js` vs `three/examples/jsm/utils/…` in four other files. Same module, two specifiers, duplicate-instance risk.
 3. **Two `three` entrypoints** — 13 files value-import from bare `'three'` while the renderer is `three/webgpu`, which ships its own core copy. `import type` sites are fine.
 4. **Leva:** `'Character'` is registered twice (`Character.tsx` and `Backpack.tsx`). Four inline schemas remain (`Scene` + `Sim` in `ExperienceCanvas.jsx`, `Lighting`, `Shadow`, `PostFX`); the pattern to match is `camera/cameraControls.js` / `stem/stemControls.js` (schema factory + sync function). `smoke/smokeDefaults.js` holds a schema factory that belongs in a `smokeControls.js`.
@@ -213,7 +217,8 @@ Do **not** unify the field and climb runtimes until both are split.
 
 It is a **git submodule** (`https://github.com/momentchan/three-core.git`). Do not change it in an app PR; these land separately.
 
-- **`components/input/KeyboardMapper.tsx` imports a module that does not exist** (`'../input/InputEngine'`; the file is `input/InputSystem.ts`). It survives only because the symbol is used in a type position, so esbuild elides it — `tsc` would fail. This is on the **live** path via `Character.tsx`.
+- **`components/input/KeyboardMapper.tsx` imports a module that does not exist** (`'../input/InputEngine'`; the file is `input/InputSystem.ts`). It survives only because the symbol is used in a type position, so esbuild elides it. **Confirmed by `npm run typecheck`:** `error TS2307: Cannot find module '../input/InputEngine'`. This is on the **live** path via `Character.tsx`.
+- `npm run typecheck` reports **17 errors, all in this submodule** and all pre-existing: the one above, 6 trivial unused-declaration errors (`noUnusedLocals` doing its job), 2 real-looking issues in `utils/SpriteTextureArray.ts` (`instanceof` on a non-object type, and a possible null), and the rest TSL node-typing noise in `utils/tsl/*` and `vat/tsl.ts`. Until these are fixed upstream the script exits non-zero even though `src/` is clean — check the `src/` lines, not the exit code.
 - `src/index.ts` never re-exports `./interaction`, so the whole 22-file / ~1.6k-line MediaPipe + Leap + YOLO tree is unreachable via `@core`.
 - `PostFX.tsx` is exported from the barrel, unused, and registers a second `'PostFX'` Leva folder.
 - `leva/LevaWrapper.tsx` self-references via the consuming app's `@core` alias, making the package non-portable.

@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
     "textures:generate-veins": "node scripts/textures/generate-veins.mjs",
     "textures:fit-veins": "node scripts/textures/fit-veins-to-uv.mjs",
     "textures:generate-plumera-mask": "node scripts/textures/generate-flower-mask-from-uv.mjs \"public/Plumera Flower/Plumera Flower.glb\" public/textures/plumera-mask.png 1024 representative 12"
@@ -16,6 +17,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "playwright": "^1.62.1",
     "pngjs": "^7.0.0",
+    "typescript": "~5.7.0",
     "vite": "^7.1.7",
     "vite-plugin-glsl": "^1.5.4"
   },
