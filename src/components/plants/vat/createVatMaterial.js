@@ -130,36 +130,6 @@ function applyPetalShed(basePos, vertexColor, shed, frame, posTex, meta, shedUni
   return { local, lift, outward, spreadAmount };
 }
 
-export function createVatFlowerMaterials(
-  posTex,
-  nrmTex,
-  meta,
-  flowerUniforms,
-  maskUniforms,
-  maskTexture,
-  veinTexture,
-  options = {},
-) {
-  const { usePetalCutout = true, useMaskEdge = true } = options;
-  const frameUniform = uniform(0);
-  const deformation = createVatDeformation(posTex, nrmTex, meta, frameUniform);
-
-  // One merged ABC mesh: flower=(1,0,0), stem=(0,0,0) via COLOR_0.
-  const material = createFlowerVertexColorMaterial(
-    flowerUniforms,
-    maskUniforms,
-    maskTexture,
-    veinTexture,
-    {
-      normalSource: deformation.vatNormalLocal,
-      usePetalCutout,
-      useMaskEdge,
-    },
-  );
-  material.positionNode = deformation.vatPosition;
-
-  return { material, frameUniform };
-}
 
 /**
  * Instanced VAT flowers.

@@ -1,5 +1,5 @@
 import { memo, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { AdaptiveDpr, Environment } from '@react-three/drei';
+import { AdaptiveDpr } from '@react-three/drei';
 import { CameraViewControl } from '../components/camera/CameraViewControl';
 import { AsyncCompile, CanvasCapture } from '@core';
 import { Canvas } from '@react-three/fiber';

@@ -1,7 +1,6 @@
 export const FLOWER_MASK_PATH = '/textures/blackanedwthioe.png';
 export const FLOWER_VEIN_PATH = '/textures/tujlip-veins.png';
 export const ROSE_MASK_PATH = '/textures/rose-mask.png';
-export const JASMINE_MASK_PATH = '/textures/jasmine-mask.png';
 export const PLUMERA_MASK_PATH = '/textures/plumera-mask.png';
 
 export const FLOWER_DEFAULTS = {

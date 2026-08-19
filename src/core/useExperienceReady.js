@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useProgress } from '@react-three/drei';
-import { useExperienceStore } from './experienceStore';
+import { TIER1_TARGETS, useExperienceStore } from './experienceStore';
 
 const MIN_INTRO_MS = 1000;
 
@@ -11,8 +11,8 @@ const MIN_INTRO_MS = 1000;
 export function useExperienceReady() {
   const { active, progress: downloadProgress } = useProgress();
   const gpuError = useExperienceStore((state) => state.gpuError);
-  const tier1Targets = useExperienceStore((state) => state.tier1Targets);
   const readyStatus = useExperienceStore((state) => state.readyStatus);
+  const tier1Targets = TIER1_TARGETS;
 
   const [minElapsed, setMinElapsed] = useState(false);
 

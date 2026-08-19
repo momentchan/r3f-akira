@@ -7,9 +7,8 @@
  * of sync with each other.
  *
  * Effective rate is authoredScale × debugMul. The mode director writes the
- * authored scale (FLOW envelope, EXPLORE stillness, FRAMES hold). The Sim panel
- * writes the debug multiplier so a reviewer can still 10x without stomping the
- * director.
+ * authored scale (FLOW envelope, EXPLORE stillness). The Sim panel writes the
+ * debug multiplier so a reviewer can still 10x without stomping the director.
  *
  * Scales lifecycle progress **and** the anchor-field migration, deliberately.
  * Reviewing the composition as it evolves means watching ~180s for six flower
@@ -37,7 +36,7 @@ export function getSimSpeed() {
   return authoredScaleRef.current * debugMulRef.current;
 }
 
-/** Mode director: FLOW envelope / EXPLORE stillness / FRAMES hold. */
+/** Mode director: FLOW envelope / EXPLORE stillness. */
 export function setAuthoredSimScale(value) {
   authoredScaleRef.current = finiteNonNeg(value, 1);
 }
@@ -46,10 +45,3 @@ export function setAuthoredSimScale(value) {
 export function setSimSpeedMul(value) {
   debugMulRef.current = finiteNonNeg(value, 1);
 }
-
-/** @deprecated Writes the debug multiplier only. Prefer setSimSpeedMul. */
-export function setSimSpeed(value) {
-  setSimSpeedMul(value);
-}
-
-export { authoredScaleRef, debugMulRef };

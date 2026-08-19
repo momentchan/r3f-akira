@@ -10,7 +10,9 @@ Visitor product (do not regress):
 - `/debug` skips the overlay, auto-starts, shows Leva and stats-gl
 - TIME rail is display-only (`pointer-events: none`)
 
-Plant-pipeline invariants live in [`src/components/plants/field/README.md`](src/components/plants/field/README.md). This file is the project backlog only.
+Plant-pipeline invariants live in [`src/components/plants/field/README.md`](src/components/plants/field/README.md). This file is the project backlog, plus a record of what has already shipped so it is not re-investigated.
+
+The two "Done" sections below shipped together and were **confirmed on `/debug`**: the scene renders, the console is clean, and the field reads unchanged. No pixel diff was taken — the sub-pixel bound on the head-placement change is the numeric argument instead (see note under that table).
 
 ---
 
@@ -54,154 +56,181 @@ Time is split on purpose today:
 
 `/debug` is a pathname convention ([`src/core/debugRoute.js`](src/core/debugRoute.js)), not a router. It skips intro, auto-starts, shows Leva, and mounts stats-gl.
 
+### The render loop — settled, do not re-investigate
+
+An earlier version of this file asked whether R3F draws a second pass on top of `PostProcessing.render()` and called it "the highest-leverage unknown". **It does not.** [`Effects.tsx`](src/components/scene/Effects.tsx) registers `useFrame(…, 1)`, and R3F skips its own render whenever any nonzero priority is subscribed:
+
+```js
+if (!state.internal.priority && state.gl.render) state.gl.render(state.scene, state.camera)
+```
+
+There is exactly one scene draw per frame. Related facts worth not rediscovering:
+
+- `preserveDrawingBuffer: true` in `ExperienceCanvas.jsx` is **inert** — three's WebGPU renderer never reads it. Harmless; costs nothing.
+- `<CanvasCapture />` is mounted unconditionally but is free: it is a `useShortcut('s')` that returns `null`.
+- Three `useFrame`s share priority 1 (`PlantSystem`, `ClimbTendrils`, `Effects`). Ordering is correct only because `Effects` is the last JSX sibling and therefore subscribes last. **This is incidental** — if the post pass ever renders before the plant data uploads, this is why.
+
 Coupling to unwind later:
 
 - [`experienceStore.js`](src/core/experienceStore.js) imports `getInitialCameraMode` from [`cameraModes.js`](src/components/camera/cameraModes.js) (core → components)
+- `usePlantTimeScale` and `FlowTimeRail` also reach into `components/camera/` for `CAMERA_MODE`
 - Leva panels mount even on the visitor path (hidden unless `/debug` or `h`)
 
 ---
 
-## Phase A — Dead surface
+## Done — invisible optimizations
 
-Low risk. Delete or archive what is unmounted. Grep before each removal.
+Shipped under one rule: **no change that could alter a pixel.** Everything that trades image quality for speed is in [Deferred: costs image quality](#deferred-costs-image-quality) instead.
 
-### Camera leftovers
+| # | Change | Measured effect |
+|---|---|---|
+| 1 | Baked per-plant tip/tangent tables; `updateFlowerBatchTips` lerps them instead of calling `curve.getPointAt`/`getTangentAt` per head per frame | **30.5× faster** on that path: 0.184 → 0.006 ms/frame at 256 heads |
+| 2 | Dropped `lifecycleRanges` + `phaseSpread` from the `stemBuild` memo deps; timing changes now apply in place | **50.7 ms → 0** per lifecycle-slider change (256 tube rebuild + `mergeGeometries`) |
+| 3 | `measureCurveSurfaceClearance` moved out of `buildWrapCurves` into `ClimbDebug` | **~43,500 BVH `closestPointToPoint` queries removed per layout build** (121 per wrap × ~360 wraps), debug-only data |
+| 4 | `ClimbDebug` split into a wrapper + content component | 5 memos (including a full `wraps` walk and a per-capsule spread) no longer run while the overlay is hidden |
+| 5 | `Effects` bypasses `PostProcessing.render()` when the weave is disabled, drawing the scene directly | Full-screen procedural pass no longer runs when switched off |
+| 6 | Removed the per-frame padding-texel clear in both pipelines | Provably redundant — those texels are never written and the array starts zeroed |
+| 7 | `for..in` instead of `Object.values()` in both frame loops | One array allocation per pipeline per frame removed |
 
-| Item | Path | Action |
-|------|------|--------|
-| Mode bar | `src/ui/cameraModeBar/` | Delete. Not mounted in `App.jsx`. |
-| Frames hook | `src/components/camera/hooks/useFrameCamera.js` | Delete. |
-| Authored frames | `FRAME_SHOTS` in `src/components/camera/cameraShots.js` | Delete. Keep `pointOnOrbit`, `flowOverheadPose`, `FLOW_OVERHEAD`. |
-| Unused pose | `flowStartPose`, `FLOW_START` | Delete if still unused. |
-| Frames comments | `src/components/plants/lifecycle/simSpeed.js` | Strip FRAMES wording. |
+Measurement notes: (1) and (2) are from Node benchmarks against the real modules, median of 5 interleaved reps. (3) is analytic from `samples = 120` in `measureCurveSurfaceClearance` and default `tendrilCount × routePoolFactor`. (5)–(7) are structural — no benchmark, the work simply no longer happens.
 
-### Unmounted subsystems
+**On (1)'s "invisible" claim, precisely:** the table is sampled at the same segment count as the tube, so interpolation lands on the chord between ring centres — where the rendered tube surface actually is. Measured deviation from the exact curve is **3.6e-4 world units** (max, on a 0.42-long stem) and **0.50°** of tangent. At ~0.002 world units per pixel that is under a quarter pixel. Not bit-identical; sub-pixel.
 
-| Item | Path | Action |
-|------|------|--------|
-| Ground tendrils | `src/components/plants/groundTendrils/` | Delete or archive. Not in the canvas. Also drops `tendrils/treeTendrilSystem.js`. |
-| Smoke | `src/components/smoke/` | Delete or archive. |
-| Standalone stem | `ProceduralStem.jsx`, `VatFlower.jsx`, `StemLeaves.jsx`, `stem/flowerLifecycle.js` | Delete if no scene mount remains. |
-| Surround helper | `src/components/plants/field/surroundLayout.js` | Delete (zero imports). |
-| Unused import | `Environment` in `ExperienceCanvas.jsx` | Remove. |
+### Deliberately not done
 
-Jasmine is in `FLOWER_TYPES` but unused by the live field/climb mix. Drop it from the live set, or leave a one-line comment that it is reserved.
-
-### Store and Leva leftovers
-
-- `isMobile` is written in `App.jsx` and never read from the store (intro takes a prop).
-- `setTier1Targets` / `areTier1TargetsReady` are unused outside the store.
-- Backpack and Character both register Leva folder `'Character'` — rename Backpack to `'Backpack'` or nest it.
-
-### Unused npm dependencies
-
-Grep `src/` and `packages/` before uninstalling. Current suspects with zero app imports:
-
-`@mui/material`, `@emotion/react`, `@emotion/styled`, `wouter`, `valtio`, `r3f-perf`, `@react-three/postprocessing`, `@react-three/rapier`, `gl-noise`, `maath`, `three-custom-shader-material`.
-
-Keep `gsap` until Phase C decides whether intro progress moves to `useFrame`. Keep `stats-gl` (debug overlay). Keep `three-mesh-bvh`.
-
-`packages/three-core` exports a lot the app never mounts (`PostFX`, `WebGpuPerf`, `Bgm`, leap, water). Do not prune the package in the same PR as app dead code.
+- **Shared `useDirectionalLightDir()` hook.** Saves only two matrix updates per frame — a deduplication win, not a perf one — and moving the lookup to priority 0 would make the plant loops read the light one frame later than they do now. Kept as a structural item below.
+- **Climb `drawRange` for dormant routes.** Would be invisible, but the awake set is reshuffled at runtime ([`ClimbTendrils.jsx`](src/components/plants/climb/ClimbTendrils.jsx) wake/sleep), so awake tubes are not contiguous in the index buffer. Real work, not a one-liner.
+- **Baking the silk weave to a texture.** Still the most promising GPU item (see below), but unmeasured. Do not build it before reading the number.
 
 ---
 
-## Phase B — Performance
+## Open — measure this first
 
-Goal: visitor FPS on the production path, measured on `/debug` with stats-gl before and after. The silk-weave + dual plant pipelines are the main cost, not the TIME rail.
+**The one measurement that decides the next move:** on `/debug`, read stats-gl GPU ms with **PostFX → SilkWeave → enabled** off versus on.
 
-### B1. Confirm the render loop
+[`createSilkWeaveNode.js`](src/components/postfx/createSilkWeaveNode.js) is ~12 `hash` + 2 `pow` + 2 `sin` + two value-noise octaves per pixel at `threadCount: 815`. Every term except the final `sceneColor` multiply depends only on `screenUV`, `screenSize`, and the Leva uniforms — nothing time- or scene-varying. So it is bakeable:
 
-[`Effects.tsx`](src/components/scene/Effects.tsx) calls `PostProcessing.render()` every frame. Check whether R3F still draws the default pass. If both run, disable the unused one (advance override or `gl.autoClear` / frameloop ownership). This is the highest-leverage unknown.
+- Render `tint × fabric × blotch` once into a render target sized exactly to the drawing buffer (`NearestFilter`, `HalfFloatType`), regenerated on resize and on uniform change.
+- The per-frame pass becomes one texture fetch and a multiply.
+- Live Leva control survives: a uniform change re-bakes on the next frame, so dragging costs about what it costs today and the steady state costs almost nothing.
+- Cost: ~29 MB of VRAM at 1440p, plus complexity in the post chain.
+- Side effect: makes `threadCount` free, so the old suggestion to retune it to 400–500 becomes unnecessary.
 
-### B2. Silk weave
-
-[`silkWeaveDefaults.js`](src/components/postfx/silkWeaveDefaults.js): `threadCount: 815`, full-screen, every pixel. `enabled` only mixes the uniform — the shader still runs.
-
-- Skip `postProcessing.render()` in JS when disabled
-- Production preset: lower `threadCount` (try 400–500) or a half-res weave pass
-- Gate `preserveDrawingBuffer: true` in [`ExperienceCanvas.jsx`](src/app/ExperienceCanvas.jsx) to capture / `/debug` (it is always on for `CanvasCapture`)
-
-### B3. Plant CPU (field)
-
-[`fieldDefaults.js`](src/components/plants/field/fieldDefaults.js) already notes `flowerCount: 256` was sized for a dormant-plant gate that no longer exists. Built count = visible count. Retune downward (try 120–180) and watch layout shortfall warnings.
-
-[`PlantSystem.jsx`](src/components/plants/field/PlantSystem.jsx) `useFrame` (priority 1), up to 256 plants:
-
-- Lifecycle + wind + migration hearts + respawn
-- Full `plantData` `DataTexture` upload every frame
-- `updateFlowerBatchTips` (`curve.getPointAt` / `getTangentAt` per head)
-- Object literals / spreads on hop and respawn (reuse a sample object)
-- `scene.traverse` until a directional light is found — cache it
-
-Layout-time: `buildAnchorClusterSlots` can BVH-probe up to 40 tries × flowerCount. Any Leva stem/field tweak rebuilds all tubes then `mergeGeometries`.
-
-Leaves: `FieldLeaves` is `flowerCount × leafCount` instances (256 × 2 = 512 at defaults). All plant meshes use `frustumCulled={false}`.
-
-### B4. Climb (second pipeline)
-
-[`ClimbTendrils.jsx`](src/components/plants/climb/ClimbTendrils.jsx) duplicates the field runtime (merged stems, plantData, VAT, leaves, lifecycle `useFrame`).
-
-- [`buildWrapCurve.js`](src/components/plants/climb/buildWrapCurve.js) always attaches `debug` payloads (Vector3 clones). Gate behind a flag.
-- [`ClimbDebug.jsx`](src/components/plants/climb/ClimbDebug.jsx) still runs memos when `visible={false}` because hooks sit above the early return.
-- Shared `useDirectionalLightDir()` for field + climb (+ any leftover stem).
-
-### B5. Later perf (only after B1–B4 measure)
-
-- Throttle heart hops / cache `sampleAnchorField` at heart positions
-- Upload dirty plant-data rows only
-- Stem LOD: fewer segments on echo-role stems
-- Bake density to a coarse grid instead of CPU `sampleAnchorField` per hop
-- Frustum strategy for the field group if the camera pulls back
+If the on/off delta is small, this is not worth building and the GPU budget is going somewhere else — most likely the shadow pass.
 
 ---
 
-## Phase C — Structural refactor
+## Deferred: costs image quality
 
-Split files and straighten deps. No look change.
+Each needs its own before/after judgement from two camera angles. Do not bundle with a structural change.
 
-### Plants
-
-| File | Issue | Split toward |
-|------|--------|----------------|
-| `PlantField.jsx` (~523) | Leva + layout + debug + `buildStem` | `useFieldControls.js`, `fieldStemLayout.js`, keep the mount thin |
-| `PlantSystem.jsx` (~523) | Merge + texture + migration + frame | `heartRuntime.js`, `migrationFrame.js` |
-| Three copies of field-sampler options in `PlantField.jsx` | `anchorFieldOptions` / `anchorSamplerOptions` / `migration.options` | One `fieldSamplerOptions` memo |
-| `ClimbTendrils.jsx` (~753) | Whole second runtime | Stem build, attachments, frame loop |
-| `buildWrapCurve.js` (~728) | BVH snap + wraps + debug | Snap vs wrap; debug optional |
-| `createFlowerMaterials.js` (~511) | Stem / petal / mask in one hub | One module per material family |
-
-Unify field + climb shared runtime only after both are split; do not merge them first.
-
-### Camera and store
-
-- Extract intro constants + easing from [`useFlowCamera.js`](src/components/camera/hooks/useFlowCamera.js) (`INTRO_DURATION`, `INTRO_TURNS`, `easeInRest`, `sineInOut`). Optional: drive `intro.p` in `useFrame` and drop `gsap` (only consumer).
-- `introDoneRef`, `intro.p`, and `flowIntroDone` overlap — pick one source of truth for “intro finished”.
-- Move `usePlantTimeScale` fully under `plants/lifecycle`; the camera folder should not own the time director.
-- Invert [`experienceStore.js`](src/core/experienceStore.js) → [`cameraModes.js`](src/components/camera/cameraModes.js). Mode constants belong next to the store, or the store defaults to `'flow'` without importing components.
-- Extract D-key toggle from `CameraViewControl.jsx` if that file stays a grab-bag.
-
-### Leva
-
-Match the camera/field pattern:
-
-- `postfxControls.js` (schema currently inline in `Effects.tsx`)
-- `sceneControls.js` (Scene + Sim currently inline in `ExperienceCanvas.jsx`)
-- Collapse Plant Wind by default
-- Mount plant/climb/stem folders only on `/debug` if hook cost or panel clutter matters. Visitor already starts with Leva hidden off-debug.
+| Item | Expected win | Visual cost |
+|---|---|---|
+| `dpr={[1,2]}` → `[1,1.5]` ([`ExperienceCanvas.jsx`](src/app/ExperienceCanvas.jsx)) | ~44% fewer pixels; largest single GPU win available | Softer edges on high-DPI displays |
+| `shadow-mapSize` 2048² → 1024² ([`DirectionalLight.tsx`](src/components/scene/DirectionalLight.tsx)) | 4× fewer shadow texels | Coarser contact shadows; `shadowRadius: 6` hides much of it |
+| `castShadow={false}` on leaves + flower heads | The shadow pass currently re-draws merged stems (~130k tris), 512 field leaves, ~256 heads, **and** the whole climb pipeline every frame | Simpler ground shadow |
+| Throttle shadow updates | Light never moves (`rotationSpeed: 0`), so only plant growth changes shadows | Shadows lag growth by N frames |
+| Climb `routePoolFactor: 2` → lower | 360 tubes built at `curveSamples: 48`, only ~180 awake; dormant ones are fragment-discarded but still vertex-shaded, in both passes | Fewer novel regrow paths over time |
+| `flowerCount` 256 → 150–170 | Proportional CPU + geometry cut | Changes the composition |
 
 ---
 
-## Suggested order
+## Done — dead surface removed
 
-1. **A** — delete dead UI and unmounted folders; prune unused deps. No visual change.
-2. **B1–B2** — render loop + silk weave. Measure FPS.
-3. **B3** — `flowerCount` retune + `PlantSystem` hot-path allocations. Measure again.
-4. **B4** — climb debug payloads + shared light hook.
-5. **C** — file splits and store/camera deps. Behavior frozen.
+Every item below was confirmed to have zero reachable importers from [`src/index.jsx`](src/index.jsx) before removal, then re-confirmed by a passing build. **Exclude `.claude-code-history/` from any such grep** — it holds thousands of stale mentions and will produce false positives. Beware substring matches too: `setSimSpeed` matches `setSimSpeedMul`, and `VatFlower` matches `createInstancedVatFlowerMaterials`.
 
-Do not combine a look-changing retune (`flowerCount`, `threadCount`) with a structural split in the same change.
+Deleted files:
 
-Measure FPS on `/debug` with stats-gl before and after Phase B.
+- `plants/stem/ProceduralStem.jsx` and its closed cluster — `plants/vat/VatFlower.jsx`, `plants/stem/StemLeaves.jsx`, `plants/stem/flowerLifecycle.js` (not `FieldLeaves.jsx`, which is live)
+- `components/smoke/` — all four files
+- `plants/field/surroundLayout.js`
+- `plants/vat/jasmineDefaults.js`
+- Empty directories `plants/tendrils/` and `ui/cameraModeBar/`
+
+Removed symbols:
+
+- `createVatFlowerMaterials` in `plants/vat/createVatMaterial.js` (the non-instanced variant; `createInstancedVatFlowerMaterials` is live)
+- `FRAME_SHOTS`, `FLOW_START`, `flowStartPose` in `camera/cameraShots.js`; `flowOverheadPose` is now module-private
+- `setSimSpeed` plus the `authoredScaleRef`/`debugMulRef` re-exports in `lifecycle/simSpeed.js`
+- `isMobile`/`setIsMobile`, `tier1Targets`/`setTier1Targets`, `areTier1TargetsReady` in `core/experienceStore.js`. `useExperienceReady` now reads the `TIER1_TARGETS` constant directly, and `App.jsx` no longer writes a value nobody read.
+- `JASMINE_TYPE` and its satellites `JASMINE_META`, `JASMINE_MASK_PATH`. `public/textures/jasmine-mask.png` and `public/Jasmine Flower/` are now unreferenced and can go too.
+- `PLUMERA_TYPE` dropped from the `FLOWER_TYPES` array — `ClimbTendrils` imports it directly, so its membership only seeded a bucket that was immediately filtered out. The export remains.
+- Unused `Environment` import in `app/ExperienceCanvas.jsx`
+
+`field/paths.js` was **not** dead — `vat/flowerTypes.js` imports it. It is misfiled, not unused.
+
+### Dependencies removed
+
+`@mui/material`, `@emotion/react`, `@emotion/styled`, `wouter`, `valtio`, `r3f-perf`, `@react-three/postprocessing`, `@react-three/rapier`, `gl-noise`, `maath`, `three-custom-shader-material` — **85 packages** gone from the tree.
+
+Kept: `stats-gl` (debug overlay), `three-mesh-bvh` (clearance), `gsap` (sole consumer is the FLOW intro).
+
+⚠️ `gsap` was declared in `package.json` but **missing from `node_modules`**, which broke `npm run build` outright — before any of this work started. If a build fails to resolve an import that is clearly declared, check installation before debugging the code.
+
+---
+
+## Structural refactor
+
+No look change.
+
+### Real duplication
+
+- [`PlantField.jsx`](src/components/plants/field/PlantField.jsx): `anchorFieldOptions` and `anchorSamplerOptions` are **byte-identical** memos, and `migration.options` is the same object plus `migrateRange`/`migrateSpeed`. Collapse to one `fieldSamplerOptions`.
+- Field and climb each traverse for the directional light and each copy `lightDir` into every batch. Extract `useDirectionalLightDir()` — but see the priority-ordering caveat above.
+
+### Dependency direction
+
+`core/experienceStore.js` → `components/camera/cameraModes`; `plants/lifecycle/usePlantTimeScale.js` and `ui/flowTimeRail/FlowTimeRail.jsx` likewise. Fix once: move `CAMERA_MODE`/`CAMERA_MODE_LABELS` and the `FLOW_TIME_*` constants into `src/core/`, and inline the one-line `getInitialCameraMode()`.
+
+### Splits, by measured size
+
+`ClimbTendrils.jsx` (800) · `buildWrapCurve.js` (768) · `surfaceRoutes.js` (708) · `createFlowerMaterials.js` (578) · `PlantField.jsx` (558) · `PlantSystem.jsx` (554).
+
+`PlantField.jsx`'s Leva schema is already extracted; what is inline is `buildStem` + `classifyByDensity` → `fieldStemLayout.js`. `PlantSystem.jsx` → `heartRuntime.js`, `migrationFrame.js`.
+
+Do **not** unify the field and climb runtimes until both are split.
+
+### Layout cost
+
+`MAX_TRIES = 40` in [`fieldClusterLayout.js`](src/components/plants/field/fieldClusterLayout.js), and each attempt can reach `clearPointFromHosts` (up to 12 iterations × 6 BVH probes per `CLEAR_HEIGHTS` entry). Worst case is six figures of BVH queries per rebuild, capped only by the `shortfall` warning. The density roll rejects before any BVH work, so typical cost is far lower. Debounce the Leva-driven rebuild — [`ClimbTendrils.jsx`](src/components/plants/climb/ClimbTendrils.jsx)'s `debouncedPath` is the pattern to copy.
+
+### Convention
+
+1. **`tsconfig.json` `strict` is decorative.** No `allowJs`/`checkJs`, so the 75 `.js`/`.jsx` files under `src/` are ignored despite `include: ["src/**/*"]`, and there is no `typecheck` script — `vite build` uses esbuild, which strips types without checking. Adding one is the highest-leverage item here: it is what would have caught the unused `Environment` import.
+2. **Duplicate `BufferGeometryUtils` specifier** — `three/addons/utils/…` in `field/bodyBounds.js` vs `three/examples/jsm/utils/…` in four other files. Same module, two specifiers, duplicate-instance risk.
+3. **Two `three` entrypoints** — 13 files value-import from bare `'three'` while the renderer is `three/webgpu`, which ships its own core copy. `import type` sites are fine.
+4. **Leva:** `'Character'` is registered twice (`Character.tsx` and `Backpack.tsx`). Four inline schemas remain (`Scene` + `Sim` in `ExperienceCanvas.jsx`, `Lighting`, `Shadow`, `PostFX`); the pattern to match is `camera/cameraControls.js` / `stem/stemControls.js` (schema factory + sync function). `smoke/smokeDefaults.js` holds a schema factory that belongs in a `smokeControls.js`.
+5. **Formatting outliers:** `Effects.tsx` and `DirectionalLight.tsx` are the only 4-space, partly-semicolon-less files in `src/`, and `Effects` is the only default-exported component.
+6. **Misfiled:** `field/paths.js` (consumed by `vat/`), `postfx/silkWeaveDefaults.js` (consumed by `scene/Effects.tsx`), `plants/wind/plantWind.js` (exports `PLANT_WIND_DEFAULTS` but is not named `*Defaults.js`).
+7. **Hook placement** is split — `camera/hooks/` and `character/hooks/` exist, but `plants/lifecycle/usePlantTimeScale.js`, `plants/wind/usePlantWindControls.js` and `core/useExperienceReady.js` sit at folder root. Pick one.
+8. **`Math.random()` in the climb frame loop** breaks the seeded-reproducibility rule the field README relies on. Use `stableRandomRange` from `@core`.
+9. **Intro has three sources of truth** — `introDoneRef`, `introRef.current.p`, and the store's `flowIntroDone`. Driving `intro.p` in `useFrame` also removes the last `gsap` import.
+10. **Root `readme.md`** says port 8080 (vite serves 5173 over https) and its "Live Demo" link points at the Node.js download page.
+
+---
+
+## For upstream — `packages/three-core` submodule
+
+It is a **git submodule** (`https://github.com/momentchan/three-core.git`). Do not change it in an app PR; these land separately.
+
+- **`components/input/KeyboardMapper.tsx` imports a module that does not exist** (`'../input/InputEngine'`; the file is `input/InputSystem.ts`). It survives only because the symbol is used in a type position, so esbuild elides it — `tsc` would fail. This is on the **live** path via `Character.tsx`.
+- `src/index.ts` never re-exports `./interaction`, so the whole 22-file / ~1.6k-line MediaPipe + Leap + YOLO tree is unreachable via `@core`.
+- `PostFX.tsx` is exported from the barrel, unused, and registers a second `'PostFX'` Leva folder.
+- `leva/LevaWrapper.tsx` self-references via the consuming app's `@core` alias, making the package non-portable.
+- `git worktree add` does **not** populate submodules — a scratch worktree needs `packages/three-core` linked or `submodule update` run, or every `@core` import 500s.
+
+---
+
+## Verification — the build proves nothing
+
+`npm run build` passed for a silently dead feature, a temporal-dead-zone error, and an assignment-to-const. **Load the app and read the console.**
+
+1. `https://localhost:5173/debug` — **never** the root path, which opens on a narrative intro card.
+2. Playwright is **not** a project dependency; install it (`npm i -D playwright && npx playwright install chromium`) before relying on it. Use `channel: 'chrome'`, args `--enable-unsafe-webgpu --ignore-certificate-errors`, `ignoreHTTPSErrors: true`. Target `#root canvas` (leva and stats-gl inject their own canvases — there are 3 in the DOM on `/debug`).
+3. Check WebGPU is actually available (`navigator.gpu.requestAdapter()`), or a blank frame will read as a layout bug.
+4. Grep the console for `pageerror` and for the `anchor layout short by N` warning after any sampler change.
+5. **Two angles, every time** — one overhead, one grazing. The field is planar and reads completely differently from a low camera.
+6. For any pixel-identity claim, pause the sim first (Sim `simSpeed` 0, or Space) — the FLOW camera orbits continuously, so two unpaused frames are never comparable.
 
 ---
 

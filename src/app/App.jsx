@@ -12,14 +12,9 @@ export default function App() {
   const setStarted = useExperienceStore((state) => state.setStarted);
   const gpuError = useExperienceStore((state) => state.gpuError);
   const setGpuError = useExperienceStore((state) => state.setGpuError);
-  const setIsMobile = useExperienceStore((state) => state.setIsMobile);
   const isMobile = useDeviceDetection();
   const { status } = useExperienceReady();
   const [showIntro, setShowIntro] = useState(() => !isDebugRoute());
-
-  useEffect(() => {
-    setIsMobile(isMobile);
-  }, [isMobile, setIsMobile]);
 
   useEffect(() => {
     const checkWebGPU = async () => {

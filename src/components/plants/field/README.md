@@ -100,8 +100,8 @@ never rebuilt; DataTexture row 1 takes the new offset.
 
 `../lifecycle/simSpeed.js` — a module-level ref, deliberately not a prop. The
 Leva control lives on the **Sim** panel, not Field: it also drives
-`ClimbTendrils` and `ProceduralStem`. The field, climbers and standalone stems
-each run their own `useFrame` and must agree on how fast time passes.
+`ClimbTendrils`. The field and the climbers each run their own `useFrame` and must
+agree on how fast time passes.
 
 - Scales lifecycle `dt` **and** the anchor-field drift. Both, on purpose: at 10x a
   render-clock drift would show six flower generations against a stationary field,
@@ -124,7 +124,7 @@ someone before:
 
 | Knob | Trap |
 |---|---|
-| `flowerCount` | Was inflated to 230 to offset the removed gate. Built count now equals visible count — **this is very likely too high and wants retuning down** (try 150–170). |
+| `flowerCount` | Currently **256**, inflated to offset the removed gate. Built count now equals visible count — **this is very likely too high and wants retuning down** (try 150–170). Held at 256 until that is judged as a visual change. |
 | `shapeWarp` | The only knob that makes a mass stop being an ellipse. |
 | `migrateRange` | How far a heart may creep on each periodic hop. 0 freezes hearts; dying flowers still pick among them. |
 
