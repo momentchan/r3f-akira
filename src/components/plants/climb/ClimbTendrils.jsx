@@ -41,6 +41,7 @@ import {
   CLIMB_INTERNALS,
 } from './climbDefaults';
 import { derivePrincipalSurfaceGuides } from './surfaceCoverage';
+import { enablePlantShadowLayer } from '../../scene/plantShadowLayer';
 
 const _lightWorld = new THREE.Vector3();
 const _lightTarget = new THREE.Vector3();
@@ -733,6 +734,7 @@ export function ClimbTendrils({
         >
           <group>
             <mesh
+              ref={enablePlantShadowLayer}
               geometry={stemBuild.geometry}
               material={stemMaterial}
               frustumCulled={false}

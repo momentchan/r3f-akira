@@ -38,6 +38,7 @@ import {
   sampleFieldPosition,
 } from './fieldClusterLayout';
 import { getSimSpeed } from '../lifecycle/simSpeed';
+import { enablePlantShadowLayer } from '../../scene/plantShadowLayer';
 
 /**
  * One heart per opening founder. Hearts wander on their own clock; dying
@@ -531,6 +532,7 @@ export function PlantSystem({
     <AsyncCompile id={`plant-system-${stems.length}`}>
       <group>
         <mesh
+          ref={enablePlantShadowLayer}
           geometry={stemBuild.geometry}
           material={stemMaterial}
           frustumCulled={false}

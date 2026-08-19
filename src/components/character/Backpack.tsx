@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { useThree } from '@react-three/fiber';
 import { useControls } from 'leva';
 import * as THREE from 'three/webgpu';
-import type { DirectionalLight } from 'three/webgpu';
 import { useKTX2Texture } from '@core';
+import { usePlantShadowLight } from '../scene/plantShadowLayer';
 import {
   BACKPACK_MODEL_PATH,
   DETAIL_TEXTURE_PATHS,
@@ -128,20 +127,11 @@ export function Backpack({
     return { scene: root, lookMat, outlineMat };
   }, [gltf.scene, detailTex]);
 
-  const { scene: threeScene } = useThree();
-  const [light, setLight] = useState<DirectionalLight | null>(null);
+  const plantShadowLight = usePlantShadowLight();
   useEffect(() => {
-    let found: DirectionalLight | null = null;
-    threeScene.traverse((o) => {
-      if (!found && (o as any).isDirectionalLight) found = o as DirectionalLight;
-    });
-    setLight(found);
-  }, [threeScene]);
-
-  useEffect(() => {
-    if (!light || !lookMat) return;
-    lookMat.userData.patchShadow(light);
-  }, [light, lookMat]);
+    if (!plantShadowLight || !lookMat) return;
+    lookMat.userData.patchShadow(plantShadowLight);
+  }, [plantShadowLight, lookMat]);
 
   useEffect(() => {
     if (!lookMat) return;

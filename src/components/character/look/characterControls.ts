@@ -54,6 +54,7 @@ export function createCharacterControlsSchema(
     shadowTint: { value: d.shadowTint },
     highlightTint: { value: d.highlightTint },
     aoIntensity: { value: d.aoIntensity, min: 0, max: 1, step: 0.01 },
+    castShadowEnabled: { value: d.castShadowEnabled ?? true, label: 'receive cast shadow' },
     Outline: folder({
       edgeColor: { value: d.edgeColor },
       outlineWidth: {
@@ -86,6 +87,7 @@ export function syncCharacterControls(
     if (uniforms.dirtDebug) {
       uniforms.dirtDebug.value = controls.dirtDebug ? 1 : 0;
     }
+    uniforms.castShadowEnabled.value = controls.castShadowEnabled ? 1 : 0;
   }
 
   if (outlineUniforms) {

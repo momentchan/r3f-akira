@@ -8,6 +8,7 @@ import {
 } from 'three/tsl';
 import { SHADOW_DEFAULTS } from './shadowDefaults';
 import { SCENE_DEFAULTS } from './sceneDefaults';
+import { PLANT_SHADOW_LIGHT_FLAG } from './plantShadowLayer';
 
 /**
  * Two-dimensional fbm, mirroring `mx_fractal_noise_float(p, 4, 2, 0.5)` — same
@@ -42,7 +43,13 @@ export function ShadowCatcher({
   const [light, setLight] = useState(null);
   useEffect(() => {
     let found = null;
-    scene.traverse((o) => { if (o.isDirectionalLight && !found) found = o; });
+    scene.traverse((o) => {
+      // Skip the plant-only shadow light: the ground needs the character's
+      // shadow, which that light's depth map deliberately excludes.
+      if (o.isDirectionalLight && !o.userData?.[PLANT_SHADOW_LIGHT_FLAG] && !found) {
+        found = o;
+      }
+    });
     setLight(found);
   }, [scene]);
 

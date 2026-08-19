@@ -22,6 +22,7 @@ import {
   createInstancedVatFlowerMaterials,
   prepareInstancedVatGeometry,
 } from './createVatMaterial';
+import { enablePlantShadowLayer } from '../../scene/plantShadowLayer';
 import { extractFlowerMeshGeometries } from './flowerGeometry';
 import { assignPetalSegments } from './petalSegments';
 
@@ -178,6 +179,7 @@ export function FlowerTypeBatch({
     instance.frustumCulled = false;
     instance.castShadow = true;
     instance.receiveShadow = true;
+    enablePlantShadowLayer(instance);
     instance.count = count;
     const identity = new THREE.Matrix4();
     for (let i = 0; i < count; i += 1) instance.setMatrixAt(i, identity);

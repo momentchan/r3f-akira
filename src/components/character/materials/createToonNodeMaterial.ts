@@ -7,11 +7,13 @@ import {
   float,
   floor,
   max,
+  min,
   mix,
   normalLocal,
   positionLocal,
   shadow,
   smoothstep,
+  step,
   texture,
   transformNormal,
   uniform,
@@ -46,6 +48,8 @@ export interface WoodblockToonUniforms {
   dirtContactFade: UniformValue<number>;
   /** 1 = visualize aContactDirt mask (magenta heat). */
   dirtDebug: UniformValue<number>;
+  /** 1 = apply cast shadow from scene light; 0 = disable without shader recompile. */
+  castShadowEnabled: UniformValue<number>;
 }
 
 export interface OutlineUniforms {
@@ -66,6 +70,7 @@ export interface ToonMaterialOptions {
   dirtContactCut?: number;
   dirtContactFade?: number;
   dirtDebug?: number | boolean;
+  castShadowEnabled?: number | boolean;
   lightDir?: THREE.Vector3;
 }
 
@@ -149,6 +154,16 @@ function buildToonFragment(
     const levelSteps = max((toonUniforms.colorLevels as any).sub(1.0), 1.0).toVar();
     const quantized = floor(preShade.mul(levelSteps).add(0.5)).div(levelSteps).toVar();
 
+    // Cast shadow is merged into the toon quantization level before the color
+    // mix, not applied on top. This prevents double-darkening: an area already
+    // at the shadow floor stays there; only lit areas are pulled down.
+    if (light) {
+      const castLit = step(float(0.5), shadow(light as any) as any);
+      // mix(1, castLit, 0) = 1 → no effect; mix(1, castLit, 1) = castLit → shadow on
+      const gated = mix(float(1.0), castLit, toonUniforms.castShadowEnabled as any);
+      quantized.assign(min(quantized, gated));
+    }
+
     const litColor = mix(
       albedo.mul(vec3(toonUniforms.shadowTint as any)),
       albedo.mul(vec3(toonUniforms.highlightTint as any)),
@@ -168,17 +183,6 @@ function buildToonFragment(
     );
     const withDebug = mix(litColor, debugCol, toonUniforms.dirtDebug as any);
 
-    // Apply cast shadow from scene light (petals, backpack, etc. onto character).
-    // Uses the same shadowTint as the toon ramp so cast shadows match the style.
-    if (light) {
-      const castShadowVal = shadow(light as any);
-      return vec4(clamp(mix(
-        withDebug.mul(vec3(toonUniforms.shadowTint as any)),
-        withDebug,
-        castShadowVal,
-      ), 0.0, 1.0), 1.0);
-    }
-
     return vec4(clamp(withDebug, 0.0, 1.0), 1.0);
   })();
 }
@@ -197,6 +201,7 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
     dirtContactCut = CHARACTER_LOOK_DEFAULTS.dirtContactCut,
     dirtContactFade = CHARACTER_LOOK_DEFAULTS.dirtContactFade,
     dirtDebug = CHARACTER_LOOK_DEFAULTS.dirtDebug,
+    castShadowEnabled = CHARACTER_LOOK_DEFAULTS.castShadowEnabled,
     lightDir = new THREE.Vector3(...CHARACTER_LOOK_DEFAULTS.lightDir),
   } = options;
 
@@ -213,6 +218,7 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
     dirtContactCut: uNumber(dirtContactCut),
     dirtContactFade: uNumber(dirtContactFade),
     dirtDebug: uNumber(dirtDebug ? 1 : 0),
+    castShadowEnabled: uNumber(castShadowEnabled ? 1 : 0),
   };
 
   const albedoMap = textures.map ?? null;

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three/webgpu';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { enablePlantShadowLayer } from '../../scene/plantShadowLayer';
 import {
   attribute,
   clamp,
@@ -86,6 +87,12 @@ export function FieldLeaves({
 }) {
   const leafGeometry = useLeafGeometry();
   const meshRef = useRef(null);
+  // Leaves are the largest shadow caster on the character, so they need the
+  // plant shadow layer alongside the stems and flower heads.
+  const attachMesh = useCallback((mesh) => {
+    meshRef.current = mesh;
+    enablePlantShadowLayer(mesh);
+  }, []);
   const total = Math.max(plants.length * Math.max(leafCount, 0), 0);
 
   const bendStrengthU = useMemo(() => uniform(bendStrength), []);
@@ -337,7 +344,7 @@ export function FieldLeaves({
 
   return (
     <instancedMesh
-      ref={meshRef}
+      ref={attachMesh}
       args={[geometry, material, total]}
       frustumCulled={false}
       castShadow

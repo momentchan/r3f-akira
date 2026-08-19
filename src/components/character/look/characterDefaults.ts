@@ -17,6 +17,8 @@ export const CHARACTER_LOOK_DEFAULTS = {
   dirtContactFade: 0.15,
   /** Visualize aContactDirt as magenta heat overlay. */
   dirtDebug: false,
+  /** Receive cast shadows from plants (never from the character itself). */
+  castShadowEnabled: true,
 };
 
 export function mergeCharacterLookDefaults(
