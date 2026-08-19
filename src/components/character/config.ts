@@ -2,22 +2,11 @@ import type { RefObject } from 'react';
 import type { Object3D } from 'three';
 import type { BodyBoundsPayload } from './hooks/useCharacterBodyBounds';
 
-/** Physics, movement, and animation blend config. Tweak here instead of in hooks. */
-export const CHARACTER_CONFIG = {
-  walkSpeed: 1.0,
-  runSpeed: 3.5,
-  rotateSpeed: 2.5,
-  speedLerp: 0.1,
-  rotationLerp: 0.15,
-  animBlendLerp: 0.15,
-} as const;
-
 export const BODY_MESH_NAMES: readonly string[] = [
   'Astronaut_Suit_Body_Detail_01_Mesh',
   'Astronaut_Suit_Body_Mesh',
   'Astronaut_Suit_Shoes_Mesh',
 ];
-
 
 export const BODY_TEXTURE_PATHS = {
   map: 'textures/Body/Astronaut_Suit_Body_Albedo.ktx2',
@@ -36,36 +25,20 @@ export const DETAIL_TEXTURE_PATHS = {
 };
 
 /** Mesh + embedded clips (Lay / Fetal / Drift). */
-export const CHARACTER_MODEL_PATH = '/models/Astronaut_new.glb';
+export const CHARACTER_MODEL_PATH = '/models/Astronaut.glb';
 
 /** Standalone backpack prop (placed in App — not bone-attached). */
 export const BACKPACK_MODEL_PATH = '/models/backpack.glb';
 
-/** Legacy locomotion clips (separate files; different skeleton — not used with Astronaut_new). */
-export const LOCOMOTION_MODEL_PATHS = [
-  '/models/Astronaut.glb',
-  '/models/Idle.glb',
-  '/models/Walking.glb',
-  '/models/Running.glb',
-  '/models/WalkingBack.glb',
-] as const;
-
-/** @deprecated use CHARACTER_MODEL_PATH */
-export const MODEL_PATHS = [CHARACTER_MODEL_PATH];
-
 /** Still subject in the flower bed vs playable locomotion. */
 export type CharacterMode = 'tableau' | 'locomotion';
 
-/** Clip name from Astronaut_new, or `Bind` for rest pose with no animation. */
+/** Clip name from the character GLB, or `Bind` for rest pose with no animation. */
 export type CharacterPose =
   | 'Bind'
   | 'Lay'
   | 'Fetal'
   | 'Drift'
-  | 'Idle'
-  | 'Walk'
-  | 'Run'
-  | 'Back'
   | (string & {});
 
 export interface CharacterProps {
@@ -74,9 +47,9 @@ export interface CharacterProps {
   rotation?: [number, number, number];
   scale?: number;
   visible?: boolean;
-  /** `tableau` = still subject; `locomotion` = WASD (default for walk scenes). */
+  /** `tableau` = still subject (the live scene); `locomotion` = WASD. */
   mode?: CharacterMode;
-  /** `Bind` = GLB initial pose (no clips). Clip names (Idle, Rest, …) play that anim alone. */
+  /** `Bind` = GLB initial pose (no clips). Clip names (Lay, Fetal, Drift) play that anim alone. */
   pose?: CharacterPose;
   /** Shared root with PlantField — Box3 locals are expressed in this space. */
   fieldParentRef?: RefObject<Object3D | null>;
@@ -84,21 +57,6 @@ export interface CharacterProps {
   onBodyBounds?: (bounds: BodyBoundsPayload | null) => void;
 }
 
-export interface CharacterState {
-  currentSpeed: number;
-  targetSpeed: number;
-  maxSpeed: number;
-  rotateSpeed: number;
-  speedLerpFactor: number;
-  animBlendLerpFactor: number;
-  currentIdleWeight: number;
-  currentWalkWeight: number;
-  isMoving: boolean;
-  rotateLeft: boolean;
-  rotateRight: boolean;
-}
-
-// src/core/physics/types.ts
 export interface PhysicsState {
   speed: number;
   rotationVelocity: number; // Used for FPV smoothing

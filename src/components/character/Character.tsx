@@ -22,7 +22,7 @@ export const Character = ({
   rotation = [0, 0, 0],
   scale = 1,
   visible = true,
-  mode = 'locomotion',
+  mode = 'tableau',
   pose = 'Lay',
   fieldParentRef,
   onBodyBounds,
