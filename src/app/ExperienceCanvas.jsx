@@ -1,5 +1,5 @@
 import { memo, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { AdaptiveDpr } from '@react-three/drei';
+import { PerformanceMonitor } from '@react-three/drei';
 import { CameraViewControl } from '../components/camera/CameraViewControl';
 import { AsyncCompile, CanvasCapture } from '@core';
 import { Canvas } from '@react-three/fiber';
@@ -94,20 +94,19 @@ function SceneContent() {
             cullControls={flowerCull}
           />
         </Suspense>
-        {/* <Suspense fallback={null}>
+        <Suspense fallback={null}>
           <ClimbTendrils
             bodyBounds={bodyBounds}
             backpackBounds={backpackBounds}
             wind={plantWind}
           />
-        </Suspense> */}
+        </Suspense>
       </group>
 
       {/* Same value as ShadowCatcher's groundColor, so ground and sky are one
           flat tone and the plane's edge is never visible. */}
       <color attach="background" args={[bgColor]} />
 
-      <AdaptiveDpr pixelated />
       <CameraViewControl />
       <CanvasCapture />
       <DirectionalLight />
@@ -117,6 +116,8 @@ function SceneContent() {
 }
 
 export const ExperienceCanvas = memo(function ExperienceCanvas() {
+  const [dpr, setDpr] = useState(1.5);
+
   return (
     <Canvas
       shadows
@@ -128,9 +129,16 @@ export const ExperienceCanvas = memo(function ExperienceCanvas() {
         position: FLOW_OVERHEAD.position,
       }}
       gl={createWebGPURenderer}
-      dpr={[1, 2]}
-      performance={{ min: 0.5, max: 1 }}
+      dpr={dpr}
     >
+      <PerformanceMonitor
+        bounds={() => [28, 32]}
+        onFallback={() => setDpr(1)}
+        onChange={({ factor }) => {
+          setDpr(1 + factor);
+          console.log('dpr', dpr);
+        }}
+      />
       <SceneContent />
     </Canvas>
   );

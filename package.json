@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "textures:generate-veins": "node scripts/textures/generate-veins.mjs",
     "textures:fit-veins": "node scripts/textures/fit-veins-to-uv.mjs",
-    "textures:generate-plumera-mask": "node scripts/textures/generate-flower-mask-from-uv.mjs \"public/Plumera Flower/Plumera Flower.glb\" public/textures/plumera-mask.png 1024 representative 12"
+    "textures:generate-plumera-mask": "node scripts/textures/generate-flower-mask-from-uv.mjs \"public/vat/plumera/Plumera Flower.glb\" public/textures/plumera-mask.png 1024 representative 12"
   },
   "devDependencies": {
     "@vitejs/plugin-basic-ssl": "^2.1.0",
