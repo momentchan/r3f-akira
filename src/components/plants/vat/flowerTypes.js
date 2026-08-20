@@ -2,8 +2,10 @@ import { DAHLIA_MATERIAL_DEFAULTS } from './dahliaDefaults';
 import { PLUMERA_MATERIAL_DEFAULTS } from './plumeraDefaults';
 import { ROSE_MATERIAL_DEFAULTS } from './roseDefaults';
 import {
+  DAHLIA_LOD_META,
   DAHLIA_META,
   PLUMERA_META,
+  ROSE_LOD_META,
   ROSE_META,
 } from '../field/paths';
 import {
@@ -29,6 +31,7 @@ export const FLOWER_TYPES = [
     id: 'dahlia',
     label: 'Dahlia',
     metaUrl: DAHLIA_META,
+    lodMetaUrl: DAHLIA_LOD_META,
     materialDefaults: DAHLIA_MATERIAL_DEFAULTS,
     usePetalCutout: true,
     useMaskEdge: true,
@@ -38,6 +41,7 @@ export const FLOWER_TYPES = [
     id: 'rose',
     label: 'Rose',
     metaUrl: ROSE_META,
+    lodMetaUrl: ROSE_LOD_META,
     materialDefaults: ROSE_MATERIAL_DEFAULTS,
     usePetalCutout: true,
     useMaskEdge: true,

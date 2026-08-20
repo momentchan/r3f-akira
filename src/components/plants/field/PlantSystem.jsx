@@ -3,10 +3,12 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { AsyncCompile } from '@core';
+import { isDebugRoute } from '../../../core/debugRoute';
 import {
   createBatchedStemMaterial,
   createFlowerUniforms,
 } from '../look/createFlowerMaterials';
+import { FLOWER_LOD_DEBUG_COLORS } from '../vat/flowerCullDefaults';
 import { FieldLeaves } from '../stem/FieldLeaves';
 import { syncStemLookControls } from '../stem/stemControls';
 import {
@@ -27,8 +29,14 @@ import { computeWindSway } from '../stem/wind';
 import { PLANT_WIND_DEFAULTS } from '../wind/plantWind';
 import {
   FlowerTypeBatch,
+  cullFlowerBatches,
   updateFlowerBatchTips,
 } from '../vat/FlowerTypeBatch';
+import {
+  countActiveFlowerHeads,
+  countTotalFlowerSlots,
+  readDrawnFlowerCount,
+} from '../vat/flowerInstanceCull';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
 import { animatedCentre } from './fieldAnchors';
 import {
@@ -103,7 +111,7 @@ function createPlantDataTexture(count, rows = PLANT_DATA_ROWS) {
 }
 
 /**
- * Single plant field system: one merged stem mesh + instanced VAT heads per type,
+ * Single plant field system: one merged stem mesh + GPU-culled VAT heads per type,
  * plus one instanced leaf mesh.
  */
 export function PlantSystem({
@@ -125,6 +133,7 @@ export function PlantSystem({
   flowerColorVariationById,
   stemLookControls = null,
   leafControls = null,
+  cullControls = null,
   wind = PLANT_WIND_DEFAULTS,
 }) {
   const runtimeRef = useRef({
@@ -140,6 +149,8 @@ export function PlantSystem({
     // Scaled, pausable simulation time. Kept here rather than read off the render
     // clock so speed changes and the Space pause apply to the field drift too.
     simTime: 0,
+    cullReadPending: false,
+    cullReadAt: 0,
   });
 
   // Lifecycle timing does not shape geometry, so it must not be a rebuild input.
@@ -148,6 +159,61 @@ export function PlantSystem({
   lifecycleRangesRef.current = lifecycleRanges;
   const phaseSpreadRef = useRef(phaseSpread);
   phaseSpreadRef.current = phaseSpread;
+  const cullHudRef = useRef(null);
+
+  useEffect(() => {
+    const showStats = isDebugRoute();
+    const showLegend = cullControls?.tintDrawn;
+    if (!showStats && !showLegend) {
+      cullHudRef.current?.root.remove();
+      cullHudRef.current = null;
+      return undefined;
+    }
+
+    const rgbCss = ([r, g, b]) => (
+      `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`
+    );
+
+    const root = document.createElement('div');
+    root.className = 'flower-cull-hud';
+
+    let totalEl = null;
+    let activeEl = null;
+    let drawnEl = null;
+    if (showStats) {
+      totalEl = document.createElement('span');
+      activeEl = document.createElement('span');
+      drawnEl = document.createElement('span');
+      totalEl.textContent = 'total 0';
+      activeEl.textContent = 'active 0';
+      drawnEl.textContent = 'drawn 0';
+      root.append(totalEl, activeEl, drawnEl);
+    }
+
+    let legendEl = null;
+    if (showLegend) {
+      legendEl = document.createElement('div');
+      legendEl.className = 'flower-cull-lod-legend';
+      for (const [label, color] of [
+        ['LOD0 hi-poly', FLOWER_LOD_DEBUG_COLORS.hi],
+        ['LOD1 low-poly', FLOWER_LOD_DEBUG_COLORS.lo],
+      ]) {
+        const row = document.createElement('span');
+        const swatch = document.createElement('i');
+        swatch.style.background = rgbCss(color);
+        row.append(swatch, document.createTextNode(label));
+        legendEl.append(row);
+      }
+      root.append(legendEl);
+    }
+
+    document.body.appendChild(root);
+    cullHudRef.current = { root, totalEl, activeEl, drawnEl, legendEl };
+    return () => {
+      root.remove();
+      cullHudRef.current = null;
+    };
+  }, [cullControls?.tintDrawn]);
 
   // Shared stem look from top-level Stem panel.
   const stemFlowerUniforms = useMemo(() => createFlowerUniforms(), []);
@@ -291,7 +357,7 @@ export function PlantSystem({
     return [...map.values()].filter((b) => b.plants.length > 0);
   }, [stemBuild.plants, flowerColorVariationById]);
 
-  useFrame(({ scene, clock }, delta) => {
+  useFrame(({ scene, clock, gl, camera }, delta) => {
     const rt = runtimeRef.current;
     const { plants, plantData, flowerBatches } = rt;
     if (!plants.length || !plantData) return;
@@ -522,6 +588,33 @@ export function PlantSystem({
     tex.needsUpdate = true;
 
     updateFlowerBatchTips(flowerBatches, plants);
+    const tint = cullControls?.tintDrawn ? 1 : 0;
+    for (const id in flowerBatches) {
+      const batch = flowerBatches[id];
+      const tints = batch.debugTints ?? (batch.debugTint ? [batch.debugTint] : []);
+      for (let i = 0; i < tints.length; i += 1) {
+        if (tints[i]) tints[i].value = tint;
+      }
+    }
+    cullFlowerBatches(gl, camera, flowerBatches, {
+      enabled: cullControls?.enabled !== false,
+    });
+    if (isDebugRoute() && !rt.cullReadPending && clock.elapsedTime - rt.cullReadAt > 0.25) {
+      rt.cullReadPending = true;
+      rt.cullReadAt = clock.elapsedTime;
+      const total = countTotalFlowerSlots(flowerBatches);
+      const active = countActiveFlowerHeads(flowerBatches);
+      readDrawnFlowerCount(gl, flowerBatches).then((drawn) => {
+        rt.cullReadPending = false;
+        const hud = cullHudRef.current;
+        if (!hud?.totalEl) return;
+        hud.totalEl.textContent = `total ${total}`;
+        hud.activeEl.textContent = `active ${active}`;
+        hud.drawnEl.textContent = `drawn ${drawn}`;
+      }).catch(() => {
+        rt.cullReadPending = false;
+      });
+    }
   }, 1);
 
   if (!stems.length || !stemBuild.geometry || !stemMaterial) {
@@ -560,6 +653,7 @@ export function PlantSystem({
               stemLookControls={stemLookControls}
               shedControls={shedControls}
               runtimeRef={runtimeRef}
+              lodDistance={cullControls?.lodDistance}
             />
           </Suspense>
         ))}

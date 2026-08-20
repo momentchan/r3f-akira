@@ -7,6 +7,7 @@ import {
   floor,
   Fn,
   fract,
+  instanceIndex,
   length,
   max,
   mix,
@@ -134,11 +135,11 @@ function applyPetalShed(basePos, vertexColor, shed, frame, posTex, meta, shedUni
 /**
  * Instanced VAT flowers.
  *
- * WebGPU caps vertex buffers at 8. VAT mesh already uses several
- * (position/uv/uv1/color…), so tip TRS + frame pack into two vec4s:
- *   aTip0 = (pos.xyz, scale)
- *   aTip1 = (quat.xyz, frame)  — quat.w = +sqrt(1-|q|^2)
- * (setFromUnitVectors keeps w ≥ 0 for our tip alignment.)
+ * Tip TRS + frame pack into two vec4s (quat.w reconstructed as +sqrt(1-|q|^2)):
+ *   tip0 = (pos.xyz, scale)
+ *   tip1 = (quat.xyz, frame)
+ * GPU cull/LOD passes `instanceStorage` + `visibleIndices` so the vertex shader
+ * reads the compacted visible list. Attribute fallback is the pre-cull path.
  */
 export function createInstancedVatFlowerMaterials(
   posTex,
@@ -150,13 +151,33 @@ export function createInstancedVatFlowerMaterials(
   veinTexture,
   options = {},
 ) {
-  const { usePetalCutout = true, useMaskEdge = true, shedDefaults } = options;
-  const tip0 = attribute('aTip0', 'vec4'); // xyz pos, w scale
-  const tip1 = attribute('aTip1', 'vec4'); // xyz quat, w frame
-  // hueShift, lightShift, shed progress, stem length (world units, for the lift)
-  const colorVar = attribute('aColorVar', 'vec4');
+  const {
+    usePetalCutout = true,
+    useMaskEdge = true,
+    shedDefaults,
+    instanceStorage = null,
+    visibleIndices = null,
+    debugTintColor = null,
+  } = options;
+  let tip0;
+  let tip1;
+  let colorVar;
+  if (instanceStorage && visibleIndices) {
+    const data = instanceStorage.element(visibleIndices.element(instanceIndex));
+    tip0 = data.get('tip0');
+    tip1 = data.get('tip1');
+    colorVar = data.get('colorVar');
+  } else {
+    tip0 = attribute('aTip0', 'vec4');
+    tip1 = attribute('aTip1', 'vec4');
+    colorVar = attribute('aColorVar', 'vec4');
+  }
   const vertexColor = attribute('color', 'vec3'); // r part tag, g petalId, b pivot idx
   const shedUniforms = createPetalShedUniforms(shedDefaults);
+  const debugTint = uniform(0);
+  const debugTintColorNode = debugTintColor
+    ? uniform(new THREE.Color(...debugTintColor))
+    : null;
 
   const frame = tip1.w;
   const deformation = createVatDeformation(posTex, nrmTex, meta, frame);
@@ -178,6 +199,8 @@ export function createInstancedVatFlowerMaterials(
         hueShift: colorVar.x,
         lightShift: colorVar.y,
       },
+      debugTint,
+      debugTintColor: debugTintColorNode,
     },
   );
 
@@ -207,7 +230,7 @@ export function createInstancedVatFlowerMaterials(
       .add(fan);
   })();
 
-  return { material, shedUniforms };
+  return { material, shedUniforms, debugTint };
 }
 
 /**

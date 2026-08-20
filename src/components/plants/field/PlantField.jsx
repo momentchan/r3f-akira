@@ -19,7 +19,10 @@ import { PLANT_WIND_DEFAULTS } from '../wind/plantWind';
 const DAHLIA_TYPE = FLOWER_TYPES.find((t) => t.id === 'dahlia');
 const ROSE_TYPE = FLOWER_TYPES.find((t) => t.id === 'rose');
 
-[DAHLIA_TYPE, ROSE_TYPE].forEach(({ metaUrl }) => preloadVATAssets(metaUrl));
+[DAHLIA_TYPE, ROSE_TYPE].forEach(({ metaUrl, lodMetaUrl }) => {
+  preloadVATAssets(metaUrl);
+  if (lodMetaUrl) preloadVATAssets(lodMetaUrl);
+});
 
 const S_RADIUS = 1;
 const S_LEAN = 2;
@@ -77,6 +80,7 @@ export function PlantField({
   backpackBounds = null,
   onStemBases,
   wind = PLANT_WIND_DEFAULTS,
+  cullControls = null,
 }) {
   const lifecyclePausedRef = useLifecyclePauseHotkey();
 
@@ -551,6 +555,7 @@ export function PlantField({
         flowerColorVariationById={flowerColorVariationById}
         stemLookControls={stemLookControls}
         leafControls={leafControls}
+        cullControls={cullControls}
         wind={wind}
       />
     </group>

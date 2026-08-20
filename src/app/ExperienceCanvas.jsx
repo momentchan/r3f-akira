@@ -10,6 +10,7 @@ import { Backpack } from '../components/character/Backpack.tsx';
 import { ClimbTendrils } from '../components/plants/climb/ClimbTendrils';
 import { PlantField } from '../components/plants/field/PlantField';
 import { usePlantWindControls } from '../components/plants/wind/usePlantWindControls';
+import { useFlowerCullControls } from '../components/plants/vat/useFlowerCullControls';
 import { DirectionalLight } from '../components/scene/DirectionalLight';
 import Effects from '../components/scene/Effects';
 import { ShadowCatcher } from '../components/scene/ShadowCatcher';
@@ -52,6 +53,7 @@ function SceneContent() {
   });
   useEffect(() => { setSimSpeedMul(simSpeed); }, [simSpeed]);
   const plantWind = usePlantWindControls();
+  const flowerCull = useFlowerCullControls();
 
   const setComponentReady = useExperienceStore((state) => state.setComponentReady);
 
@@ -89,15 +91,16 @@ function SceneContent() {
             bodyBounds={bodyBounds}
             backpackBounds={backpackBounds}
             wind={plantWind}
+            cullControls={flowerCull}
           />
         </Suspense>
-        <Suspense fallback={null}>
+        {/* <Suspense fallback={null}>
           <ClimbTendrils
             bodyBounds={bodyBounds}
             backpackBounds={backpackBounds}
             wind={plantWind}
           />
-        </Suspense>
+        </Suspense> */}
       </group>
 
       {/* Same value as ShadowCatcher's groundColor, so ground and sky are one

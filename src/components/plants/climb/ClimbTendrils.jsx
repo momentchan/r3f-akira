@@ -24,6 +24,7 @@ import { FieldLeaves } from '../stem/FieldLeaves';
 import { STEM_Y_MAX } from '../stem/stemDefaults';
 import {
   FlowerTypeBatch,
+  cullFlowerBatches,
   updateFlowerBatchTips,
 } from '../vat/FlowerTypeBatch';
 import { PLUMERA_TYPE } from '../vat/flowerTypes';
@@ -623,7 +624,7 @@ export function ClimbTendrils({
     stemMaterial?.dispose();
   }, [stemBuild, stemMaterial]);
 
-  useFrame(({ scene, clock }, delta) => {
+  useFrame(({ scene, clock, gl, camera }, delta) => {
     const plants = plantsRef.current;
     const plantData = plantDataRef.current;
     if (!plants.length || !plantData) return;
@@ -719,6 +720,7 @@ export function ClimbTendrils({
     // starts zeroed, so there is nothing to clear here.
     tex.needsUpdate = true;
     updateFlowerBatchTips(flowerRuntimeRef.current.flowerBatches, plants);
+    cullFlowerBatches(gl, camera, flowerRuntimeRef.current.flowerBatches);
   }, 1);
 
   if (!controls.enabled) return null;

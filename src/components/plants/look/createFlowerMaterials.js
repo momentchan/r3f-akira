@@ -353,6 +353,10 @@ export function createFlowerVertexColorMaterial(
     useMaskEdge = true,
     /** Optional TSL nodes: { hueShift, lightShift } for per-instance petal variation. */
     colorVariation = null,
+    /** Uniform 0..1 — mixes heads toward debugTintColor so GPU-drawn instances are obvious. */
+    debugTint = null,
+    /** Optional vec3 TSL node — defaults to magenta when debugTint is set. */
+    debugTintColor = null,
   } = options;
   const useMask = usePetalCutout || useMaskEdge;
   const petal = flowerUniforms.petal;
@@ -419,6 +423,11 @@ export function createFlowerVertexColorMaterial(
       const stemColor = buildStemColor(stem, normalSource);
       result.assign(vec4(clamp(stemColor, 0.0, 1.0), 1.0));
     });
+
+    if (debugTint) {
+      const tintRgb = debugTintColor ?? vec3(1.0, 0.12, 0.82);
+      result.assign(vec4(mix(result.xyz, tintRgb, debugTint), result.w));
+    }
 
     return result;
   })();

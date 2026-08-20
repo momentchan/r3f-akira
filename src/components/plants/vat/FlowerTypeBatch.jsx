@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three/webgpu';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   useVATPreloader,
 } from '@core/vat';
@@ -22,9 +21,19 @@ import {
   createInstancedVatFlowerMaterials,
   prepareInstancedVatGeometry,
 } from './createVatMaterial';
+import {
+  createFlowerCullComputes,
+  createFlowerInstanceStorage,
+  createFlowerLodSlot,
+  dispatchFlowerCull,
+  FLOWER_COLOR_OFFSET,
+  FLOWER_INSTANCE_FLOATS,
+  FLOWER_TIP0_OFFSET,
+  FLOWER_TIP1_OFFSET,
+} from './flowerInstanceCull';
+import { FLOWER_CULL_DEFAULTS, FLOWER_LOD_DEBUG_COLORS } from './flowerCullDefaults';
 import { enablePlantShadowLayer } from '../../scene/plantShadowLayer';
-import { extractFlowerMeshGeometries } from './flowerGeometry';
-import { assignPetalSegments } from './petalSegments';
+import { buildVatFlowerGeometry } from './flowerGeometry';
 
 const _up = new THREE.Vector3(0, 1, 0);
 const _tip = new THREE.Vector3();
@@ -37,6 +46,54 @@ const ATTACH_GROW_WINDOW = 0.28;
 function smoothstep01(value) {
   const t = THREE.MathUtils.clamp(value, 0, 1);
   return t * t * (3 - 2 * t);
+}
+
+function createLodMesh({
+  vatData,
+  sourceGeometry,
+  instanceCount,
+  minDistance,
+  maxDistance,
+  flowerUniforms,
+  maskUniforms,
+  maskTexture,
+  veinTexture,
+  flowerType,
+  instanceStorage,
+  lodDebugColor = null,
+}) {
+  configureVatTexture(vatData.posTex);
+  configureVatTexture(vatData.nrmTex);
+  const geo = prepareInstancedVatGeometry(sourceGeometry.clone());
+  const slot = createFlowerLodSlot({
+    geometry: geo,
+    instanceCount,
+    minDistance,
+    maxDistance,
+  });
+  const bundle = createInstancedVatFlowerMaterials(
+    vatData.posTex,
+    vatData.nrmTex,
+    vatData.meta,
+    flowerUniforms,
+    maskUniforms,
+    maskTexture,
+    veinTexture,
+    {
+      usePetalCutout: flowerType.usePetalCutout !== false,
+      useMaskEdge: flowerType.useMaskEdge !== false,
+      instanceStorage: instanceStorage.node,
+      visibleIndices: slot.indices,
+      debugTintColor: lodDebugColor,
+    },
+  );
+  const mesh = new THREE.Mesh(geo, bundle.material);
+  mesh.frustumCulled = false;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  enablePlantShadowLayer(mesh);
+  mesh.count = instanceCount;
+  return { mesh, slot, bundle };
 }
 
 /**
@@ -54,8 +111,11 @@ export function FlowerTypeBatch({
   runtimeRef,
   attachTs = null,
   attachNormals = null,
+  lodDistance = FLOWER_CULL_DEFAULTS.lodDistance,
 }) {
-  const vatData = useVATPreloader(flowerType.metaUrl);
+  const hasLod = Boolean(flowerType.lodMetaUrl);
+  const hiVatData = useVATPreloader(flowerType.metaUrl);
+  const lodVatData = useVATPreloader(flowerType.lodMetaUrl ?? flowerType.metaUrl);
   const maskTexture = useTexture(flowerType.maskPath);
   const veinTexture = useTexture(FLOWER_VEIN_PATH);
 
@@ -83,60 +143,27 @@ export function FlowerTypeBatch({
     }
   }, [flowerControls, stemLookControls, flowerUniforms, maskUniforms]);
 
-  const geometry = useMemo(() => {
-    if (!vatData.isLoaded || !vatData.scene || !vatData.meta) return null;
-    const parts = extractFlowerMeshGeometries(vatData.scene, vatData.meta, {
-      flipX: true,
-      stemYMax,
-      partColorMode: flowerType.partColorMode,
-    });
-    if (!parts.length) return null;
-    const merged = parts.length === 1
-      ? parts[0].geometry
-      : mergeGeometries(parts.map((part) => part.geometry), false);
-    const singlePart = parts.length === 1;
-    parts.forEach((part) => {
-      if (part.geometry !== merged) part.geometry.dispose();
-    });
-    // Derive per-petal ids + shrink pivots from the mesh islands (packed into
-    // COLOR_0.g/.b) so petals can shed individually without a re-export.
-    // Only for single-mesh VATs: the shader rebuilds the pivot's texel from its
-    // vertex index, and UV1 is generated per part, so merged indices would not
-    // map back to the right texel.
-    if (singlePart) assignPetalSegments(merged);
-    return merged;
-  }, [
-    vatData.isLoaded,
-    vatData.scene,
-    vatData.meta,
+  const geoOpts = useMemo(() => ({
     stemYMax,
-    flowerType.partColorMode,
-  ]);
+    partColorMode: flowerType.partColorMode,
+  }), [stemYMax, flowerType.partColorMode]);
 
-  const materialBundle = useMemo(() => {
-    if (!vatData.isLoaded || !vatData.posTex || !vatData.nrmTex || !vatData.meta) {
-      return null;
-    }
-    configureVatTexture(vatData.posTex);
-    configureVatTexture(vatData.nrmTex);
-    return createInstancedVatFlowerMaterials(
-      vatData.posTex,
-      vatData.nrmTex,
-      vatData.meta,
-      flowerUniforms,
-      maskUniforms,
-      maskTexture,
-      veinTexture,
-      {
-        usePetalCutout: flowerType.usePetalCutout !== false,
-        useMaskEdge: flowerType.useMaskEdge !== false,
-      },
-    );
-  }, [
-    vatData.isLoaded, vatData.posTex, vatData.nrmTex, vatData.meta,
-    flowerUniforms, maskUniforms, maskTexture, veinTexture,
-    flowerType.id, flowerType.usePetalCutout, flowerType.useMaskEdge,
-  ]);
+  const hiGeometry = useMemo(
+    () => buildVatFlowerGeometry(hiVatData, geoOpts),
+    [hiVatData.isLoaded, hiVatData.scene, hiVatData.meta, geoOpts],
+  );
+
+  const loGeometry = useMemo(() => {
+    if (!hasLod) return null;
+    return buildVatFlowerGeometry(lodVatData, geoOpts);
+  }, [hasLod, lodVatData.isLoaded, lodVatData.scene, lodVatData.meta, geoOpts]);
+
+  const hiVatReady = Boolean(
+    hiVatData.isLoaded && hiVatData.posTex && hiVatData.nrmTex && hiVatData.meta,
+  );
+  const loVatReady = !hasLod || Boolean(
+    lodVatData.isLoaded && lodVatData.posTex && lodVatData.nrmTex && lodVatData.meta,
+  );
 
   const attachKey = attachTs?.map((value) => value.toFixed(4)).join(',') ?? 'tip';
   const normalKey = attachNormals?.map((value) => (
@@ -147,82 +174,126 @@ export function FlowerTypeBatch({
     return `${(variation.hueShift ?? 0).toFixed(5)}/${(variation.lightShift ?? 0).toFixed(5)}`;
   }).join(',');
   const layoutKey = `${flowerType.id}:${plants.length}:${plantIndexMap.join(',')}:${attachKey}:${normalKey}`;
-  const [mesh, setMesh] = useState(null);
+  const [meshes, setMeshes] = useState([]);
 
   useEffect(() => {
     const typePlants = plantsRef.current;
     const indices = plantIndexMapRef.current;
-    if (!geometry || !materialBundle || typePlants.length === 0) {
-      setMesh(null);
+    if (!hiGeometry || !hiVatReady || typePlants.length === 0 || (hasLod && !loVatReady)) {
+      setMeshes([]);
       return undefined;
     }
 
-    const geo = prepareInstancedVatGeometry(geometry);
     const count = typePlants.length;
-    const tip0 = new Float32Array(count * 4);
-    const tip1 = new Float32Array(count * 4);
-    // z = petal-shed progress (updated every frame with the tips),
-    // w = stem length, the world-space unit the shed lift is expressed in.
-    const colorVar = new Float32Array(count * 4);
+    const instanceStorage = createFlowerInstanceStorage(count);
     for (let i = 0; i < count; i += 1) {
       const variation = typePlants[i].colorOverride ?? {};
-      colorVar[i * 4] = variation.hueShift ?? 0;
-      colorVar[i * 4 + 1] = variation.lightShift ?? 0;
-      colorVar[i * 4 + 3] = typePlants[i].params?.stemLength ?? 1;
+      const o = i * FLOWER_INSTANCE_FLOATS + FLOWER_COLOR_OFFSET;
+      instanceStorage.data[o] = variation.hueShift ?? 0;
+      instanceStorage.data[o + 1] = variation.lightShift ?? 0;
+      instanceStorage.data[o + 3] = typePlants[i].params?.stemLength ?? 1;
     }
-    geo.setAttribute('aTip0', new THREE.InstancedBufferAttribute(tip0, 4));
-    geo.setAttribute('aTip1', new THREE.InstancedBufferAttribute(tip1, 4));
-    const colorVarAttr = new THREE.InstancedBufferAttribute(colorVar, 4);
-    geo.setAttribute('aColorVar', colorVarAttr);
+    instanceStorage.attribute.needsUpdate = true;
 
-    const instance = new THREE.InstancedMesh(geo, materialBundle.material, count);
-    instance.frustumCulled = false;
-    instance.castShadow = true;
-    instance.receiveShadow = true;
-    enablePlantShadowLayer(instance);
-    instance.count = count;
-    const identity = new THREE.Matrix4();
-    for (let i = 0; i < count; i += 1) instance.setMatrixAt(i, identity);
-    instance.instanceMatrix.needsUpdate = true;
+    const lodSplit = lodDistance ?? FLOWER_CULL_DEFAULTS.lodDistance;
+    const hiLod = createLodMesh({
+      vatData: hiVatData,
+      sourceGeometry: hiGeometry,
+      instanceCount: count,
+      minDistance: 0,
+      maxDistance: hasLod ? lodSplit : Infinity,
+      flowerUniforms,
+      maskUniforms,
+      maskTexture,
+      veinTexture,
+      flowerType,
+      instanceStorage,
+      lodDebugColor: FLOWER_LOD_DEBUG_COLORS.hi,
+    });
+
+    const lodSlots = [hiLod.slot];
+    const lods = [{ mesh: hiLod.mesh, slot: hiLod.slot }];
+    const renderMeshes = [hiLod.mesh];
+    const shedUniforms = [hiLod.bundle.shedUniforms];
+    const debugTints = [hiLod.bundle.debugTint];
+    const disposables = [
+      { geometry: hiLod.slot.geometry, material: hiLod.bundle.material },
+    ];
+
+    if (hasLod && loGeometry) {
+      const loLod = createLodMesh({
+        vatData: lodVatData,
+        sourceGeometry: loGeometry,
+        instanceCount: count,
+        minDistance: lodSplit,
+        maxDistance: Infinity,
+        flowerUniforms,
+        maskUniforms,
+        maskTexture,
+        veinTexture,
+        flowerType,
+        instanceStorage,
+        lodDebugColor: FLOWER_LOD_DEBUG_COLORS.lo,
+      });
+      lodSlots.push(loLod.slot);
+      lods.push({ mesh: loLod.mesh, slot: loLod.slot });
+      renderMeshes.push(loLod.mesh);
+      shedUniforms.push(loLod.bundle.shedUniforms);
+      debugTints.push(loLod.bundle.debugTint);
+      disposables.push({
+        geometry: loLod.slot.geometry,
+        material: loLod.bundle.material,
+      });
+    }
 
     const size = flowerControlsRef.current?.flowerSize
       ?? flowerType.materialDefaults?.flowerSize
       ?? 4.2;
     runtimeRef.current.flowerBatches[flowerType.id] = {
-      mesh: instance,
-      tip0,
-      tip1,
-      tip0Attr: geo.getAttribute('aTip0'),
-      tip1Attr: geo.getAttribute('aTip1'),
-      colorVar,
-      colorVarAttr,
+      lods,
+      instanceStorage,
+      cull: createFlowerCullComputes({
+        instanceStorage,
+        lodSlots,
+        count,
+      }),
       plantIndexMap: indices,
       attachTs,
       attachNormals,
       flowerUniforms,
+      shedUniforms,
+      debugTints,
       scaleMuls: typePlants.map((plant) => plant.params.stemRadius * size),
     };
-    setMesh(instance);
+    setMeshes(renderMeshes);
 
     return () => {
       delete runtimeRef.current.flowerBatches[flowerType.id];
-      instance.dispose();
-      geo.dispose();
-      setMesh(null);
+      for (let i = 0; i < disposables.length; i += 1) {
+        disposables[i].geometry.dispose();
+        disposables[i].material.dispose();
+      }
+      setMeshes([]);
     };
-  }, [layoutKey, geometry, materialBundle, flowerType, flowerUniforms, runtimeRef]);
+  }, [
+    layoutKey, hiGeometry, loGeometry, hiVatReady, loVatReady, hasLod,
+    hiVatData, lodVatData, lodDistance,
+    flowerType, flowerUniforms, maskUniforms, maskTexture, veinTexture, runtimeRef,
+  ]);
 
   useEffect(() => {
     const batch = runtimeRef.current.flowerBatches[flowerType.id];
     if (!batch) return;
     const typePlants = plantsRef.current;
+    const { data, attribute } = batch.instanceStorage;
     for (let i = 0; i < typePlants.length; i += 1) {
       const variation = typePlants[i].colorOverride ?? {};
-      batch.colorVar[i * 4] = variation.hueShift ?? 0;
-      batch.colorVar[i * 4 + 1] = variation.lightShift ?? 0;
-      batch.colorVar[i * 4 + 3] = typePlants[i].params?.stemLength ?? 1;
+      const o = i * FLOWER_INSTANCE_FLOATS + FLOWER_COLOR_OFFSET;
+      data[o] = variation.hueShift ?? 0;
+      data[o + 1] = variation.lightShift ?? 0;
+      data[o + 3] = typePlants[i].params?.stemLength ?? 1;
     }
-    batch.colorVarAttr.needsUpdate = true;
+    attribute.needsUpdate = true;
   }, [colorKey, layoutKey, flowerType.id, runtimeRef]);
 
   useEffect(() => {
@@ -236,29 +307,34 @@ export function FlowerTypeBatch({
   }, [flowerControls?.flowerSize, layoutKey, flowerType, runtimeRef]);
 
   useEffect(() => {
-    const shed = materialBundle?.shedUniforms;
-    if (!shed || !shedControls) return;
-    shed.rise.value = shedControls.shedRise ?? shed.rise.value;
-    shed.riseVariance.value = shedControls.shedRiseVariance ?? shed.riseVariance.value;
-    shed.spread.value = shedControls.shedSpread ?? shed.spread.value;
-    shed.stagger.value = shedControls.shedStagger ?? shed.stagger.value;
-  }, [materialBundle, shedControls]);
+    const shedList = runtimeRef.current.flowerBatches[flowerType.id]?.shedUniforms;
+    if (!shedList?.length || !shedControls) return;
+    for (let i = 0; i < shedList.length; i += 1) {
+      const shed = shedList[i];
+      if (!shed) continue;
+      shed.rise.value = shedControls.shedRise ?? shed.rise.value;
+      shed.riseVariance.value = shedControls.shedRiseVariance ?? shed.riseVariance.value;
+      shed.spread.value = shedControls.shedSpread ?? shed.spread.value;
+      shed.stagger.value = shedControls.shedStagger ?? shed.stagger.value;
+    }
+  }, [meshes, shedControls, flowerType.id, runtimeRef]);
 
   useEffect(() => () => {
-    materialBundle?.material.dispose();
-    geometry?.dispose();
-  }, [materialBundle, geometry]);
+    hiGeometry?.dispose();
+    if (hasLod) loGeometry?.dispose();
+  }, [hiGeometry, loGeometry, hasLod]);
 
-  return mesh ? <primitive object={mesh} /> : null;
+  return meshes.map((mesh) => (
+    <primitive key={mesh.uuid} object={mesh} />
+  ));
 }
 
 /** Update all registered flower positions, orientations, scales, and VAT frames. */
 export function updateFlowerBatchTips(flowerBatches, plants) {
-  for (const batch of Object.values(flowerBatches)) {
-    const {
-      tip0, tip1, tip0Attr, tip1Attr, plantIndexMap, scaleMuls,
-      attachTs, attachNormals, colorVar, colorVarAttr,
-    } = batch;
+  for (const id in flowerBatches) {
+    const batch = flowerBatches[id];
+    const { instanceStorage, plantIndexMap, scaleMuls, attachTs, attachNormals } = batch;
+    const { data, attribute } = instanceStorage;
     for (let local = 0; local < plantIndexMap.length; local += 1) {
       const plant = plants[plantIndexMap[local]];
       const stemGrow = plant?.stemGrow ?? 0;
@@ -270,18 +346,20 @@ export function updateFlowerBatchTips(flowerBatches, plants) {
       const growthSize = GROWTH_START_SCALE + (1 - GROWTH_START_SCALE) * reveal;
       const flowerScale = hasFixedAttachment ? reveal : (plant?.flowerScale ?? 0);
       const scale = flowerScale * growthSize * scaleMuls[local];
-      const offset = local * 4;
-      if (colorVar) colorVar[local * 4 + 2] = plant?.shed ?? 0;
+      const base = local * FLOWER_INSTANCE_FLOATS;
+      const tip0 = base + FLOWER_TIP0_OFFSET;
+      const tip1 = base + FLOWER_TIP1_OFFSET;
+      data[base + FLOWER_COLOR_OFFSET + 2] = plant?.shed ?? 0;
 
       if (!plant || scale < 0.001 || reveal < 0.001) {
-        tip0[offset] = 0;
-        tip0[offset + 1] = -10;
-        tip0[offset + 2] = 0;
-        tip0[offset + 3] = 0;
-        tip1[offset] = 0;
-        tip1[offset + 1] = 0;
-        tip1[offset + 2] = 0;
-        tip1[offset + 3] = 0;
+        data[tip0] = 0;
+        data[tip0 + 1] = 0;
+        data[tip0 + 2] = 0;
+        data[tip0 + 3] = 0;
+        data[tip1] = 0;
+        data[tip1 + 1] = 0;
+        data[tip1 + 2] = 0;
+        data[tip1 + 3] = 0;
         continue;
       }
 
@@ -312,19 +390,24 @@ export function updateFlowerBatchTips(flowerBatches, plants) {
       }
       if (_quat.w < 0) _quat.set(-_quat.x, -_quat.y, -_quat.z, -_quat.w);
       const displacementMask = windMask(hasFixedAttachment ? attachT : stemGrow);
-      tip0[offset] = (plant.position?.[0] ?? 0) + _tip.x
+      data[tip0] = (plant.position?.[0] ?? 0) + _tip.x
         + (plant.swayX ?? 0) * displacementMask;
-      tip0[offset + 1] = (plant.position?.[1] ?? 0) + _tip.y;
-      tip0[offset + 2] = (plant.position?.[2] ?? 0) + _tip.z
+      data[tip0 + 1] = (plant.position?.[1] ?? 0) + _tip.y;
+      data[tip0 + 2] = (plant.position?.[2] ?? 0) + _tip.z
         + (plant.swayZ ?? 0) * displacementMask;
-      tip0[offset + 3] = scale;
-      tip1[offset] = _quat.x;
-      tip1[offset + 1] = _quat.y;
-      tip1[offset + 2] = _quat.z;
-      tip1[offset + 3] = hasFixedAttachment ? reveal : (plant.flowerFrame ?? 0);
+      data[tip0 + 3] = scale;
+      data[tip1] = _quat.x;
+      data[tip1 + 1] = _quat.y;
+      data[tip1 + 2] = _quat.z;
+      data[tip1 + 3] = hasFixedAttachment ? reveal : (plant.flowerFrame ?? 0);
     }
-    tip0Attr.needsUpdate = true;
-    tip1Attr.needsUpdate = true;
-    if (colorVarAttr) colorVarAttr.needsUpdate = true;
+    attribute.needsUpdate = true;
+  }
+}
+
+/** Compact visible flower instances into each LOD's indirect draw list. */
+export function cullFlowerBatches(gl, camera, flowerBatches, options) {
+  for (const id in flowerBatches) {
+    dispatchFlowerCull(gl, camera, flowerBatches[id], options);
   }
 }

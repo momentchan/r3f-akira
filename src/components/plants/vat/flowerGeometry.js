@@ -1,5 +1,7 @@
 import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { extractMeshGeometriesFromScene } from '@core/vat';
+import { assignPetalSegments } from './petalSegments';
 
 function markAllVerticesAsFlower(geometry) {
   const position = geometry.getAttribute('position');
@@ -30,4 +32,24 @@ export function extractFlowerMeshGeometries(
     parts.forEach(({ geometry }) => markAllVerticesAsFlower(geometry));
   }
   return parts;
+}
+
+/** Merge VAT mesh parts into one instanced flower geometry. */
+export function buildVatFlowerGeometry(vatData, { stemYMax, partColorMode }) {
+  if (!vatData.isLoaded || !vatData.scene || !vatData.meta) return null;
+  const parts = extractFlowerMeshGeometries(vatData.scene, vatData.meta, {
+    flipX: true,
+    stemYMax,
+    partColorMode,
+  });
+  if (!parts.length) return null;
+  const merged = parts.length === 1
+    ? parts[0].geometry
+    : mergeGeometries(parts.map((part) => part.geometry), false);
+  const singlePart = parts.length === 1;
+  parts.forEach((part) => {
+    if (part.geometry !== merged) part.geometry.dispose();
+  });
+  if (singlePart) assignPetalSegments(merged);
+  return merged;
 }
