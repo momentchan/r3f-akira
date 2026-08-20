@@ -174,15 +174,13 @@ export function FlowerTypeBatch({
     lodVatData.isLoaded && lodVatData.posTex && lodVatData.nrmTex && lodVatData.meta,
   );
 
-  const attachKey = attachTs?.map((value) => value.toFixed(4)).join(',') ?? 'tip';
-  const normalKey = attachNormals?.map((value) => (
-    value?.map((component) => component.toFixed(4)).join('/') ?? 'fallback'
-  )).join(',') ?? 'tangent';
   const colorKey = plants.map((plant) => {
     const variation = plant.colorOverride ?? {};
     return `${(variation.hueShift ?? 0).toFixed(5)}/${(variation.lightShift ?? 0).toFixed(5)}`;
   }).join(',');
-  const layoutKey = `${flowerType.id}:${plants.length}:${plantIndexMap.join(',')}:${attachKey}:${normalKey}`;
+  // Instance count only — attach maps are mutated in place on climb slot rebind
+  // and must not remount the VAT meshes.
+  const layoutKey = `${flowerType.id}:${plants.length}`;
   const [meshes, setMeshes] = useState([]);
 
   useEffect(() => {
@@ -316,6 +314,15 @@ export function FlowerTypeBatch({
     hiVatData, lodVatData, lodDistance,
     flowerType, flowerUniforms, maskUniforms, maskTexture, veinTexture, runtimeRef,
   ]);
+
+  // Keep runtime tip lookups on the latest maps without rebuilding VAT.
+  useEffect(() => {
+    const batch = runtimeRef.current.flowerBatches[flowerType.id];
+    if (!batch) return;
+    batch.plantIndexMap = plantIndexMapRef.current;
+    batch.attachTs = attachTs;
+    batch.attachNormals = attachNormals;
+  }, [plantIndexMap, attachTs, attachNormals, flowerType.id, runtimeRef, meshes]);
 
   // Color LOD vs low-poly shadow proxy — no VAT remount.
   useEffect(() => {

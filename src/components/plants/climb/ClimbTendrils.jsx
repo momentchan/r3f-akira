@@ -61,7 +61,7 @@ const _normalBitangent = new THREE.Vector3();
 const _normalReference = new THREE.Vector3(0, 1, 0);
 const _normalAlternate = new THREE.Vector3(1, 0, 0);
 const PATH_DEBOUNCE_MS = 120;
-const MAX_TOTAL_TENDRILS = 512;
+const MAX_TOTAL_TENDRILS = 720;
 const TUBE_SEGMENTS = 60;
 const TUBE_RADIAL_SEGMENTS = 5;
 
@@ -133,6 +133,140 @@ function varySurfaceNormal(normal, azimuth, tiltRadians, target) {
     .addScaledVector(_normalTangent, Math.cos(azimuth) * Math.sin(tiltRadians))
     .addScaledVector(_normalBitangent, Math.sin(azimuth) * Math.sin(tiltRadians))
     .normalize();
+}
+
+function bindClimbFlowerToPlant(plant, hosts, bindOpts) {
+  if (!plant.curveTable) {
+    plant.curveTable = buildCurveSampleTable(plant.curve, TUBE_SEGMENTS);
+  }
+  const span = Math.max(0, bindOpts.attachMax - bindOpts.attachMin);
+  const attachT = bindOpts.attachMin + Math.random() * span;
+  plant.curve.getPointAt(attachT, _surfacePoint);
+  const surfaceNormal = surfaceNormalAtPoint(
+    hosts.get(plant.hostId),
+    _surfacePoint,
+    new THREE.Vector3(),
+  );
+  const variedNormal = surfaceNormal
+    ? varySurfaceNormal(
+      surfaceNormal,
+      Math.random() * Math.PI * 2,
+      Math.random() * bindOpts.maxTilt,
+      new THREE.Vector3(),
+    )
+    : null;
+  return {
+    attachT,
+    attachNormal: variedNormal?.toArray() ?? null,
+  };
+}
+
+function pickRingPlantIndex(plants, ringIndices, treeId, used, activeTrees) {
+  if (treeId != null) {
+    const local = [];
+    for (let n = 0; n < ringIndices.length; n += 1) {
+      const index = ringIndices[n];
+      if (plants[index].treeId === treeId && !used.has(index)) local.push(index);
+    }
+    if (local.length) return local[Math.floor(Math.random() * local.length)];
+  }
+  const fallback = [];
+  for (let n = 0; n < ringIndices.length; n += 1) {
+    const index = ringIndices[n];
+    if (activeTrees.has(plants[index].treeId) && !used.has(index)) fallback.push(index);
+  }
+  if (fallback.length) return fallback[Math.floor(Math.random() * fallback.length)];
+  if (ringIndices.length) {
+    return ringIndices[Math.floor(Math.random() * ringIndices.length)];
+  }
+  return -1;
+}
+
+function writeClimbFlowerSlot(slots, slotIndex, plantIndex, bind) {
+  slots.indices[slotIndex] = plantIndex;
+  slots.attachTs[slotIndex] = bind.attachT;
+  slots.attachNormals[slotIndex] = bind.attachNormal;
+}
+
+function assignClimbFlowerSlots(slots, plants, activeTrees, hostById, bindOpts) {
+  const used = new Set();
+  for (let slotIndex = 0; slotIndex < slots.indices.length; slotIndex += 1) {
+    const plantIndex = pickRingPlantIndex(
+      plants,
+      slots.ringIndices,
+      null,
+      used,
+      activeTrees,
+    );
+    if (plantIndex < 0) {
+      writeClimbFlowerSlot(slots, slotIndex, -1, { attachT: 0.5, attachNormal: null });
+      continue;
+    }
+    used.add(plantIndex);
+    writeClimbFlowerSlot(
+      slots,
+      slotIndex,
+      plantIndex,
+      bindClimbFlowerToPlant(plants[plantIndex], hostById, bindOpts),
+    );
+  }
+}
+
+function rebindClimbFlowerSlotsForTreeSwap(
+  slots,
+  plants,
+  sleepingTreeId,
+  wakingTreeId,
+  activeTrees,
+  hostById,
+  bindOpts,
+) {
+  const used = new Set(slots.indices);
+  for (let slotIndex = 0; slotIndex < slots.indices.length; slotIndex += 1) {
+    const host = plants[slots.indices[slotIndex]];
+    if (host?.treeId !== sleepingTreeId) continue;
+    used.delete(slots.indices[slotIndex]);
+    const plantIndex = pickRingPlantIndex(
+      plants,
+      slots.ringIndices,
+      wakingTreeId,
+      used,
+      activeTrees,
+    );
+    if (plantIndex < 0) continue;
+    used.add(plantIndex);
+    writeClimbFlowerSlot(
+      slots,
+      slotIndex,
+      plantIndex,
+      bindClimbFlowerToPlant(plants[plantIndex], hostById, bindOpts),
+    );
+  }
+}
+
+function rebindClimbFlowerSlotAttachments(slots, plants, hostById, bindOpts) {
+  for (let slotIndex = 0; slotIndex < slots.indices.length; slotIndex += 1) {
+    const plantIndex = slots.indices[slotIndex];
+    const plant = plants[plantIndex];
+    if (!plant) continue;
+    const bind = bindClimbFlowerToPlant(plant, hostById, bindOpts);
+    slots.attachTs[slotIndex] = bind.attachT;
+    slots.attachNormals[slotIndex] = bind.attachNormal;
+  }
+}
+
+function reshuffleClimbFlowerSlotsOnTree(slots, plants, treeId, hostById, bindOpts) {
+  for (let slotIndex = 0; slotIndex < slots.indices.length; slotIndex += 1) {
+    const plantIndex = slots.indices[slotIndex];
+    const plant = plants[plantIndex];
+    if (plant?.treeId !== treeId) continue;
+    writeClimbFlowerSlot(
+      slots,
+      slotIndex,
+      plantIndex,
+      bindClimbFlowerToPlant(plant, hostById, bindOpts),
+    );
+  }
 }
 
 function createPlantDataTexture(count) {
@@ -465,87 +599,64 @@ export function ClimbTendrils({
   }, [stemBuild.plantData, flowerUniforms]);
 
   const flowerAttachments = useMemo(() => {
-    const selectedPlants = [];
-    const indices = [];
-    const attachTs = [];
-    const attachNormals = [];
+    // Fixed bloom count: density × awake rings. Hosts rebind on tree swap so
+    // heads jump with the new wrap instead of vanishing on a sleeping route.
     const density = THREE.MathUtils.clamp(controls.flowerDensity, 0, 1);
-    const attachMin = Math.min(controls.flowerSpan[0], controls.flowerSpan[1]);
-    const attachMax = Math.max(controls.flowerSpan[0], controls.flowerSpan[1]);
-    const maxTilt = THREE.MathUtils.degToRad(controls.flowerNormalVariation);
     const defaultColorVariation = CLIMB_FLOWER_TYPE.materialDefaults.colorVariation ?? {};
     const hueRange = flowerControls.hueRange ?? defaultColorVariation.hueRange ?? 0;
     const lightRange = flowerControls.lightRange ?? defaultColorVariation.lightRange ?? 0;
-    const hostById = new Map(hosts.map((host) => [host.id, host]));
-
-    stemBuild.plants.forEach((plant, index) => {
-      if (plant.role !== 'ring') return;
-      const selection = stableRandomRange(
-        plant.plantId,
-        41,
-        plant.seed,
-        0,
-        1,
-      );
-      if (selection >= density) return;
-
-      const attachT = stableRandomRange(
-        plant.plantId,
-        44,
-        plant.seed,
-        attachMin,
-        attachMax,
-      );
-      plant.curve.getPointAt(attachT, _surfacePoint);
-      const surfaceNormal = surfaceNormalAtPoint(
-        hostById.get(plant.hostId),
-        _surfacePoint,
-        new THREE.Vector3(),
-      );
-      const variedNormal = surfaceNormal
-        ? varySurfaceNormal(
-            surfaceNormal,
-            stableRandomRange(plant.plantId, 45, plant.seed, 0, Math.PI * 2),
-            stableRandomRange(plant.plantId, 46, plant.seed, 0, maxTilt),
-            new THREE.Vector3(),
-          )
-        : null;
-
-      selectedPlants.push({
-        ...plant,
-        // Built here, not per wrap: only the few routes that carry a head need a
-        // sample table, and the same segment count as the packed tube keeps the
-        // head on the geometry it is attached to.
-        curveTable: buildCurveSampleTable(plant.curve, TUBE_SEGMENTS),
+    const plants = stemBuild.plants;
+    const ringIndices = [];
+    for (let index = 0; index < plants.length; index += 1) {
+      if (plants[index].role === 'ring') ringIndices.push(index);
+    }
+    const awakeFraction = debouncedPath.reshuffleRoutes && plants.length
+      ? Math.min(1, debouncedPath.tendrilCount / plants.length)
+      : 1;
+    const slotCount = Math.min(
+      ringIndices.length,
+      Math.round(density * ringIndices.length * awakeFraction),
+    );
+    const slotPlants = [];
+    const indices = [];
+    const attachTs = [];
+    const attachNormals = [];
+    for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+      slotPlants.push({
+        plantId: `climb-flower-slot-${slotIndex}`,
+        seed: slotIndex,
+        params: {
+          stemRadius: controls.tendrilRadius,
+          stemLength: 1,
+        },
         colorOverride: {
           hueShift: stableRandomRange(
-            plant.plantId,
+            slotIndex,
             42,
-            plant.seed,
+            CLIMB_INTERNALS.layoutSeed,
             -hueRange,
             hueRange,
           ),
           lightShift: stableRandomRange(
-            plant.plantId,
+            slotIndex,
             43,
-            plant.seed,
+            CLIMB_INTERNALS.layoutSeed,
             -lightRange,
             lightRange,
           ),
         },
       });
-      indices.push(index);
-      attachTs.push(attachT);
-      attachNormals.push(variedNormal?.toArray() ?? null);
-    });
-
-    return { plants: selectedPlants, indices, attachTs, attachNormals };
+      indices.push(-1);
+      attachTs.push(0.5);
+      attachNormals.push(null);
+    }
+    return { plants: slotPlants, indices, attachTs, attachNormals, ringIndices };
   }, [
     stemBuild.plants,
-    hosts,
     controls.flowerDensity,
-    controls.flowerSpan,
-    controls.flowerNormalVariation,
+    controls.tendrilRadius,
+    debouncedPath.reshuffleRoutes,
+    debouncedPath.tendrilCount,
     flowerControls.hueRange,
     flowerControls.lightRange,
   ]);
@@ -553,6 +664,17 @@ export function ClimbTendrils({
   const plantsRef = useRef(stemBuild.plants);
   const plantDataRef = useRef(stemBuild.plantData);
   const flowerRuntimeRef = useRef({ flowerBatches: {} });
+  const flowerSlotsRef = useRef(flowerAttachments);
+  flowerSlotsRef.current = flowerAttachments;
+  const hostById = useMemo(
+    () => new Map(hosts.map((host) => [host.id, host])),
+    [hosts],
+  );
+  const flowerBindOpts = useMemo(() => ({
+    attachMin: Math.min(controls.flowerSpan[0], controls.flowerSpan[1]),
+    attachMax: Math.max(controls.flowerSpan[0], controls.flowerSpan[1]),
+    maxTilt: THREE.MathUtils.degToRad(controls.flowerNormalVariation),
+  }), [controls.flowerSpan, controls.flowerNormalVariation]);
   const lightRef = useRef(null);
   const lifecycleRef = useRef(lifecycleRanges);
   lifecycleRef.current = lifecycleRanges;
@@ -618,6 +740,38 @@ export function ClimbTendrils({
     debouncedPath.tendrilCount,
   ]);
 
+  // Bind bloom slots onto awake rings. Route swaps rebind in useFrame; span/tilt
+  // only move the head along the current host.
+  useEffect(() => {
+    if (!flowerAttachments.indices.length) return;
+    assignClimbFlowerSlots(
+      flowerAttachments,
+      stemBuild.plants,
+      activeTreesRef.current,
+      hostById,
+      flowerBindOpts,
+    );
+  }, [
+    flowerAttachments,
+    stemBuild.plants,
+    hostById,
+    stemBuild.treeLengths,
+    stemBuild.treeSizes,
+    debouncedPath.reshuffleRoutes,
+    debouncedPath.tendrilCount,
+  ]);
+
+  useEffect(() => {
+    const slots = flowerSlotsRef.current;
+    if (!slots.indices.length) return;
+    rebindClimbFlowerSlotAttachments(
+      slots,
+      plantsRef.current,
+      hostById,
+      flowerBindOpts,
+    );
+  }, [flowerBindOpts, hostById]);
+
   useEffect(() => () => {
     stemBuild.geometry?.dispose();
     stemBuild.plantData?.tex.dispose();
@@ -672,17 +826,37 @@ export function ClimbTendrils({
         : advanceLifecycleState(lifecycle, dt, lifecycleRef.current);
 
       // Finished a full cycle → sleep, and wake a different route in its place.
-      if (!paused && lifecycle.generation !== generationBefore && dormantTrees.length) {
-        const pick = Math.floor(Math.random() * dormantTrees.length);
-        const wakingId = dormantTrees[pick];
-        dormantTrees[pick] = treeId;
-        activeTrees.delete(treeId);
-        activeTrees.add(wakingId);
-        const waking = treeLifecyclesRef.current.get(wakingId);
-        if (waking) waking.age = 0; // regrow from rest, not mid-cycle
-        lifecycle.age = 0;
-        treeGrowthFronts.set(treeId, 0);
-        continue;
+      // Either way the bloom rolls a new T along the wrap, so it does not sit
+      // at the same spot on every generation of the same tendril.
+      if (!paused && lifecycle.generation !== generationBefore) {
+        if (dormantTrees.length) {
+          const pick = Math.floor(Math.random() * dormantTrees.length);
+          const wakingId = dormantTrees[pick];
+          dormantTrees[pick] = treeId;
+          activeTrees.delete(treeId);
+          activeTrees.add(wakingId);
+          const waking = treeLifecyclesRef.current.get(wakingId);
+          if (waking) waking.age = 0; // regrow from rest, not mid-cycle
+          lifecycle.age = 0;
+          treeGrowthFronts.set(treeId, 0);
+          rebindClimbFlowerSlotsForTreeSwap(
+            flowerSlotsRef.current,
+            plants,
+            treeId,
+            wakingId,
+            activeTrees,
+            hostById,
+            flowerBindOpts,
+          );
+          continue;
+        }
+        reshuffleClimbFlowerSlotsOnTree(
+          flowerSlotsRef.current,
+          plants,
+          treeId,
+          hostById,
+          flowerBindOpts,
+        );
       }
 
       treeGrowthFronts.set(

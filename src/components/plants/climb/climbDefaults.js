@@ -42,7 +42,7 @@ export const CLIMB_DEFAULTS = {
   headDensity: 0.1,
   // Extra dormant routes built per visible wrap, so a regrown tree can appear
   // somewhere new instead of retracing the same path forever.
-  routePoolFactor: 2,
+  routePoolFactor: 3,
   reshuffleRoutes: true,
 
   // Independent partial-ring shape.
@@ -66,6 +66,9 @@ export const CLIMB_DEFAULTS = {
   leafDroop: 0,
   leafCurl: 0.5,
 
+  // Bloom slots: density × awake rings. Hosts rebind when a route swaps, and
+  // attach T is rolled fresh in flowerSpan each bind so heads do not sit at a
+  // fixed spot on a tendril.
   flowerDensity: 0.15,
   flowerSpan: [0.25, 0.82],
   flowerNormalVariation: 10,
