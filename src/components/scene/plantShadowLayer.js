@@ -13,12 +13,23 @@ import { useThree } from '@react-three/fiber';
  */
 export const PLANT_SHADOW_LAYER = 1;
 
+/** Flower low-poly shadow proxies live here so the view camera (layer 0) skips them. */
+export const FLOWER_SHADOW_CASTER_LAYER = 2;
+
 /**
  * Stable ref callback — module scope on purpose. An inline arrow would be a new
  * identity every render, making React detach and re-attach the ref each time.
  */
 export const enablePlantShadowLayer = (object) => {
   if (object) object.layers.enable(PLANT_SHADOW_LAYER);
+};
+
+/** Hidden from the view camera; still in the ground + character plant shadow maps. */
+export const enableFlowerShadowCasterLayers = (object) => {
+  if (!object) return;
+  object.layers.disable(0);
+  object.layers.enable(PLANT_SHADOW_LAYER);
+  object.layers.enable(FLOWER_SHADOW_CASTER_LAYER);
 };
 
 /** Tags the light whose shadow map holds plants only. */

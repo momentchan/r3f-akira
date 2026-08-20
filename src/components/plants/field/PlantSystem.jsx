@@ -9,6 +9,7 @@ import {
   createFlowerUniforms,
 } from '../look/createFlowerMaterials';
 import { FLOWER_LOD_DEBUG_COLORS } from '../vat/flowerCullDefaults';
+import { getFlowerBenchLabel, publishFlowerBench } from '../vat/flowerBench';
 import { FieldLeaves } from '../stem/FieldLeaves';
 import { syncStemLookControls } from '../stem/stemControls';
 import {
@@ -151,6 +152,26 @@ export function PlantSystem({
     simTime: 0,
     cullReadPending: false,
     cullReadAt: 0,
+    tipsFrozen: false,
+    fpsFrames: 0,
+    fpsAcc: 0,
+  });
+
+  const freezeTips = Boolean(cullControls?.freezeTips);
+  const forceAllLow = Boolean(cullControls?.forceAllLow);
+  const noFlowerShadows = cullControls?.flowerCastShadows === false;
+  const hideStems = Boolean(cullControls?.hideStems);
+  const hideLeaves = Boolean(cullControls?.hideLeaves);
+  const freezeMigrate = Boolean(cullControls?.freezeMigrate);
+  const lowShadowCasters = Boolean(cullControls?.lowShadowCasters);
+  const benchMode = getFlowerBenchLabel({
+    freezeTips,
+    forceAllLow,
+    noFlowerShadows,
+    lowShadowCasters,
+    hideStems,
+    hideLeaves,
+    freezeMigrate,
   });
 
   // Lifecycle timing does not shape geometry, so it must not be a rebuild input.
@@ -180,14 +201,20 @@ export function PlantSystem({
     let totalEl = null;
     let activeEl = null;
     let drawnEl = null;
+    let fpsEl = null;
+    let benchEl = null;
     if (showStats) {
       totalEl = document.createElement('span');
       activeEl = document.createElement('span');
       drawnEl = document.createElement('span');
+      fpsEl = document.createElement('span');
+      benchEl = document.createElement('span');
       totalEl.textContent = 'total 0';
       activeEl.textContent = 'active 0';
       drawnEl.textContent = 'drawn 0';
-      root.append(totalEl, activeEl, drawnEl);
+      fpsEl.textContent = 'fps —';
+      benchEl.textContent = `bench ${getFlowerBenchLabel(cullControls)}`;
+      root.append(totalEl, activeEl, drawnEl, fpsEl, benchEl);
     }
 
     let legendEl = null;
@@ -208,12 +235,21 @@ export function PlantSystem({
     }
 
     document.body.appendChild(root);
-    cullHudRef.current = { root, totalEl, activeEl, drawnEl, legendEl };
+    cullHudRef.current = { root, totalEl, activeEl, drawnEl, fpsEl, benchEl, legendEl };
     return () => {
       root.remove();
       cullHudRef.current = null;
     };
-  }, [cullControls?.tintDrawn]);
+  }, [
+    cullControls?.tintDrawn,
+    cullControls?.freezeTips,
+    cullControls?.forceAllLow,
+    cullControls?.flowerCastShadows,
+    cullControls?.lowShadowCasters,
+    cullControls?.hideStems,
+    cullControls?.hideLeaves,
+    cullControls?.freezeMigrate,
+  ]);
 
   // Shared stem look from top-level Stem panel.
   const stemFlowerUniforms = useMemo(() => createFlowerUniforms(), []);
@@ -415,8 +451,8 @@ export function PlantSystem({
       // Hearts hop on their own clock, staggered per id so the whole field does
       // not jump in one frame. migrateRange 0 freezes them; flowers still pick
       // among the frozen set.
-      const range = migration.options.migrateRange ?? 0;
-      const speed = migration.options.migrateSpeed ?? 0;
+      const range = freezeMigrate ? 0 : (migration.options.migrateRange ?? 0);
+      const speed = freezeMigrate ? 0 : (migration.options.migrateSpeed ?? 0);
       if (range > 0 && speed > 0 && rt.hearts.length) {
         const period = heartPeriod(speed);
         const hopDecay = migration.hopDecay ?? DEFAULT_HOP_DECAY;
@@ -503,7 +539,7 @@ export function PlantSystem({
         plant.lifecycle.generation !== plant.generationSeen
         && stemGrow <= 0.001
       ) {
-        if (migrateOptions && rt.hearts.length) {
+        if (!freezeMigrate && migrateOptions && rt.hearts.length) {
           const [bx, bz] = migration.bodyCenter ?? [0, 0];
           const hopMin = migration.hopMin ?? 0.07;
           const hopMax = migration.hopMax ?? 0.2;
@@ -587,7 +623,15 @@ export function PlantSystem({
     // starts zeroed, so there is nothing to clear here.
     tex.needsUpdate = true;
 
-    updateFlowerBatchTips(flowerBatches, plants);
+    if (freezeTips) {
+      if (!rt.tipsFrozen) {
+        updateFlowerBatchTips(flowerBatches, plants);
+        rt.tipsFrozen = true;
+      }
+    } else {
+      rt.tipsFrozen = false;
+      updateFlowerBatchTips(flowerBatches, plants);
+    }
     const tint = cullControls?.tintDrawn ? 1 : 0;
     for (const id in flowerBatches) {
       const batch = flowerBatches[id];
@@ -599,6 +643,22 @@ export function PlantSystem({
     cullFlowerBatches(gl, camera, flowerBatches, {
       enabled: cullControls?.enabled !== false,
     });
+
+    rt.fpsFrames += 1;
+    rt.fpsAcc += delta;
+    if (rt.fpsAcc >= 1) {
+      const fps = rt.fpsFrames / rt.fpsAcc;
+      publishFlowerBench({
+        mode: benchMode,
+        fps,
+        at: performance.now(),
+      });
+      const hud = cullHudRef.current;
+      if (hud?.fpsEl) hud.fpsEl.textContent = `fps ${fps.toFixed(1)}`;
+      rt.fpsFrames = 0;
+      rt.fpsAcc = 0;
+    }
+
     if (isDebugRoute() && !rt.cullReadPending && clock.elapsedTime - rt.cullReadAt > 0.25) {
       rt.cullReadPending = true;
       rt.cullReadAt = clock.elapsedTime;
@@ -629,10 +689,11 @@ export function PlantSystem({
           geometry={stemBuild.geometry}
           material={stemMaterial}
           frustumCulled={false}
+          visible={!hideStems}
           castShadow
           receiveShadow
         />
-        {leafControls && leafControls.leafCount > 0 && (
+        {!hideLeaves && leafControls && leafControls.leafCount > 0 && (
           <Suspense fallback={null}>
             <FieldLeaves
               plants={stemBuild.plants}
@@ -654,6 +715,9 @@ export function PlantSystem({
               shedControls={shedControls}
               runtimeRef={runtimeRef}
               lodDistance={cullControls?.lodDistance}
+              forceAllLow={forceAllLow}
+              noFlowerShadows={noFlowerShadows}
+              lowShadowCasters={lowShadowCasters}
             />
           </Suspense>
         ))}

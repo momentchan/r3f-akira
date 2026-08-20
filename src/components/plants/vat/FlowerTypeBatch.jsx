@@ -32,7 +32,7 @@ import {
   FLOWER_TIP1_OFFSET,
 } from './flowerInstanceCull';
 import { FLOWER_CULL_DEFAULTS, FLOWER_LOD_DEBUG_COLORS } from './flowerCullDefaults';
-import { enablePlantShadowLayer } from '../../scene/plantShadowLayer';
+import { enablePlantShadowLayer, enableFlowerShadowCasterLayers } from '../../scene/plantShadowLayer';
 import { buildVatFlowerGeometry } from './flowerGeometry';
 
 const _up = new THREE.Vector3(0, 1, 0);
@@ -61,6 +61,7 @@ function createLodMesh({
   flowerType,
   instanceStorage,
   lodDebugColor = null,
+  shadowCasterOnly = false,
 }) {
   configureVatTexture(vatData.posTex);
   configureVatTexture(vatData.nrmTex);
@@ -89,9 +90,14 @@ function createLodMesh({
   );
   const mesh = new THREE.Mesh(geo, bundle.material);
   mesh.frustumCulled = false;
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  enablePlantShadowLayer(mesh);
+  mesh.castShadow = !shadowCasterOnly;
+  mesh.receiveShadow = false;
+  if (shadowCasterOnly) {
+    enableFlowerShadowCasterLayers(mesh);
+    mesh.visible = false;
+  } else {
+    enablePlantShadowLayer(mesh);
+  }
   mesh.count = instanceCount;
   return { mesh, slot, bundle };
 }
@@ -112,6 +118,9 @@ export function FlowerTypeBatch({
   attachTs = null,
   attachNormals = null,
   lodDistance = FLOWER_CULL_DEFAULTS.lodDistance,
+  forceAllLow = false,
+  noFlowerShadows = false,
+  lowShadowCasters = false,
 }) {
   const hasLod = Boolean(flowerType.lodMetaUrl);
   const hiVatData = useVATPreloader(flowerType.metaUrl);
@@ -195,7 +204,7 @@ export function FlowerTypeBatch({
     }
     instanceStorage.attribute.needsUpdate = true;
 
-    const lodSplit = lodDistance ?? FLOWER_CULL_DEFAULTS.lodDistance;
+    const lodSplit = Math.max(lodDistance ?? FLOWER_CULL_DEFAULTS.lodDistance, 0.01);
     const hiLod = createLodMesh({
       vatData: hiVatData,
       sourceGeometry: hiGeometry,
@@ -219,6 +228,7 @@ export function FlowerTypeBatch({
     const disposables = [
       { geometry: hiLod.slot.geometry, material: hiLod.bundle.material },
     ];
+    let shadowProxy = null;
 
     if (hasLod && loGeometry) {
       const loLod = createLodMesh({
@@ -244,6 +254,30 @@ export function FlowerTypeBatch({
         geometry: loLod.slot.geometry,
         material: loLod.bundle.material,
       });
+
+      const shadowLod = createLodMesh({
+        vatData: lodVatData,
+        sourceGeometry: loGeometry,
+        instanceCount: count,
+        minDistance: 0,
+        maxDistance: Infinity,
+        flowerUniforms,
+        maskUniforms,
+        maskTexture,
+        veinTexture,
+        flowerType,
+        instanceStorage,
+        lodDebugColor: FLOWER_LOD_DEBUG_COLORS.lo,
+        shadowCasterOnly: true,
+      });
+      shadowProxy = { mesh: shadowLod.mesh, slot: shadowLod.slot };
+      renderMeshes.push(shadowLod.mesh);
+      shedUniforms.push(shadowLod.bundle.shedUniforms);
+      debugTints.push(shadowLod.bundle.debugTint);
+      disposables.push({
+        geometry: shadowLod.slot.geometry,
+        material: shadowLod.bundle.material,
+      });
     }
 
     const size = flowerControlsRef.current?.flowerSize
@@ -251,10 +285,12 @@ export function FlowerTypeBatch({
       ?? 4.2;
     runtimeRef.current.flowerBatches[flowerType.id] = {
       lods,
+      shadowProxy,
       instanceStorage,
       cull: createFlowerCullComputes({
         instanceStorage,
         lodSlots,
+        shadowSlot: shadowProxy?.slot ?? null,
         count,
       }),
       plantIndexMap: indices,
@@ -279,6 +315,37 @@ export function FlowerTypeBatch({
     layoutKey, hiGeometry, loGeometry, hiVatReady, loVatReady, hasLod,
     hiVatData, lodVatData, lodDistance,
     flowerType, flowerUniforms, maskUniforms, maskTexture, veinTexture, runtimeRef,
+  ]);
+
+  // Color LOD vs low-poly shadow proxy — no VAT remount.
+  useEffect(() => {
+    const batch = runtimeRef.current.flowerBatches[flowerType.id];
+    if (!batch?.lods?.length) return;
+    const { lods, instanceStorage, shadowProxy } = batch;
+    const lowOnly = forceAllLow && lods.length > 1;
+    const useLowCasters = Boolean(lowShadowCasters && shadowProxy && !noFlowerShadows);
+
+    for (let i = 0; i < lods.length; i += 1) {
+      lods[i].mesh.visible = !lowOnly || i === lods.length - 1;
+      lods[i].mesh.castShadow = !noFlowerShadows && !useLowCasters;
+    }
+    if (shadowProxy) {
+      shadowProxy.mesh.castShadow = useLowCasters;
+      shadowProxy.mesh.visible = useLowCasters;
+    }
+
+    const activeSlots = lowOnly
+      ? [lods[lods.length - 1].slot]
+      : lods.map((entry) => entry.slot);
+    batch.cull = createFlowerCullComputes({
+      instanceStorage,
+      lodSlots: activeSlots,
+      shadowSlot: useLowCasters ? shadowProxy.slot : null,
+      count: instanceStorage.count,
+    });
+  }, [
+    forceAllLow, lowShadowCasters, noFlowerShadows,
+    meshes, flowerType.id, runtimeRef,
   ]);
 
   useEffect(() => {

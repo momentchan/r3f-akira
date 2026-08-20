@@ -66,11 +66,7 @@ export const CLIMB_DEFAULTS = {
   leafDroop: 0,
   leafCurl: 0.5,
 
-  // Flowers attach at stable random positions along wrapping segments.
-  // Cut from 0.18, which allocated ~92 instances and put 30-60 on the body at
-  // once. Combined with the tendrilCount cut this lands nearer 10-18 visible —
-  // "a small amount of small white flowers" rather than a flowering suit.
-  flowerDensity: 0.08,
+  flowerDensity: 0.15,
   flowerSpan: [0.25, 0.82],
   flowerNormalVariation: 10,
 

@@ -1,7 +1,14 @@
 export const FLOWER_CULL_DEFAULTS = {
   enabled: true,
   tintDrawn: false,
-  lodDistance: 3,
+  lodDistance: 2.2,
+  freezeTips: false,
+  forceAllLow: false,
+  flowerCastShadows: true,
+  lowShadowCasters: true,
+  hideStems: false,
+  hideLeaves: false,
+  freezeMigrate: false,
 };
 
 /** GPU tint colors when "tint drawn" is on — hi vs low-poly LOD bands. */

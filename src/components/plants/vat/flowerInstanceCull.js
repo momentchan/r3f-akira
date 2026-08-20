@@ -1,4 +1,5 @@
 import {
+  atomicAdd,
   Fn,
   If,
   distance,
@@ -8,6 +9,7 @@ import {
   instancedArray,
   storage,
   struct,
+  uint,
   uniform,
   vec4,
 } from 'three/tsl';
@@ -81,7 +83,12 @@ export function createFlowerLodSlot({
   };
 }
 
-export function createFlowerCullComputes({ instanceStorage, lodSlots, count }) {
+export function createFlowerCullComputes({
+  instanceStorage,
+  lodSlots,
+  shadowSlot = null,
+  count,
+}) {
   const uniforms = {
     uCameraPosition: uniform(new THREE.Vector3()),
     uCameraForward: uniform(new THREE.Vector3()),
@@ -91,6 +98,12 @@ export function createFlowerCullComputes({ instanceStorage, lodSlots, count }) {
     createResetCountCompute(slot.drawStorage, slot.vertexCount)
       .setName(`FlowerCullReset_LOD${index}`)
   ));
+  if (shadowSlot) {
+    resetComputes.push(
+      createResetCountCompute(shadowSlot.drawStorage, shadowSlot.vertexCount)
+        .setName('FlowerCullReset_Shadow'),
+    );
+  }
   const buildLODRouting = createLODRouting(lodSlots);
 
   const cullFn = Fn(() => {
@@ -103,6 +116,10 @@ export function createFlowerCullComputes({ instanceStorage, lodSlots, count }) {
 
       If(uniforms.uCullEnabled.lessThan(0.5).or(inFront), () => {
         buildLODRouting(distance(pos, uniforms.uCameraPosition), instanceIndex);
+        if (shadowSlot) {
+          const shadowIndex = atomicAdd(shadowSlot.drawStorage.get('instanceCount'), uint(1));
+          shadowSlot.indices.element(shadowIndex).assign(uint(instanceIndex));
+        }
       });
     });
   });

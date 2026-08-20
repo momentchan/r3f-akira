@@ -18,6 +18,7 @@ import { setSimSpeedMul } from '../components/plants/lifecycle/simSpeed';
 import { SCENE_DEFAULTS } from '../components/scene/sceneDefaults';
 import { FLOW_OVERHEAD } from '../components/camera/cameraShots';
 import { TIER1_TARGETS, useExperienceStore } from '../core/experienceStore';
+import { isDebugRoute } from '../core/debugRoute';
 
 function createWebGPURenderer(canvas) {
   const renderer = new THREE.WebGPURenderer({
@@ -116,7 +117,7 @@ function SceneContent() {
 }
 
 export const ExperienceCanvas = memo(function ExperienceCanvas() {
-  const [dpr, setDpr] = useState(1.5);
+  const [dpr, setDpr] = useState(2);
 
   return (
     <Canvas
@@ -135,8 +136,9 @@ export const ExperienceCanvas = memo(function ExperienceCanvas() {
         bounds={() => [28, 32]}
         onFallback={() => setDpr(1)}
         onChange={({ factor }) => {
-          setDpr(1 + factor);
-          console.log('dpr', dpr);
+          const next = 1 + factor;
+          setDpr(next);
+          if (isDebugRoute()) console.log('dpr', next);
         }}
       />
       <SceneContent />

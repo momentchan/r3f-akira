@@ -1,8 +1,8 @@
 {
   "frameCount": 52,
   "padding": 2,
-  "textureWidth": 972,
-  "textureHeight": 967,
+  "textureWidth": 756,
+  "textureHeight": 695,
   "compressNormal": true,
   "textures": {
     "position": "Dahlia Flower_pos.exr",

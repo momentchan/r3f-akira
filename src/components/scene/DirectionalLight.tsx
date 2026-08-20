@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { LIGHTING_DEFAULTS } from './lightingDefaults'
 import {
     PLANT_SHADOW_LAYER,
+    FLOWER_SHADOW_CASTER_LAYER,
     PLANT_SHADOW_LIGHT_FLAG,
 } from './plantShadowLayer'
 
@@ -87,6 +88,14 @@ export function DirectionalLight() {
         light.shadow.camera.layers.set(PLANT_SHADOW_LAYER)
     }, [])
 
+    useEffect(() => {
+        const light = directionalLightRef.current
+        if (!light?.shadow?.camera) return
+        // Layer 0: character + stems. Layer 2: low-poly flower shadow proxies.
+        light.shadow.camera.layers.enable(0)
+        light.shadow.camera.layers.enable(FLOWER_SHADOW_CASTER_LAYER)
+    }, [])
+
     useFrame((state) => {
         if (!directionalLightRef.current) return
 
@@ -98,6 +107,7 @@ export function DirectionalLight() {
         if (plantShadowLightRef.current) {
             plantShadowLightRef.current.position.copy(positionRef.current)
         }
+        directionalLightRef.current.shadow.camera.layers.enable(FLOWER_SHADOW_CASTER_LAYER)
 
         if (helperRef.current) {
             helperRef.current.update()

@@ -1,12 +1,6 @@
 export const FIELD_DEFAULTS = {
   arrangement: {
-    // Fewer stems = readable arcs across the suit (not wire noise).
-    // NOTE: this count was inflated to offset the old migration gate, which left
-    // ~45% of plants dormant. The gate is gone — built count now equals visible
-    // count, and live slots pack into the true field instead of the wider
-    // envelope — so it is very likely too high and wants retuning downward. Held
-    // at 256 deliberately until that retune is judged as a visual change.
-    flowerCount: 256,
+    flowerCount: 150,
     leanOutward: 1.0,
     arrangementSeed: 0,
     roseRatio: 0.75,
@@ -18,7 +12,7 @@ export const FIELD_DEFAULTS = {
   anchors: {
     showAnchors: false,
     densityField: false,
-    reachScale: 1.7,
+    reachScale: 1.37,
     // Domain warp: displaces the sample position before distance is measured, so
     // the cluster SHAPE is irregular rather than a circle of varying intensity.
     shapeWarp: 1,
@@ -35,8 +29,8 @@ export const FIELD_DEFAULTS = {
     // Migration: hearts wander on their own clock. A dying flower picks among
     // them weighted by live density × distance, then hops. Occupancy follows
     // the field; live plants are never touched.
-    migrateRange: 0.2,
-    migrateSpeed: 0.035,
+    migrateRange: 0.6,
+    migrateSpeed: 0.09,
   },
   /** Keep flowers off the body via MeshBVH closest-point distance. */
   surround: {
@@ -44,9 +38,9 @@ export const FIELD_DEFAULTS = {
     /** MeshBVHHelper is the costly bit - off by default. */
     bvhHelper: false,
     /** Min distance from posed mesh surface to a stem base. */
-    meshClearDistance: 0.08,
+    meshClearDistance: 0.0,
     /** Quiet pocket around head/helmet (field units, XZ). */
-    faceClearRadius: 0.2,
+    faceClearRadius: 0.0,
     /** MeshBVHHelper display depth when bvhHelper is on (keep low). */
     bvhHelperDepth: 8,
   },
