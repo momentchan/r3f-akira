@@ -112,7 +112,8 @@ export function createFlowerCullComputes({
     If(tip0.w.greaterThan(0.001), () => {
       const pos = tip0.xyz;
       const toHead = pos.sub(uniforms.uCameraPosition);
-      const inFront = dot(toHead, uniforms.uCameraForward).greaterThan(float(0));
+      // Slack so orbit/touch/sway does not pop heads across the camera plane.
+      const inFront = dot(toHead, uniforms.uCameraForward).greaterThan(float(-0.4));
 
       If(uniforms.uCullEnabled.lessThan(0.5).or(inFront), () => {
         buildLODRouting(distance(pos, uniforms.uCameraPosition), instanceIndex);
@@ -132,13 +133,15 @@ export function createFlowerCullComputes({
 }
 
 const _cameraForward = new THREE.Vector3();
+const _cameraWorld = new THREE.Vector3();
 
 export function dispatchFlowerCull(gl, camera, batch, options = {}) {
   if (!batch?.cull) return;
   camera.updateMatrixWorld();
+  camera.getWorldPosition(_cameraWorld);
   camera.getWorldDirection(_cameraForward);
   const { uniforms, resetComputes, cullCompute } = batch.cull;
-  uniforms.uCameraPosition.value.copy(camera.position);
+  uniforms.uCameraPosition.value.copy(_cameraWorld);
   uniforms.uCameraForward.value.copy(_cameraForward);
   uniforms.uCullEnabled.value = options.enabled === false ? 0 : 1;
   for (let i = 0; i < resetComputes.length; i += 1) {
@@ -173,15 +176,20 @@ export function countActiveFlowerHeads(flowerBatches) {
 
 export async function readDrawnFlowerCount(gl, flowerBatches) {
   if (typeof gl.getArrayBufferAsync !== 'function') return -1;
-  let drawn = 0;
+  const reads = [];
   for (const id in flowerBatches) {
     const lods = flowerBatches[id].lods;
     if (!lods) continue;
     for (let i = 0; i < lods.length; i += 1) {
-      const raw = await gl.getArrayBufferAsync(lods[i].slot.drawBuffer);
-      const array = raw instanceof Uint32Array ? raw : new Uint32Array(raw);
-      drawn += array[1] ?? 0;
+      reads.push(gl.getArrayBufferAsync(lods[i].slot.drawBuffer));
     }
+  }
+  const buffers = await Promise.all(reads);
+  let drawn = 0;
+  for (let i = 0; i < buffers.length; i += 1) {
+    const raw = buffers[i];
+    const array = raw instanceof Uint32Array ? raw : new Uint32Array(raw);
+    drawn += array[1] ?? 0;
   }
   return drawn;
 }
