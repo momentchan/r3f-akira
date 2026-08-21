@@ -8,7 +8,7 @@ import { buildPetalMask, readPng, writePng } from './lib/pngio.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '../..');
 
-const INPUT_PATH = path.join(rootDir, 'public/textures/tujlip.png');
+const INPUT_PATH = path.join(rootDir, 'scripts/textures/input/tujlip.png');
 const OUTPUT_PATH = path.join(rootDir, 'public/textures/tujlip-veins.png');
 
 const CONFIG = {

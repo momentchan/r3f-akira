@@ -20,11 +20,9 @@ import {
 const configureTextures = (textures: any) => {
   if (textures.map) textures.map.colorSpace = THREE.SRGBColorSpace;
   if (textures.dirtMap) textures.dirtMap.colorSpace = THREE.SRGBColorSpace;
-  if (textures.normalMap) textures.normalMap.colorSpace = THREE.NoColorSpace;
   if (textures.aoMap) textures.aoMap.colorSpace = THREE.NoColorSpace;
-  if (textures.metalnessMap) textures.metalnessMap.colorSpace = THREE.NoColorSpace;
 
-  ['map', 'dirtMap', 'metalnessMap', 'aoMap', 'normalMap'].forEach((key) => {
+  ['map', 'dirtMap', 'aoMap'].forEach((key) => {
     if (textures[key]) textures[key].flipY = false;
   });
   return textures;

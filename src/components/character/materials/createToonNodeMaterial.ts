@@ -28,7 +28,6 @@ import {
 export interface ToonMaterialTextures {
   map?: THREE.Texture;
   dirtMap?: THREE.Texture;
-  normalMap?: THREE.Texture;
   aoMap?: THREE.Texture;
 }
 
