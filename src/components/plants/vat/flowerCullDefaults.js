@@ -2,6 +2,8 @@ export const FLOWER_CULL_DEFAULTS = {
   enabled: true,
   tintDrawn: false,
   lodDistance: 2.2,
+  /** Clip-space pad on the frustum (same as false-earth Rose). */
+  cullPadding: 3,
   freezeTips: false,
   forceAllLow: false,
   flowerCastShadows: true,

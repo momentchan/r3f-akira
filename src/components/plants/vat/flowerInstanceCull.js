@@ -1,10 +1,10 @@
 import {
+  abs,
   atomicAdd,
+  distance,
+  float,
   Fn,
   If,
-  distance,
-  dot,
-  float,
   instanceIndex,
   instancedArray,
   storage,
@@ -20,6 +20,20 @@ import {
   createVisibleIndicesBuffer,
   drawIndirectStructure,
 } from '@core/vat';
+import { FLOWER_CULL_DEFAULTS } from './flowerCullDefaults';
+
+/**
+ * Desktop Blink WebGPU can use compute atomics + drawIndirect. Apple WebKit
+ * (iPhone Chrome) still double-fills LOD bands on that path, and the WebGL2
+ * fallback has no atomics at all — both compact on the CPU instead.
+ */
+function useCpuCull(gl) {
+  if (!gl?.backend?.isWebGPUBackend) return true;
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua)) return true;
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+}
 
 /**
  * Per-flower GPU record. CPU writes tips each frame; the cull compute and the
@@ -40,6 +54,13 @@ export const FLOWER_INSTANCE_FLOATS = flowerInstanceStructure.layout.getLength()
 export const FLOWER_TIP0_OFFSET = 0;
 export const FLOWER_TIP1_OFFSET = 4;
 export const FLOWER_COLOR_OFFSET = 8;
+
+/** Keep-sphere matches the hi-LOD split so nearby heads stay hi-only. */
+function keepRadiusForSlots(lodSlots) {
+  const split = lodSlots[0]?.maxDistance;
+  if (typeof split === 'number' && Number.isFinite(split) && split > 0) return split;
+  return FLOWER_CULL_DEFAULTS.lodDistance;
+}
 
 export function createFlowerInstanceStorage(count) {
   const size = Math.max(count, 1);
@@ -72,14 +93,17 @@ export function createFlowerLodSlot({
   const drawBuffer = new THREE.IndirectStorageBufferAttribute(drawArray, 5);
   const drawStorage = storage(drawBuffer, drawIndirectStructure, 1);
   geometry.setIndirect(drawBuffer);
+  const indices = createVisibleIndicesBuffer(instanceCount);
+  indices.value.usage = THREE.DynamicDrawUsage;
   return {
     geometry,
     drawBuffer,
     drawStorage,
-    indices: createVisibleIndicesBuffer(instanceCount),
+    indices,
     vertexCount,
     minDistance,
     maxDistance,
+    mesh: null,
   };
 }
 
@@ -91,8 +115,10 @@ export function createFlowerCullComputes({
 }) {
   const uniforms = {
     uCameraPosition: uniform(new THREE.Vector3()),
-    uCameraForward: uniform(new THREE.Vector3()),
+    uViewProjectionMatrix: uniform(new THREE.Matrix4()),
     uCullEnabled: uniform(1),
+    uCullPadding: uniform(FLOWER_CULL_DEFAULTS.cullPadding),
+    uKeepRadius: uniform(keepRadiusForSlots(lodSlots)),
   };
   const resetComputes = lodSlots.map((slot, index) => (
     createResetCountCompute(slot.drawStorage, slot.vertexCount)
@@ -106,17 +132,27 @@ export function createFlowerCullComputes({
   }
   const buildLODRouting = createLODRouting(lodSlots);
 
+  // Same visibility test false-earth Rose uses: padded clip-space frustum,
+  // plus a keep-alive sphere so heads near the camera never pop on orbit.
   const cullFn = Fn(() => {
     const data = instanceStorage.node.element(instanceIndex);
     const tip0 = data.get('tip0');
     If(tip0.w.greaterThan(0.001), () => {
       const pos = tip0.xyz;
-      const toHead = pos.sub(uniforms.uCameraPosition);
-      // Slack so orbit/touch/sway does not pop heads across the camera plane.
-      const inFront = dot(toHead, uniforms.uCameraForward).greaterThan(float(-0.4));
+      const distToCamera = distance(pos, uniforms.uCameraPosition);
+      const clipPos = uniforms.uViewProjectionMatrix.mul(vec4(pos, 1.0));
+      const cullRadius = uniforms.uCullPadding;
+      const w = clipPos.w;
+      const isInFront = w.greaterThan(cullRadius.negate());
+      const limit = w.add(cullRadius);
+      const inFrustum = isInFront
+        .and(abs(clipPos.x).lessThanEqual(limit))
+        .and(abs(clipPos.y).lessThanEqual(limit))
+        .and(abs(clipPos.z).lessThanEqual(limit));
+      const inCircle = distToCamera.lessThan(uniforms.uKeepRadius);
 
-      If(uniforms.uCullEnabled.lessThan(0.5).or(inFront), () => {
-        buildLODRouting(distance(pos, uniforms.uCameraPosition), instanceIndex);
+      If(uniforms.uCullEnabled.lessThan(0.5).or(inFrustum.or(inCircle)), () => {
+        buildLODRouting(distToCamera, instanceIndex);
         if (shadowSlot) {
           const shadowIndex = atomicAdd(shadowSlot.drawStorage.get('instanceCount'), uint(1));
           shadowSlot.indices.element(shadowIndex).assign(uint(instanceIndex));
@@ -129,21 +165,105 @@ export function createFlowerCullComputes({
     uniforms,
     resetComputes,
     cullCompute: cullFn().compute(count).setName('FlowerCull'),
+    lodSlots,
+    shadowSlot,
+    count,
   };
 }
 
-const _cameraForward = new THREE.Vector3();
 const _cameraWorld = new THREE.Vector3();
+const _viewProjection = new THREE.Matrix4();
+const _frustum = new THREE.Frustum();
+const _headPos = new THREE.Vector3();
+
+/** World-space stand-in for the compute's clip-space padded frustum test. */
+function insidePaddedFrustum(point) {
+  const padding = FLOWER_CULL_DEFAULTS.cullPadding;
+  for (let i = 0; i < _frustum.planes.length; i += 1) {
+    if (_frustum.planes[i].distanceToPoint(point) < -padding) return false;
+  }
+  return true;
+}
+
+/**
+ * Compaction for the WebGL2 fallback, where indirect draw and compute atomics
+ * do not exist. Mirrors the compute: same frustum + keep-radius test, same
+ * exclusive LOD windows, but writes `visibleIndices` and `mesh.count` directly.
+ */
+function dispatchFlowerCullCPU(camera, batch, options = {}) {
+  const { lodSlots, shadowSlot, count } = batch.cull;
+  const data = batch.instanceStorage.data;
+  const enabled = options.enabled !== false;
+  const keepRadius = keepRadiusForSlots(lodSlots);
+
+  _frustum.setFromProjectionMatrix(_viewProjection);
+
+  const compacted = lodSlots.map(() => 0);
+  let shadowCount = 0;
+
+  for (let i = 0; i < count; i += 1) {
+    const base = i * FLOWER_INSTANCE_FLOATS + FLOWER_TIP0_OFFSET;
+    if (data[base + 3] <= 0.001) continue;
+
+    _headPos.set(data[base], data[base + 1], data[base + 2]);
+    const dist = _headPos.distanceTo(_cameraWorld);
+    if (enabled && dist >= keepRadius && !insidePaddedFrustum(_headPos)) continue;
+
+    let band = 0;
+    for (let s = 0; s < lodSlots.length; s += 1) {
+      if (dist >= lodSlots[s].minDistance && dist < lodSlots[s].maxDistance) {
+        band = s;
+        break;
+      }
+    }
+
+    lodSlots[band].indices.value.array[compacted[band]] = i;
+    compacted[band] += 1;
+
+    if (shadowSlot) {
+      shadowSlot.indices.value.array[shadowCount] = i;
+      shadowCount += 1;
+    }
+  }
+
+  for (let s = 0; s < lodSlots.length; s += 1) {
+    lodSlots[s].indices.value.needsUpdate = true;
+    applyCpuDrawCount(lodSlots[s], compacted[s]);
+  }
+  if (shadowSlot) {
+    shadowSlot.indices.value.needsUpdate = true;
+    applyCpuDrawCount(shadowSlot, shadowCount);
+  }
+}
+
+function applyCpuDrawCount(slot, compacted) {
+  if (slot.drawBuffer?.array) {
+    slot.drawBuffer.array[1] = compacted;
+    slot.drawBuffer.needsUpdate = true;
+  }
+  // Indirect draw on Apple WebGPU is what double-submits both LOD meshes.
+  // Mesh.count is the instanced draw count three.js uses without setIndirect.
+  slot.geometry.setIndirect(null);
+  if (slot.mesh) slot.mesh.count = compacted;
+}
 
 export function dispatchFlowerCull(gl, camera, batch, options = {}) {
   if (!batch?.cull) return;
   camera.updateMatrixWorld();
   camera.getWorldPosition(_cameraWorld);
-  camera.getWorldDirection(_cameraForward);
+  _viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+
+  if (useCpuCull(gl)) {
+    dispatchFlowerCullCPU(camera, batch, options);
+    return;
+  }
+
   const { uniforms, resetComputes, cullCompute } = batch.cull;
   uniforms.uCameraPosition.value.copy(_cameraWorld);
-  uniforms.uCameraForward.value.copy(_cameraForward);
+  uniforms.uViewProjectionMatrix.value.copy(_viewProjection);
   uniforms.uCullEnabled.value = options.enabled === false ? 0 : 1;
+  uniforms.uCullPadding.value = FLOWER_CULL_DEFAULTS.cullPadding;
+  uniforms.uKeepRadius.value = keepRadiusForSlots(batch.cull.lodSlots);
   for (let i = 0; i < resetComputes.length; i += 1) {
     gl.compute(resetComputes[i]);
   }
@@ -174,22 +294,29 @@ export function countActiveFlowerHeads(flowerBatches) {
   return alive;
 }
 
-export async function readDrawnFlowerCount(gl, flowerBatches) {
-  if (typeof gl.getArrayBufferAsync !== 'function') return -1;
-  const reads = [];
+/**
+ * Per-LOD instance counts actually submitted this frame. Split by band on
+ * purpose: a single summed number hides the failure where one flower is drawn
+ * by both the hi and the low mesh.
+ */
+export async function readDrawnFlowerCounts(gl, flowerBatches) {
+  const slots = [];
   for (const id in flowerBatches) {
     const lods = flowerBatches[id].lods;
     if (!lods) continue;
-    for (let i = 0; i < lods.length; i += 1) {
-      reads.push(gl.getArrayBufferAsync(lods[i].slot.drawBuffer));
-    }
+    for (let i = 0; i < lods.length; i += 1) slots.push(lods[i]);
   }
-  const buffers = await Promise.all(reads);
-  let drawn = 0;
-  for (let i = 0; i < buffers.length; i += 1) {
-    const raw = buffers[i];
+
+  if (useCpuCull(gl)) {
+    return slots.map((lod) => (lod.mesh?.visible === false ? 0 : (lod.mesh.count ?? 0)));
+  }
+  if (typeof gl.getArrayBufferAsync !== 'function') return [];
+
+  const buffers = await Promise.all(
+    slots.map((lod) => gl.getArrayBufferAsync(lod.slot.drawBuffer)),
+  );
+  return buffers.map((raw) => {
     const array = raw instanceof Uint32Array ? raw : new Uint32Array(raw);
-    drawn += array[1] ?? 0;
-  }
-  return drawn;
+    return array[1] ?? 0;
+  });
 }

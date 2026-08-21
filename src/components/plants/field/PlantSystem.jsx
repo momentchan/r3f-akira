@@ -36,7 +36,7 @@ import {
 import {
   countActiveFlowerHeads,
   countTotalFlowerSlots,
-  readDrawnFlowerCount,
+  readDrawnFlowerCounts,
 } from '../vat/flowerInstanceCull';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
 import { animatedCentre } from './fieldAnchors';
@@ -201,20 +201,20 @@ export function PlantSystem({
     let totalEl = null;
     let activeEl = null;
     let drawnEl = null;
+    let dprEl = null;
     let fpsEl = null;
-    let benchEl = null;
     if (showStats) {
       totalEl = document.createElement('span');
       activeEl = document.createElement('span');
       drawnEl = document.createElement('span');
+      dprEl = document.createElement('span');
       fpsEl = document.createElement('span');
-      benchEl = document.createElement('span');
       totalEl.textContent = 'total 0';
       activeEl.textContent = 'active 0';
       drawnEl.textContent = 'drawn 0';
+      dprEl.textContent = 'dpr —';
       fpsEl.textContent = 'fps —';
-      benchEl.textContent = `bench ${getFlowerBenchLabel(cullControls)}`;
-      root.append(totalEl, activeEl, drawnEl, fpsEl, benchEl);
+      root.append(totalEl, activeEl, drawnEl, dprEl, fpsEl);
     }
 
     let legendEl = null;
@@ -235,7 +235,9 @@ export function PlantSystem({
     }
 
     document.body.appendChild(root);
-    cullHudRef.current = { root, totalEl, activeEl, drawnEl, fpsEl, benchEl, legendEl };
+    cullHudRef.current = {
+      root, totalEl, activeEl, drawnEl, dprEl, fpsEl, legendEl,
+    };
     return () => {
       root.remove();
       cullHudRef.current = null;
@@ -655,6 +657,7 @@ export function PlantSystem({
       });
       const hud = cullHudRef.current;
       if (hud?.fpsEl) hud.fpsEl.textContent = `fps ${fps.toFixed(1)}`;
+      if (hud?.dprEl) hud.dprEl.textContent = `dpr ${gl.getPixelRatio().toFixed(2)}`;
       rt.fpsFrames = 0;
       rt.fpsAcc = 0;
     }
@@ -664,13 +667,17 @@ export function PlantSystem({
       rt.cullReadAt = clock.elapsedTime;
       const total = countTotalFlowerSlots(flowerBatches);
       const active = countActiveFlowerHeads(flowerBatches);
-      readDrawnFlowerCount(gl, flowerBatches).then((drawn) => {
+      readDrawnFlowerCounts(gl, flowerBatches).then((perLod) => {
         rt.cullReadPending = false;
         const hud = cullHudRef.current;
         if (!hud?.totalEl) return;
+        const drawn = perLod.reduce((sum, n) => sum + n, 0);
         hud.totalEl.textContent = `total ${total}`;
         hud.activeEl.textContent = `active ${active}`;
-        hud.drawnEl.textContent = `drawn ${drawn}`;
+        // Per-band split: drawn == active but both bands non-zero for the same
+        // heads is a different failure than drawn simply being too high.
+        hud.drawnEl.textContent = `drawn ${drawn} [${perLod.join('/')}]`;
+        if (hud.dprEl) hud.dprEl.textContent = `dpr ${gl.getPixelRatio().toFixed(2)}`;
       }).catch(() => {
         rt.cullReadPending = false;
       });

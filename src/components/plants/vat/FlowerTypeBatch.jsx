@@ -99,6 +99,7 @@ function createLodMesh({
     enablePlantShadowLayer(mesh);
   }
   mesh.count = instanceCount;
+  slot.mesh = mesh;
   return { mesh, slot, bundle };
 }
 
