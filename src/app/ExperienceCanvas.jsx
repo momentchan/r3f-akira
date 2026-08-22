@@ -1,7 +1,7 @@
 import { memo, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { PerformanceMonitor } from '@react-three/drei';
 import { CameraViewControl } from '../components/camera/CameraViewControl';
-import { AsyncCompile, CanvasCapture } from '@core';
+import { AsyncCompile, AudioManager, Bgm, CanvasCapture } from '@core';
 import { Canvas } from '@react-three/fiber';
 import { useControls } from 'leva';
 import * as THREE from 'three/webgpu';
@@ -18,6 +18,7 @@ import { setSimSpeedMul } from '../components/plants/lifecycle/simSpeed';
 import { SCENE_DEFAULTS } from '../components/scene/sceneDefaults';
 import { FLOW_OVERHEAD } from '../components/camera/cameraShots';
 import { TIER1_TARGETS, useExperienceStore } from '../core/experienceStore';
+import { BGM_TRACKS } from '../ui/AudioButton';
 
 function createWebGPURenderer(canvas) {
   const renderer = new THREE.WebGPURenderer({
@@ -32,6 +33,12 @@ function createWebGPURenderer(canvas) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   return renderer.init().then(() => renderer);
+}
+
+function SceneBgm() {
+  const listener = useExperienceStore((state) => state.audioListener);
+  const isSoundOn = useExperienceStore((state) => state.isSoundOn);
+  return <Bgm listener={listener} active={isSoundOn} tracks={BGM_TRACKS} />;
 }
 
 function SceneContent() {
@@ -56,6 +63,7 @@ function SceneContent() {
   const flowerCull = useFlowerCullControls();
 
   const setComponentReady = useExperienceStore((state) => state.setComponentReady);
+  const setAudioListener = useExperienceStore((state) => state.setAudioListener);
 
   return (
     <>
@@ -107,6 +115,10 @@ function SceneContent() {
           flat tone and the plane's edge is never visible. */}
       <color attach="background" args={[bgColor]} />
 
+      <AudioManager onListenerCreated={setAudioListener} />
+      <Suspense fallback={null}>
+        <SceneBgm />
+      </Suspense>
       <CameraViewControl />
       <CanvasCapture />
       <DirectionalLight />

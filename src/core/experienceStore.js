@@ -8,6 +8,12 @@ export const useExperienceStore = create((set) => ({
   isStarted: isDebugRoute(),
   setStarted: (isStarted) => set({ isStarted }),
 
+  isSoundOn: false,
+  setIsSoundOn: (isSoundOn) => set({ isSoundOn }),
+
+  audioListener: null,
+  setAudioListener: (audioListener) => set({ audioListener }),
+
   gpuError: null,
   setGpuError: (gpuError) =>
     set((state) => (state.gpuError === gpuError ? state : { gpuError })),

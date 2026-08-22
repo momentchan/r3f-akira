@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
+import { useLoader } from '@react-three/fiber';
+import { AudioLoader } from 'three';
 import { LevaWrapper, useDeviceDetection } from '@core';
 import { ExperienceCanvas } from './ExperienceCanvas';
 import { isDebugRoute } from '../core/debugRoute';
 import { useExperienceStore } from '../core/experienceStore';
 import { useExperienceReady } from '../core/useExperienceReady';
+import { AudioButton, BGM_TRACKS } from '../ui/AudioButton';
 import { ChapterIntro } from '../ui/chapterIntro/ChapterIntro';
 import { CHAPTER_CONTENT } from '../ui/chapterIntro/chapterContent';
 import { FlowTimeRail } from '../ui/flowTimeRail/FlowTimeRail';
 
+useLoader.preload(AudioLoader, BGM_TRACKS.map((track) => track.url));
+
 export default function App() {
   const setStarted = useExperienceStore((state) => state.setStarted);
+  const setIsSoundOn = useExperienceStore((state) => state.setIsSoundOn);
   const gpuError = useExperienceStore((state) => state.gpuError);
   const setGpuError = useExperienceStore((state) => state.setGpuError);
   const isMobile = useDeviceDetection();
@@ -48,12 +54,16 @@ export default function App() {
           loadingLabel={CHAPTER_CONTENT.loadingLabel}
           isMobile={isMobile}
           status={status}
-          onEnter={() => setStarted(true)}
+          onEnter={() => {
+            setStarted(true);
+            setIsSoundOn(true);
+          }}
           onExited={() => setShowIntro(false)}
         />
       )}
 
       {!gpuError && <ExperienceCanvas />}
+      <AudioButton />
       <FlowTimeRail />
     </>
   );
