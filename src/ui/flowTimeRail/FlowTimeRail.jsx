@@ -47,11 +47,7 @@ export function FlowTimeRail() {
 
   return (
     <div
-      className={
-        visible
-          ? 'flow-time-rail flow-time-rail--visible'
-          : 'flow-time-rail'
-      }
+      className={visible ? 'flow-time-rail flow-time-rail--visible' : 'flow-time-rail'}
       aria-hidden="true"
     >
       <span className="flow-time-rail__title">TIME</span>

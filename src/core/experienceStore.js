@@ -1,4 +1,5 @@
 import { getInitialCameraMode } from '../components/camera/cameraModes';
+import { tweenThemeTo } from '../components/scene/themeTween';
 import { isDebugRoute } from './debugRoute';
 import { create } from 'zustand';
 
@@ -10,6 +11,15 @@ export const useExperienceStore = create((set) => ({
 
   isSoundOn: false,
   setIsSoundOn: (isSoundOn) => set({ isSoundOn }),
+
+  theme: 'light',
+  setTheme: (theme) =>
+    set((state) => {
+      if (state.theme === theme) return state;
+      document.documentElement.dataset.theme = theme;
+      tweenThemeTo(theme);
+      return { theme };
+    }),
 
   audioListener: null,
   setAudioListener: (audioListener) => set({ audioListener }),

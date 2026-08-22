@@ -1,8 +1,8 @@
-import { memo, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { PerformanceMonitor } from '@react-three/drei';
 import { CameraViewControl } from '../components/camera/CameraViewControl';
 import { AsyncCompile, AudioManager, Bgm, CanvasCapture } from '@core';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { useControls } from 'leva';
 import * as THREE from 'three/webgpu';
 import { Character } from '../components/character/Character';
@@ -15,7 +15,7 @@ import { DirectionalLight } from '../components/scene/DirectionalLight';
 import Effects from '../components/scene/Effects';
 import { ShadowCatcher } from '../components/scene/ShadowCatcher';
 import { setSimSpeedMul } from '../components/plants/lifecycle/simSpeed';
-import { SCENE_DEFAULTS } from '../components/scene/sceneDefaults';
+import { getLiveThemeColors } from '../components/scene/themeTween';
 import { FLOW_OVERHEAD } from '../components/camera/cameraShots';
 import { TIER1_TARGETS, useExperienceStore } from '../core/experienceStore';
 import { BGM_TRACKS } from '../ui/AudioButton';
@@ -41,6 +41,17 @@ function SceneBgm() {
   return <Bgm listener={listener} active={isSoundOn} tracks={BGM_TRACKS} />;
 }
 
+function SceneBackground() {
+  const scene = useThree((state) => state.scene);
+  useLayoutEffect(() => {
+    scene.background = getLiveThemeColors().bg;
+    return () => {
+      scene.background = null;
+    };
+  }, [scene]);
+  return null;
+}
+
 function SceneContent() {
   const fieldParentRef = useRef(null);
   const [bodyBounds, setBodyBounds] = useState(null);
@@ -52,9 +63,6 @@ function SceneContent() {
     setBackpackBounds(bounds);
   }, []);
 
-  const { bgColor } = useControls('Scene', {
-    bgColor: { value: SCENE_DEFAULTS.bgColor, label: 'background' },
-  });
   const { simSpeed } = useControls('Sim', {
     simSpeed: { value: 1, min: 0, max: 12, step: 0.1, label: 'simSpeed ×' },
   });
@@ -93,7 +101,7 @@ function SceneContent() {
             />
           </AsyncCompile>
         </Suspense>
-        <ShadowCatcher groundColor={bgColor} />
+        <ShadowCatcher />
         <Suspense fallback={null}>
           <PlantField
             bodyBounds={bodyBounds}
@@ -111,9 +119,7 @@ function SceneContent() {
         </Suspense>
       </group>
 
-      {/* Same value as ShadowCatcher's groundColor, so ground and sky are one
-          flat tone and the plane's edge is never visible. */}
-      <color attach="background" args={[bgColor]} />
+      <SceneBackground />
 
       <AudioManager onListenerCreated={setAudioListener} />
       <Suspense fallback={null}>

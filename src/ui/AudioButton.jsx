@@ -1,8 +1,11 @@
+'use client';
+
 import { useEffect } from 'react';
 import * as THREE from 'three/webgpu';
 import { DistortedCircle, WebGPUCanvas } from '@core';
 import { useShortcut } from '@core/hooks/useShortcut';
 import { useExperienceStore } from '../core/experienceStore';
+import { getLiveThemeColors } from '../components/scene/themeTween';
 
 export const BGM_TRACKS = [
   { id: 'slow-moving-waves', url: '/audio/slow-moving-waves.m4a', volume: 1.25 },
@@ -11,27 +14,13 @@ export const BGM_TRACKS = [
 const RADIUS = 10;
 const SIZE = 45;
 
-export function AudioButton() {
-  const isStarted = useExperienceStore((state) => state.isStarted);
+function AudioButtonScene() {
   const isSoundOn = useExperienceStore((state) => state.isSoundOn);
   const setIsSoundOn = useExperienceStore((state) => state.setIsSoundOn);
-
-  useEffect(() => {
-    if (isStarted) setIsSoundOn(true);
-  }, [isStarted, setIsSoundOn]);
-
-  useShortcut('m', () => {
-    setIsSoundOn(!isSoundOn);
-  });
-
-  if (!isStarted) return null;
+  const audioColor = getLiveThemeColors().audio;
 
   return (
-    <WebGPUCanvas
-      width={SIZE}
-      height={SIZE}
-      style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 40 }}
-    >
+    <>
       <mesh
         onClick={() => setIsSoundOn(!isSoundOn)}
         onPointerOver={() => {
@@ -53,10 +42,37 @@ export function AudioButton() {
             radius={RADIUS}
             distortionStrength={isSoundOn ? 1 : 0}
             seed={seed}
-            color="#000000"
+            color={audioColor}
+            blending={THREE.NormalBlending}
           />
         ))}
       </group>
+    </>
+  );
+}
+
+export function AudioButton() {
+  const isStarted = useExperienceStore((state) => state.isStarted);
+  const setIsSoundOn = useExperienceStore((state) => state.setIsSoundOn);
+
+  useEffect(() => {
+    if (isStarted) setIsSoundOn(true);
+  }, [isStarted, setIsSoundOn]);
+
+  useShortcut('m', () => {
+    const { isSoundOn, setIsSoundOn: setSound } = useExperienceStore.getState();
+    setSound(!isSoundOn);
+  });
+
+  if (!isStarted) return null;
+
+  return (
+    <WebGPUCanvas
+      width={SIZE}
+      height={SIZE}
+      style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 40 }}
+    >
+      <AudioButtonScene />
     </WebGPUCanvas>
   );
 }

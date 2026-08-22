@@ -1,3 +1,17 @@
+:root {
+    --ui-ink: rgba(48, 40, 32, 0.72);
+    --ui-glow: rgba(237, 228, 211, 0.82);
+    --ui-track: rgba(48, 40, 32, 0.32);
+    --ui-tick: rgba(42, 36, 28, 0.78);
+}
+
+:root[data-theme="dark"] {
+    --ui-ink: rgba(237, 228, 211, 0.82);
+    --ui-glow: rgba(18, 16, 14, 0.82);
+    --ui-track: rgba(237, 228, 211, 0.32);
+    --ui-tick: rgba(237, 228, 211, 0.78);
+}
+
 html,
 body,
 #root{

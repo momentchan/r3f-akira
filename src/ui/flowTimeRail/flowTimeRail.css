@@ -15,12 +15,15 @@
   pointer-events: none;
   user-select: none;
   font-family: Cousine, Arial, Helvetica, sans-serif;
-  color: rgba(48, 40, 32, 0.68);
+  color: var(--ui-ink);
   text-shadow:
-    0 0 10px rgba(237, 228, 211, 0.82),
-    0 1px 0 rgba(237, 228, 211, 0.6);
+    0 0 10px var(--ui-glow),
+    0 1px 0 var(--ui-glow);
   opacity: 0;
-  transition: opacity 1.2s ease;
+  transition:
+    opacity 1.2s ease,
+    color 0.5s ease,
+    text-shadow 0.5s ease;
 }
 
 .flow-time-rail--visible {
@@ -38,8 +41,9 @@
   position: relative;
   flex: 1;
   width: 1px;
-  background: rgba(48, 40, 32, 0.32);
-  box-shadow: 0 0 8px rgba(237, 228, 211, 0.7);
+  background: var(--ui-track);
+  box-shadow: 0 0 8px var(--ui-glow);
+  transition: background 0.5s ease, box-shadow 0.5s ease;
 }
 
 .flow-time-rail__mark {
@@ -60,10 +64,13 @@
   width: 11px;
   height: 1px;
   margin-left: -5.5px;
-  background: rgba(42, 36, 28, 0.78);
-  box-shadow: 0 0 8px rgba(237, 228, 211, 0.8);
+  background: var(--ui-tick);
+  box-shadow: 0 0 8px var(--ui-glow);
   transform: translateY(50%);
-  transition: bottom 0.12s linear;
+  transition:
+    bottom 0.12s linear,
+    background 0.5s ease,
+    box-shadow 0.5s ease;
 }
 
 .flow-time-rail__live {

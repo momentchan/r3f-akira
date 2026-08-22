@@ -7,6 +7,7 @@ import { useControls, folder } from 'leva';
 import Stats from 'stats-gl';
 import { createSilkWeaveNode, createSilkWeaveUniforms } from '../postfx/createSilkWeaveNode';
 import { SILK_WEAVE_DEFAULTS } from '../postfx/silkWeaveDefaults';
+import { getLiveThemeColors } from './themeTween';
 import { isDebugRoute } from '../../core/debugRoute';
 import 'stats-gl/addons/StatsGLNode';
 
@@ -41,10 +42,12 @@ export default function Effects() {
         silkUniforms.sharpness.value = silkControls.sharpness;
         silkUniforms.threadVariation.value = silkControls.threadVariation;
         silkUniforms.irregularity.value = silkControls.irregularity;
-        (silkUniforms.tintColor.value as THREE.Color).set(silkControls.tintColor);
-        silkUniforms.tintStrength.value = silkControls.tintStrength;
         silkUniforms.blotchScale.value = silkControls.blotchScale;
         silkUniforms.blotchStrength.value = silkControls.blotchStrength;
+        if (isDebugRoute()) {
+            (silkUniforms.tintColor.value as THREE.Color).set(silkControls.tintColor);
+            silkUniforms.tintStrength.value = silkControls.tintStrength;
+        }
     }, [silkUniforms, silkControls]);
 
     useEffect(() => {
@@ -86,6 +89,11 @@ export default function Effects() {
     // per-pixel cost is still paid when it is off. Bypass the whole pass instead
     // and draw the scene directly — the output is what the mix already produced.
     useFrame(() => {
+        if (!isDebugRoute()) {
+            const live = getLiveThemeColors();
+            (silkUniforms.tintColor.value as THREE.Color).copy(live.silkTint);
+            silkUniforms.tintStrength.value = live.silkTintStrength;
+        }
         const pp = postProcessingRef.current;
         if (pp && silkControls.enabled) {
             pp.render();

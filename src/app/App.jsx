@@ -7,6 +7,7 @@ import { isDebugRoute } from '../core/debugRoute';
 import { useExperienceStore } from '../core/experienceStore';
 import { useExperienceReady } from '../core/useExperienceReady';
 import { AudioButton, BGM_TRACKS } from '../ui/AudioButton';
+import { ThemeToggle } from '../ui/themeToggle/ThemeToggle';
 import { ChapterIntro } from '../ui/chapterIntro/ChapterIntro';
 import { CHAPTER_CONTENT } from '../ui/chapterIntro/chapterContent';
 import { FlowTimeRail } from '../ui/flowTimeRail/FlowTimeRail';
@@ -64,6 +65,7 @@ export default function App() {
 
       {!gpuError && <ExperienceCanvas />}
       <AudioButton />
+      <ThemeToggle />
       <FlowTimeRail />
     </>
   );

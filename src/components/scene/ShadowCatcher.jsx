@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useControls } from 'leva';
-import { useThree } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
 import {
   Fn, Loop, float, fwidth, max, mix, mx_noise_float,
@@ -8,6 +8,7 @@ import {
 } from 'three/tsl';
 import { SHADOW_DEFAULTS } from './shadowDefaults';
 import { SCENE_DEFAULTS } from './sceneDefaults';
+import { getLiveThemeColors } from './themeTween';
 import { PLANT_SHADOW_LIGHT_FLAG } from './plantShadowLayer';
 
 /**
@@ -113,7 +114,6 @@ export function ShadowCatcher({
   useEffect(() => () => material.dispose(), [material]);
 
   useEffect(() => {
-    u.bg.value.set(groundColor);
     u.washColor.value.set(ctrl.color);
     u.contourColor.value.set(ctrl.contourColor);
     u.washStr.value = ctrl.strength;
@@ -127,7 +127,11 @@ export function ShadowCatcher({
     u.edgeAt.value = ctrl.edgeAt;
     u.edgeNoise.value = ctrl.edgeNoise;
     u.edgeScale.value = ctrl.edgeScale;
-  }, [u, groundColor, ctrl]);
+  }, [u, ctrl]);
+
+  useFrame(() => {
+    u.bg.value.copy(getLiveThemeColors().bg);
+  });
 
   return (
     <group {...props}>
