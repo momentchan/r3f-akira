@@ -75,7 +75,7 @@ export const LIMB_CAPSULE_DEFS = [
 const _world = new THREE.Vector3();
 const _tmp = new THREE.Vector3();
 const _helmetVertex = new THREE.Vector3();
-const HELMET_SHELL_RE = /helmet/i;
+const HELMET_MESH_NAME = 'Helmet_Mesh';
 
 /**
  * @typedef {{ id: string, a: THREE.Vector3, b: THREE.Vector3, radius: number, weight: number, length: number }} LimbCapsule
@@ -97,7 +97,7 @@ function registerBone(map, bone) {
   if (key && !map.has(key)) map.set(key, bone);
 }
 
-function collectBoneMap(root) {
+export function collectBoneMap(root) {
   /** @type {Map<string, THREE.Bone>} */
   const map = new Map();
   const skeletons = new Set();
@@ -116,7 +116,7 @@ function collectBoneMap(root) {
   return map;
 }
 
-function findBone(map, candidates) {
+export function findBone(map, candidates) {
   for (const name of candidates) {
     const b = map.get(normalizeBoneName(name));
     if (b) return b;
@@ -138,136 +138,100 @@ function quantile(sorted, q) {
   return THREE.MathUtils.lerp(sorted[lo], sorted[hi], index - lo);
 }
 
-function helmetMeshScore(name) {
-  if (/Helmet_Mesh$/i.test(name) && !/Details|Glass/i.test(name)) return 10;
-  if (/Helmet_Mesh/i.test(name) && !/Details|Glass/i.test(name)) return 8;
-  if (/Glass/i.test(name)) return 3;
-  return 1;
+function findNamedMesh(root, name) {
+  let found = null;
+  root.traverse((obj) => {
+    if (found || !obj.isMesh || !obj.visible) return;
+    if (obj.name === name) found = obj;
+  });
+  return found;
+}
+
+function makeCapsule(id, a, b, radius, weight, extras = {}) {
+  return {
+    id,
+    a,
+    b,
+    radius,
+    weight,
+    length: a.distanceTo(b),
+    uMin: 0.02,
+    uMax: 0.98,
+    ...extras,
+  };
 }
 
 /**
- * Derive the helmet guide from its posed shell, while using neck -> head only
- * to give the guide an anatomical direction. This reaches the crown without
- * inflating the neck capsule or relying on the whole-character AABB.
+ * Helmet + neck guides from Helmet_Mesh, along c_neck.x → c_head.x.
+ * Bones give direction; posed verts place the tube on the shell.
  */
 function extractHelmetCapsule(root, parent, boneMap, radiusScale) {
-  const neck = findBone(boneMap, ['c_neck.x', 'neck.x', 'neck', 'c_p_neck.x']);
-  const head = findBone(boneMap, ['c_head.x', 'head.x', 'head']);
-  if (!neck || !head) return { capsule: null, reason: 'missing-bone' };
+  const neck = findBone(boneMap, ['c_neck.x']);
+  const head = findBone(boneMap, ['c_head.x']);
+  const mesh = findNamedMesh(root, HELMET_MESH_NAME);
+  const position = mesh?.geometry?.getAttribute?.('position');
+  if (!neck || !head || !position || position.count < 3) return null;
 
   neck.updateWorldMatrix(true, false);
   head.updateWorldMatrix(true, false);
-  const neckPoint = boneLocalPoint(neck, parent, new THREE.Vector3());
-  const headPoint = boneLocalPoint(head, parent, new THREE.Vector3());
-  const axis = headPoint.clone().sub(neckPoint);
-  if (axis.lengthSq() < 1e-8) return { capsule: null, reason: 'zero-length' };
+  const axis = boneLocalPoint(head, parent, new THREE.Vector3())
+    .sub(boneLocalPoint(neck, parent, new THREE.Vector3()));
+  if (axis.lengthSq() < 1e-8) return null;
   axis.normalize();
 
-  const meshes = [];
-  let bestScore = -1;
-  root.traverse((obj) => {
-    if (!obj.isMesh || !obj.visible || !HELMET_SHELL_RE.test(obj.name || '')) return;
-    const position = obj.geometry?.getAttribute?.('position');
-    if (!position || position.count < 3) return;
-    const score = helmetMeshScore(obj.name || '');
-    if (score > bestScore) {
-      meshes.length = 0;
-      bestScore = score;
-    }
-    if (score === bestScore) meshes.push(obj);
-  });
-  if (!meshes.length) return { capsule: null, reason: 'missing-mesh' };
-
   const points = [];
-  for (const mesh of meshes) {
-    const position = mesh.geometry.getAttribute('position');
-    const step = Math.max(1, Math.floor(position.count / 1024));
-    for (let i = 0; i < position.count; i += step) {
-      if (mesh.isSkinnedMesh) mesh.getVertexPosition(i, _helmetVertex);
-      else _helmetVertex.fromBufferAttribute(position, i);
-      _helmetVertex.applyMatrix4(mesh.matrixWorld);
-      parent.worldToLocal(_helmetVertex);
-      points.push(_helmetVertex.clone());
-    }
+  const step = Math.max(1, Math.floor(position.count / 1024));
+  for (let i = 0; i < position.count; i += step) {
+    if (mesh.isSkinnedMesh) mesh.getVertexPosition(i, _helmetVertex);
+    else _helmetVertex.fromBufferAttribute(position, i);
+    _helmetVertex.applyMatrix4(mesh.matrixWorld);
+    parent.worldToLocal(_helmetVertex);
+    points.push(_helmetVertex.clone());
   }
-  if (points.length < 8) return { capsule: null, reason: 'missing-mesh' };
+  if (points.length < 8) return null;
 
-  // Control bones in this asset are not guaranteed to sit at the skinned
-  // shell's center after every exported pose. Keep their direction, but place
-  // the guide line through the measured helmet centroid.
-  const helmetCenter = new THREE.Vector3();
-  for (const point of points) helmetCenter.add(point);
-  helmetCenter.multiplyScalar(1 / points.length);
+  const center = new THREE.Vector3();
+  for (const point of points) center.add(point);
+  center.multiplyScalar(1 / points.length);
 
-  const axial = [];
-  for (const point of points) axial.push(point.clone().sub(helmetCenter).dot(axis));
-  axial.sort((left, right) => left - right);
+  const axial = points.map((point) => point.clone().sub(center).dot(axis)).sort((a, b) => a - b);
   const axialMin = quantile(axial, 0.04);
   const axialMax = quantile(axial, 0.96);
-  if (!(axialMax - axialMin > 1e-4)) {
-    return { capsule: null, reason: 'zero-length' };
-  }
+  if (axialMax - axialMin <= 1e-4) return null;
 
-  const a = helmetCenter.clone().addScaledVector(axis, axialMin);
-  const b = helmetCenter.clone().addScaledVector(axis, axialMax);
+  const a = center.clone().addScaledVector(axis, axialMin);
+  const b = center.clone().addScaledVector(axis, axialMax);
   const radial = points.map((point) => {
     const along = point.clone().sub(a).dot(axis);
-    const center = a.clone().addScaledVector(axis, along);
-    return point.distanceTo(center);
+    return point.distanceTo(a.clone().addScaledVector(axis, along));
   }).sort((left, right) => left - right);
   const radius = Math.max(quantile(radial, 0.82), 0.08) * radiusScale;
 
-  const helmetCapsule = {
-      id: 'helmet',
-      a,
-      b,
-      radius,
-      weight: 0.65,
-      length: a.distanceTo(b),
-      uMin: 0.02,
-      uMax: 0.98,
-      coverageRadiusScale: 1.45,
-      radiusExpansionLimit: 1.25,
-      wrapAngleScale: 0.2,
-      derivedFromHelmetMesh: true,
-  };
-  const neckLength = THREE.MathUtils.clamp(helmetCapsule.length * 0.42, 0.14, 0.3);
-  const neckRadius = THREE.MathUtils.clamp(radius * 0.55, 0.09, 0.24);
+  const helmet = makeCapsule('helmet', a, b, radius, 0.65, {
+    coverageRadiusScale: 1.45,
+    radiusExpansionLimit: 1.25,
+    wrapAngleScale: 0.2,
+  });
+  const neckLength = THREE.MathUtils.clamp(helmet.length * 0.42, 0.14, 0.3);
   const neckA = a.clone().addScaledVector(axis, -neckLength);
   const neckB = a.clone().addScaledVector(axis, neckLength * 0.16);
-  const neckCapsule = {
-    id: 'neck',
-    a: neckA,
-    b: neckB,
-    radius: neckRadius,
-    weight: 0.35,
-    length: neckA.distanceTo(neckB),
-    uMin: 0.05,
-    uMax: 0.98,
-    coverageRadiusScale: 1.7,
-    radiusExpansionLimit: 1.35,
-    wrapAngleScale: 0.3,
-    derivedFromHelmetMesh: true,
-  };
+  const neckCapsule = makeCapsule(
+    'neck',
+    neckA,
+    neckB,
+    THREE.MathUtils.clamp(radius * 0.55, 0.09, 0.24),
+    0.35,
+    { coverageRadiusScale: 1.7, radiusExpansionLimit: 1.35, wrapAngleScale: 0.3 },
+  );
 
-  return {
-    capsule: helmetCapsule,
-    neckCapsule,
-    reason: null,
-  };
+  return { helmet, neckCapsule };
 }
 
 /**
- * Bake posed limb capsules in field-parent local space and explain every miss.
- * @returns {{ capsules: LimbCapsule[], diagnostics: {
- *   expected: number,
- *   found: number,
- *   boneCount: number,
- *   validIds: string[],
- *   issues: Array<{ id: string, reason: string, missing?: string[] }>
- * } }}
+ * Bake posed limb capsules in field-parent local space.
+ * @returns {LimbCapsule[]}
  */
-export function extractLimbCapsulesWithDiagnostics(root, parent, {
+export function extractLimbCapsules(root, parent, {
   radiusScale = 1,
   defs = LIMB_CAPSULE_DEFS,
 } = {}) {
@@ -276,33 +240,20 @@ export function extractLimbCapsulesWithDiagnostics(root, parent, {
 
   const map = collectBoneMap(root);
   const out = [];
-  const issues = [];
 
   for (const def of defs) {
     const boneA = findBone(map, def.a);
     const boneB = findBone(map, def.b);
-    if (!boneA || !boneB) {
-      const missing = [];
-      if (!boneA) missing.push('growth-start');
-      if (!boneB) missing.push('growth-end');
-      issues.push({ id: def.id, reason: 'missing-bone', missing });
-      continue;
-    }
+    if (!boneA || !boneB) continue;
 
     boneA.updateWorldMatrix(true, false);
     boneB.updateWorldMatrix(true, false);
 
     const a = boneLocalPoint(boneA, parent, new THREE.Vector3());
     const b = boneLocalPoint(boneB, parent, new THREE.Vector3());
-    if (![a.x, a.y, a.z, b.x, b.y, b.z].every(Number.isFinite)) {
-      issues.push({ id: def.id, reason: 'invalid-position' });
-      continue;
-    }
+    if (![a.x, a.y, a.z, b.x, b.y, b.z].every(Number.isFinite)) continue;
     const length = a.distanceTo(b);
-    if (length < 1e-4) {
-      issues.push({ id: def.id, reason: 'zero-length' });
-      continue;
-    }
+    if (length < 1e-4) continue;
 
     out.push({
       id: def.id,
@@ -323,28 +274,9 @@ export function extractLimbCapsulesWithDiagnostics(root, parent, {
   }
 
   const helmet = extractHelmetCapsule(root, parent, map, radiusScale);
-  if (helmet.capsule) {
-    out.push(helmet.neckCapsule, helmet.capsule);
-  } else {
-    issues.push({ id: 'neck', reason: helmet.reason });
-    issues.push({ id: 'helmet', reason: helmet.reason });
-  }
+  if (helmet) out.push(helmet.neckCapsule, helmet.helmet);
 
-  return {
-    capsules: out,
-    diagnostics: {
-      expected: defs.length + 2,
-      found: out.length,
-      boneCount: map.size,
-      validIds: out.map((capsule) => capsule.id),
-      issues,
-    },
-  };
-}
-
-/** Backward-compatible capsule-only accessor. */
-export function extractLimbCapsules(root, parent, options) {
-  return extractLimbCapsulesWithDiagnostics(root, parent, options).capsules;
+  return out;
 }
 
 function stationRng(seed) {
@@ -424,50 +356,22 @@ export function allocateRingStations(capsules, tendrilCount, {
 }
 
 /**
- * Character-facing right / up in `parent` local space (from posed left/right bones).
- * @returns {{ right: THREE.Vector3, up: THREE.Vector3 }}
+ * Character-facing right in `parent` local space (posed thigh.r − thigh.l).
+ * @returns {THREE.Vector3}
  */
-export function extractBodyAxes(root, parent) {
-  root.updateWorldMatrix(true, true);
-  parent.updateWorldMatrix(true, false);
+export function extractBodyRight(root, parent) {
   const map = collectBoneMap(root);
-  const pick = (names) => findBone(map, names);
+  const rThigh = findBone(map, ['thigh.r', 'c_thigh_fk.r', 'thigh_stretch.r']);
+  const lThigh = findBone(map, ['thigh.l', 'c_thigh_fk.l', 'thigh_stretch.l']);
+  const right = new THREE.Vector3(1, 0, 0);
+  if (!rThigh || !lThigh) return right;
 
-  const rightPt = new THREE.Vector3();
-  const leftPt = new THREE.Vector3();
-  const rThigh = pick(['thigh.r', 'c_thigh_fk.r', 'thigh_stretch.r']);
-  const lThigh = pick(['thigh.l', 'c_thigh_fk.l', 'thigh_stretch.l']);
-  const rShoulder = pick(['shoulder.r', 'c_shoulder.r', 'arm.r']);
-  const lShoulder = pick(['shoulder.l', 'c_shoulder.l', 'arm.l']);
-
-  const right = new THREE.Vector3();
-  if (rThigh && lThigh) {
-    boneLocalPoint(rThigh, parent, rightPt);
-    boneLocalPoint(lThigh, parent, leftPt);
-    right.subVectors(rightPt, leftPt);
-  } else if (rShoulder && lShoulder) {
-    boneLocalPoint(rShoulder, parent, rightPt);
-    boneLocalPoint(lShoulder, parent, leftPt);
-    right.subVectors(rightPt, leftPt);
-  }
-
-  if (right.lengthSq() < 1e-6) {
-    const rootBone = pick(['c_root.x', 'root.x', 'c_root_master.x']);
-    if (rootBone) {
-      rootBone.updateWorldMatrix(true, false);
-      const inv = new THREE.Matrix4().copy(parent.matrixWorld).invert();
-      right.set(1, 0, 0).transformDirection(rootBone.matrixWorld).transformDirection(inv);
-    } else {
-      right.set(1, 0, 0);
-    }
-  }
-
-  // Prefer lateral separation; damp vertical so right reads side-to-side.
+  const r = boneLocalPoint(rThigh, parent, new THREE.Vector3());
+  const l = boneLocalPoint(lThigh, parent, new THREE.Vector3());
+  right.subVectors(r, l);
   right.y *= 0.2;
-  if (right.lengthSq() < 1e-8) right.set(1, 0, 0);
-  else right.normalize();
-
-  return { right, up: new THREE.Vector3(0, 1, 0) };
+  if (right.lengthSq() < 1e-8) return right.set(1, 0, 0);
+  return right.normalize();
 }
 
 /** Closest point + radial outward on a capsule segment. */

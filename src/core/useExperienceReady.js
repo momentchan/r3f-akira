@@ -31,7 +31,6 @@ export function useExperienceReady() {
     return Math.min(Math.round(50 + compileProgress * 0.5), 99);
   }, [active, downloadProgress, compileProgress]);
 
-  // Do not wait on Drei `active`: that includes Tier 2 loaders (climb leaves).
   // Tier 1 AsyncCompile only mounts after character/backpack suspense resolves.
   const isExperienceReady = Boolean(!gpuError && targetsReady && minElapsed);
 

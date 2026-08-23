@@ -18,7 +18,6 @@ export const CAMERA_DEFAULTS = {
   heightAmp: 1,
   heightCycles: 1.8,
 
-  // ~80s per revolution. Wall-clock; never scaled by plant time.
   orbitSpeed: (Math.PI * 2) / 80,
 
   minDistance: 0.55,

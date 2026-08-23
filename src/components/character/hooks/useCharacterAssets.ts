@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import * as THREE from 'three/webgpu';
@@ -9,85 +9,22 @@ import {
   DETAIL_TEXTURE_PATHS,
 } from '../config';
 import { useKTX2Texture } from '@core';
-import { CHARACTER_LOOK_DEFAULTS } from '../look/characterDefaults';
 import {
-  createOutlineMaterial,
-  createToonNodeMaterial,
-  type CharacterOutlineMaterial,
-  type CharacterToonMaterial,
+  attachOutline,
+  configureLookTextures,
+  createLookMaterial,
+  createLookOutlineMaterial,
+} from '../look/createLookMaterial';
+import type {
+  CharacterOutlineMaterial,
+  CharacterToonMaterial,
 } from '../materials/createToonNodeMaterial';
-
-const configureTextures = (textures: any) => {
-  if (textures.map) textures.map.colorSpace = THREE.SRGBColorSpace;
-  if (textures.dirtMap) textures.dirtMap.colorSpace = THREE.SRGBColorSpace;
-  if (textures.aoMap) textures.aoMap.colorSpace = THREE.NoColorSpace;
-
-  ['map', 'dirtMap', 'aoMap'].forEach((key) => {
-    if (textures[key]) textures[key].flipY = false;
-  });
-  return textures;
-};
-
-function createLookMaterial(textures: {
-  map?: THREE.Texture;
-  dirtMap?: THREE.Texture;
-  aoMap?: THREE.Texture;
-}) {
-  return createToonNodeMaterial({
-    textures: {
-      map: textures.map,
-      dirtMap: textures.dirtMap,
-      aoMap: textures.aoMap,
-    },
-    ...CHARACTER_LOOK_DEFAULTS,
-    lightDir: new THREE.Vector3(...CHARACTER_LOOK_DEFAULTS.lightDir),
-  });
-}
-
-function attachOutlineClone(source: THREE.Mesh, outlineMat: CharacterOutlineMaterial) {
-  let outline: THREE.Mesh;
-
-  if ((source as THREE.SkinnedMesh).isSkinnedMesh) {
-    const skinned = source as THREE.SkinnedMesh;
-    const outlineSkinned = new THREE.SkinnedMesh(skinned.geometry, outlineMat);
-    outlineSkinned.bind(skinned.skeleton, skinned.bindMatrix);
-    outlineSkinned.bindMode = skinned.bindMode;
-    outline = outlineSkinned;
-  } else {
-    outline = new THREE.Mesh(source.geometry, outlineMat);
-  }
-
-  outline.castShadow = false;
-  outline.receiveShadow = false;
-  outline.renderOrder = (source.renderOrder ?? 0) - 1;
-  outline.frustumCulled = false;
-  outline.name = `${source.name}_Outline`;
-  source.parent?.add(outline);
-  return outline;
-}
-
-function ensureContactDirtAttr(mesh: THREE.Mesh) {
-  const pos = mesh.geometry?.getAttribute?.('position');
-  if (!pos || mesh.geometry.getAttribute('aContactDirt')) return;
-  mesh.geometry.setAttribute(
-    'aContactDirt',
-    new THREE.BufferAttribute(new Float32Array(pos.count), 1),
-  );
-}
-
-function cloneEmbeddedClips(gltf: { animations?: THREE.AnimationClip[] }) {
-  return (gltf.animations ?? []).map((clip) => {
-    const cloned = clip.clone();
-    // Keep Blender clip names (Lay / Fetal / Drift).
-    return cloned;
-  });
-}
 
 export function useCharacterAssets() {
   const gltf = useGLTF(CHARACTER_MODEL_PATH);
   const mesh = gltf.scene;
-  const bodyTex = configureTextures(useKTX2Texture(BODY_TEXTURE_PATHS));
-  const detailTex = configureTextures(useKTX2Texture(DETAIL_TEXTURE_PATHS));
+  const bodyTex = configureLookTextures(useKTX2Texture(BODY_TEXTURE_PATHS));
+  const detailTex = configureLookTextures(useKTX2Texture(DETAIL_TEXTURE_PATHS));
 
   const { scene, animations, bodyMat, detailMat, outlineMat } = useMemo((): {
     scene: THREE.Object3D | null;
@@ -109,10 +46,7 @@ export function useCharacterAssets() {
     const clonedScene = SkeletonUtils.clone(mesh as any);
     const bodyMat = createLookMaterial(bodyTex);
     const detailMat = createLookMaterial(detailTex);
-    const outlineMat = createOutlineMaterial({
-      edgeColor: CHARACTER_LOOK_DEFAULTS.edgeColor,
-      outlineWidth: CHARACTER_LOOK_DEFAULTS.outlineWidth,
-    });
+    const outlineMat = createLookOutlineMaterial();
 
     const fillMeshes: THREE.Mesh[] = [];
 
@@ -123,7 +57,6 @@ export function useCharacterAssets() {
       child.castShadow = true;
       child.receiveShadow = true;
 
-      // Blender may suffix duplicates with ".001"
       const baseName = child.name.replace(/\.\d+$/, '');
 
       if (
@@ -138,20 +71,24 @@ export function useCharacterAssets() {
       } else {
         child.visible = false;
       }
-
-      ensureContactDirtAttr(child);
     });
 
-    fillMeshes.forEach((m) => attachOutlineClone(m, outlineMat));
+    fillMeshes.forEach((m) => attachOutline(m, outlineMat));
 
     return {
       scene: clonedScene,
-      animations: cloneEmbeddedClips(gltf),
+      animations: (gltf.animations ?? []).map((clip) => clip.clone()),
       bodyMat,
       detailMat,
       outlineMat,
     };
   }, [mesh, gltf, bodyTex, detailTex]);
+
+  useEffect(() => () => {
+    bodyMat?.dispose();
+    detailMat?.dispose();
+    outlineMat?.dispose();
+  }, [bodyMat, detailMat, outlineMat]);
 
   return { scene, animations, bodyMat, detailMat, outlineMat };
 }

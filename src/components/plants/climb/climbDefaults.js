@@ -84,8 +84,6 @@ export const CLIMB_DEFAULTS = {
     showPaths: true,
     showSeeds: true,
     showCapsules: false,
-    showCapsuleLabels: false,
-    showDiagnostics: false,
     hideRenderedTendrils: false,
     pathCount: 96,
   },

@@ -4,20 +4,16 @@ export const CHARACTER_LOOK_DEFAULTS = {
   thresholdHigh: 0.62,
   shadowTint: '#c3b2dd',
   highlightTint: '#ffffff',
-  aoIntensity: 0,
   edgeColor: '#2a181c',
   outlineWidth: 0.001,
   lightDir: [0, 3, 5] as [number, number, number],
-  /** Dirt albedo mix strength in contact bands. */
   dirtAmount: 0.78,
-  /** Light posterize of dirt albedo (2 = harder blocks). */
   dirtLevels: 6,
-  /** Soft contact: cut = where dirt starts; fade = soft edge width after cut. */
+  /** cut = dirt start height; fade = soft width after cut. */
   dirtContactCut: 0,
   dirtContactFade: 0.15,
-  /** Visualize aContactDirt as magenta heat overlay. */
   dirtDebug: false,
-  /** Receive cast shadows from plants (never from the character itself). */
+  /** Receive plant shadows; never self-shadow. */
   castShadowEnabled: true,
 };
 

@@ -5,7 +5,8 @@ import {
 } from './characterDefaults';
 import type {
   OutlineUniforms,
-  WoodblockToonUniforms,
+  UniformValue,
+  ToonUniforms,
 } from '../materials/createToonNodeMaterial';
 
 export function createCharacterControlsSchema(
@@ -26,21 +27,21 @@ export function createCharacterControlsSchema(
         label: 'dirt amount',
       },
       dirtLevels: {
-        value: d.dirtLevels ?? 3,
+        value: d.dirtLevels,
         min: 2,
         max: 10,
         step: 1,
         label: 'tone levels',
       },
       dirtContactCut: {
-        value: d.dirtContactCut ?? 0.12,
+        value: d.dirtContactCut,
         min: 0,
         max: 1,
         step: 0.01,
         label: 'contact cut',
       },
       dirtContactFade: {
-        value: d.dirtContactFade ?? 0.48,
+        value: d.dirtContactFade,
         min: 0.01,
         max: 1,
         step: 0.01,
@@ -53,8 +54,7 @@ export function createCharacterControlsSchema(
     }),
     shadowTint: { value: d.shadowTint },
     highlightTint: { value: d.highlightTint },
-    aoIntensity: { value: d.aoIntensity, min: 0, max: 1, step: 0.01 },
-    castShadowEnabled: { value: d.castShadowEnabled ?? true, label: 'receive cast shadow' },
+    castShadowEnabled: { value: d.castShadowEnabled, label: 'receive cast shadow' },
     Outline: folder({
       edgeColor: { value: d.edgeColor },
       outlineWidth: {
@@ -68,30 +68,36 @@ export function createCharacterControlsSchema(
   };
 }
 
+function setFloat(uniform: UniformValue<number> | undefined, value: unknown) {
+  if (!uniform || typeof value !== 'number' || !Number.isFinite(value)) return;
+  uniform.value = value;
+}
+
 export function syncCharacterControls(
   controls: Record<string, any>,
-  lookUniformsList: WoodblockToonUniforms[],
+  lookUniformsList: ToonUniforms[],
   outlineUniforms?: OutlineUniforms,
 ) {
   for (const uniforms of lookUniformsList) {
-    uniforms.colorLevels.value = controls.colorLevels;
-    uniforms.thresholdLow.value = controls.thresholdLow;
-    uniforms.thresholdHigh.value = controls.thresholdHigh;
-    uniforms.shadowTint.value.set(controls.shadowTint);
-    uniforms.highlightTint.value.set(controls.highlightTint);
-    uniforms.aoIntensity.value = controls.aoIntensity;
-    if (uniforms.dirtAmount) uniforms.dirtAmount.value = controls.dirtAmount;
-    if (uniforms.dirtLevels) uniforms.dirtLevels.value = controls.dirtLevels;
-    if (uniforms.dirtContactCut) uniforms.dirtContactCut.value = controls.dirtContactCut;
-    if (uniforms.dirtContactFade) uniforms.dirtContactFade.value = controls.dirtContactFade;
-    if (uniforms.dirtDebug) {
+    setFloat(uniforms.colorLevels, controls.colorLevels);
+    setFloat(uniforms.thresholdLow, controls.thresholdLow);
+    setFloat(uniforms.thresholdHigh, controls.thresholdHigh);
+    if (controls.shadowTint) uniforms.shadowTint.value.set(controls.shadowTint);
+    if (controls.highlightTint) uniforms.highlightTint.value.set(controls.highlightTint);
+    setFloat(uniforms.dirtAmount, controls.dirtAmount);
+    setFloat(uniforms.dirtLevels, controls.dirtLevels);
+    setFloat(uniforms.dirtContactCut, controls.dirtContactCut);
+    setFloat(uniforms.dirtContactFade, controls.dirtContactFade);
+    if (typeof controls.dirtDebug === 'boolean') {
       uniforms.dirtDebug.value = controls.dirtDebug ? 1 : 0;
     }
-    uniforms.castShadowEnabled.value = controls.castShadowEnabled ? 1 : 0;
+    if (typeof controls.castShadowEnabled === 'boolean') {
+      uniforms.castShadowEnabled.value = controls.castShadowEnabled ? 1 : 0;
+    }
   }
 
   if (outlineUniforms) {
-    outlineUniforms.edgeColor.value.set(controls.edgeColor);
-    outlineUniforms.outlineWidth.value = controls.outlineWidth;
+    if (controls.edgeColor) outlineUniforms.edgeColor.value.set(controls.edgeColor);
+    setFloat(outlineUniforms.outlineWidth, controls.outlineWidth);
   }
 }

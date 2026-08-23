@@ -1,7 +1,6 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn,
-  attribute,
   clamp,
   dot,
   float,
@@ -11,7 +10,9 @@ import {
   mix,
   normalLocal,
   positionLocal,
+  positionWorld,
   shadow,
+  sin,
   smoothstep,
   step,
   texture,
@@ -28,24 +29,24 @@ import {
 export interface ToonMaterialTextures {
   map?: THREE.Texture;
   dirtMap?: THREE.Texture;
-  aoMap?: THREE.Texture;
 }
 
 export type UniformValue<T> = { value: T };
 
-export interface WoodblockToonUniforms {
+export interface ToonUniforms {
   lightDir: UniformValue<THREE.Vector3>;
   colorLevels: UniformValue<number>;
   thresholdLow: UniformValue<number>;
   thresholdHigh: UniformValue<number>;
   shadowTint: UniformValue<THREE.Color>;
   highlightTint: UniformValue<THREE.Color>;
-  aoIntensity: UniformValue<number>;
   dirtAmount: UniformValue<number>;
   dirtLevels: UniformValue<number>;
   dirtContactCut: UniformValue<number>;
   dirtContactFade: UniformValue<number>;
-  /** 1 = visualize aContactDirt mask (magenta heat). */
+  /** World Y of the shared ground plane (field parent origin). */
+  dirtGroundY: UniformValue<number>;
+  /** 1 = visualize contact mask (magenta heat). */
   dirtDebug: UniformValue<number>;
   /** 1 = apply cast shadow from scene light; 0 = disable without shader recompile. */
   castShadowEnabled: UniformValue<number>;
@@ -56,31 +57,18 @@ export interface OutlineUniforms {
   outlineWidth: UniformValue<number>;
 }
 
-export interface ToonMaterialOptions {
+export type ToonMaterialOptions = {
   textures: ToonMaterialTextures;
-  colorLevels?: number;
-  thresholdLow?: number;
-  thresholdHigh?: number;
-  shadowTint?: string;
-  highlightTint?: string;
-  aoIntensity?: number;
-  dirtAmount?: number;
-  dirtLevels?: number;
-  dirtContactCut?: number;
-  dirtContactFade?: number;
-  dirtDebug?: number | boolean;
-  castShadowEnabled?: number | boolean;
   lightDir?: THREE.Vector3;
-}
+} & Partial<Omit<typeof CHARACTER_LOOK_DEFAULTS, 'lightDir'>>;
 
-export interface OutlineMaterialOptions {
-  edgeColor?: string;
-  outlineWidth?: number;
-}
+export type OutlineMaterialOptions = Partial<
+  Pick<typeof CHARACTER_LOOK_DEFAULTS, 'edgeColor' | 'outlineWidth'>
+>;
 
 export type CharacterToonMaterial = THREE.MeshBasicNodeMaterial & {
   userData: {
-    toonUniforms: WoodblockToonUniforms;
+    toonUniforms: ToonUniforms;
     /** Rebuild fragmentNode to include cast-shadow sampling from a scene light. */
     patchShadow: (light: THREE.DirectionalLight) => void;
   };
@@ -102,11 +90,27 @@ function uVec3(value: THREE.Vector3) {
   return uniform(value) as unknown as UniformValue<THREE.Vector3>;
 }
 
+const DIRT_FULL_HEIGHT = 0.06;
+const DIRT_FADE_HEIGHT = 0.42;
+const DIRT_EDGE_NOISE = 0.055;
+const DIRT_NOISE_SCALE = 2.4;
+
+export function setDirtGroundY(
+  uniformsList: ToonUniforms[],
+  parent: THREE.Object3D | null | undefined,
+) {
+  if (!parent) return;
+  parent.updateWorldMatrix(true, false);
+  const y = parent.matrixWorld.elements[13];
+  for (const uniforms of uniformsList) {
+    uniforms.dirtGroundY.value = y;
+  }
+}
+
 function buildToonFragment(
-  toonUniforms: WoodblockToonUniforms,
+  toonUniforms: ToonUniforms,
   albedoMap: THREE.Texture | null,
   dirtMap: THREE.Texture | null,
-  aoMap: THREE.Texture | null,
   light: THREE.DirectionalLight | null,
 ) {
   return Fn(() => {
@@ -115,15 +119,26 @@ function buildToonFragment(
       ? texture(albedoMap, uvCoord).rgb
       : vec3(1.0, 1.0, 1.0);
 
-    // Soft contact: cut = onset, fade = soft edge width (smoothstep, not hard step).
-    const contactRaw = attribute('aContactDirt', 'float');
+    // Posed world height above the field ground. Skinning writes positionLocal
+    // first, so positionWorld is the lying suit, not the bind pose.
+    const worldP = positionWorld;
+    const nx = worldP.x.mul(DIRT_NOISE_SCALE);
+    const nz = worldP.z.mul(DIRT_NOISE_SCALE);
+    const noise = sin(nx.mul(1.13).add(nz.mul(0.71)).add(0.6))
+      .add(sin(nx.mul(-0.47).add(nz.mul(1.37)).add(2.1)))
+      .mul(0.25);
+    const height = worldP.y
+      .sub(toonUniforms.dirtGroundY as any)
+      .sub(noise.mul(DIRT_EDGE_NOISE));
+    const fadeH = float(DIRT_FADE_HEIGHT);
+    const span = float(DIRT_FADE_HEIGHT - DIRT_FULL_HEIGHT);
+    const t = clamp(fadeH.sub(height).div(span), 0.0, 1.0);
+    const contactRaw = t.mul(t).mul(float(3.0).sub(t.mul(2.0)));
     const contactCut = toonUniforms.dirtContactCut as any;
     const contactEnd = contactCut.add(
       max(toonUniforms.dirtContactFade as any, 0.001),
     );
-    // `as any` like the uniforms above: TSL widens attribute()'s 'float'
-    // literal to string, so the node type is lost. Correct at runtime.
-    const contact = smoothstep(contactCut, contactEnd, contactRaw as any);
+    const contact = smoothstep(contactCut, contactEnd, contactRaw);
 
     const N = transformNormal(normalLocal).normalize().toVar();
     const L = vec3(toonUniforms.lightDir as any).normalize().toVar();
@@ -156,7 +171,7 @@ function buildToonFragment(
     // Cast shadow is merged into the toon quantization level before the color
     // mix, not applied on top. This prevents double-darkening: an area already
     // at the shadow floor stays there; only lit areas are pulled down.
-    if (light) {
+    if (light?.shadow?.map) {
       const castLit = step(float(0.5), shadow(light as any) as any);
       // mix(1, castLit, 0) = 1 → no effect; mix(1, castLit, 1) = castLit → shadow on
       const gated = mix(float(1.0), castLit, toonUniforms.castShadowEnabled as any);
@@ -168,12 +183,6 @@ function buildToonFragment(
       albedo.mul(vec3(toonUniforms.highlightTint as any)),
       quantized,
     ).toVar();
-
-    if (aoMap) {
-      const ao = texture(aoMap, uvCoord).r;
-      const aoMul = mix(float(1.0), ao, toonUniforms.aoIntensity as any);
-      litColor.assign(litColor.mul(aoMul));
-    }
 
     const debugCol = mix(
       vec3(0.12, 0.12, 0.14),
@@ -187,42 +196,28 @@ function buildToonFragment(
 }
 
 export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterToonMaterial {
-  const {
-    textures,
-    colorLevels = CHARACTER_LOOK_DEFAULTS.colorLevels,
-    thresholdLow = CHARACTER_LOOK_DEFAULTS.thresholdLow,
-    thresholdHigh = CHARACTER_LOOK_DEFAULTS.thresholdHigh,
-    shadowTint = CHARACTER_LOOK_DEFAULTS.shadowTint,
-    highlightTint = CHARACTER_LOOK_DEFAULTS.highlightTint,
-    aoIntensity = CHARACTER_LOOK_DEFAULTS.aoIntensity,
-    dirtAmount = CHARACTER_LOOK_DEFAULTS.dirtAmount,
-    dirtLevels = CHARACTER_LOOK_DEFAULTS.dirtLevels,
-    dirtContactCut = CHARACTER_LOOK_DEFAULTS.dirtContactCut,
-    dirtContactFade = CHARACTER_LOOK_DEFAULTS.dirtContactFade,
-    dirtDebug = CHARACTER_LOOK_DEFAULTS.dirtDebug,
-    castShadowEnabled = CHARACTER_LOOK_DEFAULTS.castShadowEnabled,
-    lightDir = new THREE.Vector3(...CHARACTER_LOOK_DEFAULTS.lightDir),
-  } = options;
+  const { textures, lightDir, ...look } = options;
+  const d = { ...CHARACTER_LOOK_DEFAULTS, ...look };
+  const dir = (lightDir ?? new THREE.Vector3(...d.lightDir)).clone().normalize();
 
-  const toonUniforms: WoodblockToonUniforms = {
-    lightDir: uVec3(lightDir.clone().normalize()),
-    colorLevels: uNumber(colorLevels),
-    thresholdLow: uNumber(thresholdLow),
-    thresholdHigh: uNumber(thresholdHigh),
-    shadowTint: uColor(shadowTint),
-    highlightTint: uColor(highlightTint),
-    aoIntensity: uNumber(aoIntensity),
-    dirtAmount: uNumber(dirtAmount),
-    dirtLevels: uNumber(dirtLevels),
-    dirtContactCut: uNumber(dirtContactCut),
-    dirtContactFade: uNumber(dirtContactFade),
-    dirtDebug: uNumber(dirtDebug ? 1 : 0),
-    castShadowEnabled: uNumber(castShadowEnabled ? 1 : 0),
+  const toonUniforms: ToonUniforms = {
+    lightDir: uVec3(dir),
+    colorLevels: uNumber(d.colorLevels),
+    thresholdLow: uNumber(d.thresholdLow),
+    thresholdHigh: uNumber(d.thresholdHigh),
+    shadowTint: uColor(d.shadowTint),
+    highlightTint: uColor(d.highlightTint),
+    dirtAmount: uNumber(d.dirtAmount),
+    dirtLevels: uNumber(d.dirtLevels),
+    dirtContactCut: uNumber(d.dirtContactCut),
+    dirtContactFade: uNumber(d.dirtContactFade),
+    dirtGroundY: uNumber(-1),
+    dirtDebug: uNumber(d.dirtDebug ? 1 : 0),
+    castShadowEnabled: uNumber(d.castShadowEnabled ? 1 : 0),
   };
 
   const albedoMap = textures.map ?? null;
   const dirtMap = textures.dirtMap ?? null;
-  const aoMap = textures.aoMap ?? null;
 
   const material = new THREE.MeshBasicNodeMaterial({
     toneMapped: false,
@@ -230,10 +225,11 @@ export function createToonNodeMaterial(options: ToonMaterialOptions): CharacterT
     map: albedoMap,
   }) as CharacterToonMaterial;
 
-  material.fragmentNode = buildToonFragment(toonUniforms, albedoMap, dirtMap, aoMap, null);
+  material.fragmentNode = buildToonFragment(toonUniforms, albedoMap, dirtMap, null);
 
   const patchShadow = (newLight: THREE.DirectionalLight) => {
-    material.fragmentNode = buildToonFragment(toonUniforms, albedoMap, dirtMap, aoMap, newLight);
+    if (!newLight?.shadow?.map) return;
+    material.fragmentNode = buildToonFragment(toonUniforms, albedoMap, dirtMap, newLight);
     material.needsUpdate = true;
   };
 

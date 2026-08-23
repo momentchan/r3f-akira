@@ -1,11 +1,10 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Mesh, MeshBasicMaterial } from 'three';
-import { MeshBVHHelper } from 'three-mesh-bvh';
+import { BVHHelper } from 'three-mesh-bvh';
 
 /**
- * Debug: MeshBVHHelper (many leaf boxes) + optional coarse AABB helpers removed —
- * BVH is the source of truth for body clearance.
+ * Debug: BVHHelper leaf boxes. BVH is the source of truth for body clearance.
  */
 export function BodyBoundsDebug({
   geometry = null,
@@ -30,7 +29,7 @@ export function BodyBoundsDebug({
     const mesh = new Mesh(geometry, material);
     mesh.visible = false;
     mesh.frustumCulled = false;
-    const helper = new MeshBVHHelper(mesh, depth);
+    const helper = new BVHHelper(mesh, depth);
     helper.displayParents = false;
 
     meshRef.current = mesh;

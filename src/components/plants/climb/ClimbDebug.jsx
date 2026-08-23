@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { Html } from '@react-three/drei';
 import * as THREE from 'three/webgpu';
 import { annotateWrapClearance } from './buildWrapCurve';
 
@@ -165,11 +164,10 @@ function HostBounds({ localBox, color }) {
   );
 }
 
-function CapsuleHelper({ capsule, color = '#00ffcc', label = '', showLabel = false }) {
-  const { mid, arrowPosition, arrowQuaternion } = useMemo(() => {
+function CapsuleHelper({ capsule, color = '#00ffcc' }) {
+  const { arrowPosition, arrowQuaternion } = useMemo(() => {
     const direction = new THREE.Vector3().subVectors(capsule.b, capsule.a).normalize();
     return {
-      mid: new THREE.Vector3().addVectors(capsule.a, capsule.b).multiplyScalar(0.5),
       arrowPosition: capsule.a.clone().lerp(capsule.b, 0.78),
       arrowQuaternion: new THREE.Quaternion().setFromUnitVectors(
         new THREE.Vector3(0, 1, 0),
@@ -216,26 +214,6 @@ function CapsuleHelper({ capsule, color = '#00ffcc', label = '', showLabel = fal
           depthWrite={false}
         />
       </mesh>
-      {showLabel && label && (
-        <Html
-          position={mid.toArray()}
-          center
-          distanceFactor={8}
-          pointerEvents="none"
-          style={{
-            color: '#00ffcc',
-            fontSize: 11,
-            fontFamily: 'monospace',
-            background: 'rgba(0,0,0,0.7)',
-            padding: '2px 5px',
-            borderRadius: 2,
-            pointerEvents: 'none',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {label} a -&gt; b
-        </Html>
-      )}
     </group>
   );
 }
@@ -260,18 +238,14 @@ function ClimbDebugContent({
   noiseAmount = 0,
   wraps = [],
   hosts = [],
-  requestedTendrilCount = 0,
   showSeeds = true,
   showHitch = true,
   showPaths = true,
   showDirs = true,
   showBounds = true,
   showCapsules = true,
-  showCapsuleLabels = true,
-  showDiagnostics = true,
   diagnosticMode = 'all',
   showClearanceMarkers = true,
-  showPathLabels = true,
   capsuleFilterId = null,
   pathCount = 24,
 }) {
@@ -311,79 +285,8 @@ function ClimbDebugContent({
     return list;
   }, [hosts, capsuleFilterId]);
 
-  const bodyHost = hosts.find((host) => host.id === 'body');
-  const diagnostics = bodyHost?.capsuleDiagnostics ?? null;
-  const wrapStats = useMemo(() => {
-    const ringsByHost = {};
-    let rings = 0;
-    let feeders = 0;
-    for (const wrap of wraps) {
-      if (wrap.role === 'feeder') {
-        feeders += 1;
-        continue;
-      }
-      rings += 1;
-      ringsByHost[wrap.hostId] = (ringsByHost[wrap.hostId] ?? 0) + 1;
-    }
-    return { rings, feeders, ringsByHost };
-  }, [wraps]);
-  const diagnosticPosition = useMemo(() => {
-    if (!bodyHost?.localBox) return new THREE.Vector3(0, 0.8, 0);
-    const point = new THREE.Vector3();
-    bodyHost.localBox.getCenter(point);
-    point.y = bodyHost.localBox.max.y + 0.18;
-    return point;
-  }, [bodyHost]);
-
-  const capsuleCount = debugCapsules.length;
-
   return (
     <group name="ClimbDebug">
-      {showDiagnostics && (
-        <Html
-          center
-          position={diagnosticPosition.toArray()}
-          pointerEvents="none"
-          style={{
-            color: diagnostics && diagnostics.found === diagnostics.expected
-              ? '#80ed99'
-              : '#ff6b6b',
-            fontSize: 12,
-            fontFamily: 'monospace',
-            background: 'rgba(0,0,0,0.75)',
-            padding: '4px 8px',
-            pointerEvents: 'none',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {!bodyHost && 'Waiting for posed body bounds'}
-          {bodyHost && !diagnostics && `No wrap diagnostics (${capsuleCount} regions)`}
-          {diagnostics && (
-            <>
-              <div style={{ color: '#f8f9fa' }}>
-                rings {wrapStats.rings}/{requestedTendrilCount}
-                {' | '}body {wrapStats.ringsByHost.body ?? 0}
-                {' | '}backpack {wrapStats.ringsByHost.backpack ?? 0}
-                {' | '}feeders {wrapStats.feeders}
-              </div>
-              Wrap regions {diagnostics.found}/{diagnostics.expected}
-              {' | '}bones {diagnostics.boneCount}
-              {diagnostics.issues.length > 0 && (
-                <div>
-                  {diagnostics.issues.map((issue) => (
-                    <div key={issue.id}>
-                      {issue.id}: {issue.reason}
-                      {issue.missing?.length ? ` (${issue.missing.join(', ')})` : ''}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ color: '#ffd166' }}>yellow a = start</div>
-              <div style={{ color: '#06d6a0' }}>green b = toward torso</div>
-            </>
-          )}
-        </Html>
-      )}
       {showBounds && hosts.map((host) => (
         <HostBounds
           key={`bounds-${host.id}`}
@@ -397,8 +300,6 @@ function ClimbDebugContent({
           key={c.key}
           capsule={c}
           color={c.color}
-          label={c.id}
-          showLabel={showCapsuleLabels}
         />
       ))}
 
@@ -464,24 +365,6 @@ function ClimbDebugContent({
             )}
             {showDirs && hitch && d.outward && (
               <DirArrow from={hitch} dir={d.outward} length={AXIS_LEN * 0.75} color="#ef476f" />
-            )}
-            {showSeeds && showPathLabels && hitch && d.u != null && (
-              <Html
-                position={[hitch.x, hitch.y + 0.04, hitch.z]}
-                center
-                distanceFactor={10}
-                pointerEvents="none"
-                style={{
-                  color: '#ffd166',
-                  fontSize: 9,
-                  fontFamily: 'monospace',
-                  background: 'rgba(0,0,0,0.5)',
-                  padding: '1px 3px',
-                  pointerEvents: 'none',
-                }}
-              >
-                {d.capsuleId} u={d.u.toFixed(2)}
-              </Html>
             )}
           </group>
         );

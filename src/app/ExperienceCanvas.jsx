@@ -1,4 +1,4 @@
-import { useLayoutEffect, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, memo, Suspense, useEffect, useRef, useState } from 'react';
 import { PerformanceMonitor } from '@react-three/drei';
 import { CameraViewControl } from '../components/camera/CameraViewControl';
 import { AsyncCompile, AudioManager, Bgm, CanvasCapture } from '@core';
@@ -56,17 +56,12 @@ function SceneContent() {
   const fieldParentRef = useRef(null);
   const [bodyBounds, setBodyBounds] = useState(null);
   const [backpackBounds, setBackpackBounds] = useState(null);
-  const onBodyBounds = useCallback((bounds) => {
-    setBodyBounds(bounds);
-  }, []);
-  const onBackpackBounds = useCallback((bounds) => {
-    setBackpackBounds(bounds);
-  }, []);
 
   const { simSpeed } = useControls('Sim', {
     simSpeed: { value: 1, min: 0, max: 12, step: 0.1, label: 'simSpeed ×' },
   });
   useEffect(() => { setSimSpeedMul(simSpeed); }, [simSpeed]);
+
   const plantWind = usePlantWindControls();
   const flowerCull = useFlowerCullControls();
 
@@ -79,12 +74,10 @@ function SceneContent() {
         <Suspense fallback={null}>
           <AsyncCompile id={TIER1_TARGETS[0]} onReady={setComponentReady}>
             <Character
-              mode="tableau"
-              pose="Lay"
               position={[0, 0.6, 0]}
               scale={1.5}
               fieldParentRef={fieldParentRef}
-              onBodyBounds={onBodyBounds}
+              onBounds={setBodyBounds}
             />
           </AsyncCompile>
           <AsyncCompile id={TIER1_TARGETS[1]} onReady={setComponentReady}>
@@ -97,7 +90,7 @@ function SceneContent() {
               ]}
               scale={1.5}
               fieldParentRef={fieldParentRef}
-              onBounds={onBackpackBounds}
+              onBounds={setBackpackBounds}
             />
           </AsyncCompile>
         </Suspense>
@@ -133,6 +126,7 @@ function SceneContent() {
   );
 }
 
+// Isolates the WebGPU canvas from App re-renders (intro progress).
 export const ExperienceCanvas = memo(function ExperienceCanvas() {
   const [dpr, setDpr] = useState(2);
 

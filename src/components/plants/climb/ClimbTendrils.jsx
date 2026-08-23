@@ -357,7 +357,6 @@ export function ClimbTendrils({
         geometry: bodyBounds.geometry,
         localBox: bodyBounds.localBox,
         capsules: bodyBounds.capsules ?? [],
-        capsuleDiagnostics: bodyBounds.capsuleDiagnostics ?? null,
         bodyRight: bodyBounds.bodyRight ?? null,
         profile: CLIMB_HOST_PROFILES.body,
       });
@@ -374,7 +373,6 @@ export function ClimbTendrils({
           geometry: backpackBounds.geometry,
           localBox: backpackBounds.localBox,
           capsules: guides,
-          capsuleDiagnostics: null,
           bodyRight: new THREE.Vector3(1, 0, 0),
           profile: CLIMB_HOST_PROFILES.backpack,
         });
@@ -382,13 +380,10 @@ export function ClimbTendrils({
     }
     return list;
   }, [
-    bodyBounds?.version,
     bodyBounds?.bvh,
     bodyBounds?.geometry,
     bodyBounds?.capsules,
-    bodyBounds?.capsuleDiagnostics,
     bodyBounds?.bodyRight,
-    backpackBounds?.version,
     backpackBounds?.bvh,
     backpackBounds?.geometry,
     backpackBounds?.localBox,
@@ -960,21 +955,14 @@ export function ClimbTendrils({
         hosts={hosts}
         surfaceOffset={debouncedPath.surfaceOffset}
         noiseAmount={debouncedPath.noiseAmount}
-        requestedTendrilCount={Math.min(
-          debouncedPath.tendrilCount,
-          MAX_TOTAL_TENDRILS,
-        )}
         showSeeds={controls.showSeeds}
         showHitch={false}
         showPaths={controls.showPaths}
         showDirs={false}
         showBounds={false}
         showCapsules={controls.showCapsules}
-        showCapsuleLabels={controls.showCapsuleLabels}
-        showDiagnostics={controls.showDiagnostics}
         diagnosticMode={CLIMB_INTERNALS.diagnosticMode}
         showClearanceMarkers={CLIMB_INTERNALS.showClearanceMarkers}
-        showPathLabels={controls.showCapsuleLabels}
         capsuleFilterId={null}
         pathCount={controls.pathCount}
       />

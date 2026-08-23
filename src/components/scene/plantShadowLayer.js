@@ -1,30 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 
-/**
- * Plants live on layer 0 (seen by the camera and the main shadow map) *and* on
- * this layer. The plant-shadow light's shadow camera is restricted to this layer
- * alone, so its depth map contains plants but not the character — which is what
- * lets the character receive flower shadows without shadowing itself.
- *
- * Every plant mesh that should cast onto the character needs `enablePlantShadowLayer`
- * as its ref. Forgetting it fails silently (no shadow, no error), so prefer the
- * shared helper over an inline `layers.enable(1)`.
- */
+/** Extra layer so the plant-shadow light sees plants, not the character. */
 export const PLANT_SHADOW_LAYER = 1;
 
-/** Flower low-poly shadow proxies live here so the view camera (layer 0) skips them. */
+/** Low-poly flower casters; hidden from the view camera (layer 0). */
 export const FLOWER_SHADOW_CASTER_LAYER = 2;
 
-/**
- * Stable ref callback — module scope on purpose. An inline arrow would be a new
- * identity every render, making React detach and re-attach the ref each time.
- */
+// Module-scope ref: an inline callback would remount the mesh every render.
 export const enablePlantShadowLayer = (object) => {
   if (object) object.layers.enable(PLANT_SHADOW_LAYER);
 };
 
-/** Hidden from the view camera; still in the ground + character plant shadow maps. */
+/** Off layer 0; still in plant shadow maps. */
 export const enableFlowerShadowCasterLayers = (object) => {
   if (!object) return;
   object.layers.disable(0);
@@ -32,13 +20,9 @@ export const enableFlowerShadowCasterLayers = (object) => {
   object.layers.enable(FLOWER_SHADOW_CASTER_LAYER);
 };
 
-/** Tags the light whose shadow map holds plants only. */
 export const PLANT_SHADOW_LIGHT_FLAG = 'isPlantShadowLight';
 
-/**
- * The plant-only shadow light, once it is in the scene. Materials read its
- * shadow map via TSL `shadow(light)`; see `createToonNodeMaterial`.
- */
+/** Scene light tagged for character toon `shadow(light)`. */
 export function usePlantShadowLight() {
   const scene = useThree((state) => state.scene);
   const [light, setLight] = useState(null);
@@ -52,4 +36,28 @@ export function usePlantShadowLight() {
   }, [scene]);
 
   return light;
+}
+
+/**
+ * Wait until the plant light has a shadow map, then patch toon materials.
+ * TSL `shadow(light)` compiles a null uniform if the map is still missing.
+ */
+export function useBindPlantShadow(light, ...materials) {
+  useEffect(() => {
+    const mats = materials.filter(Boolean);
+    if (!light || mats.length === 0) return undefined;
+    let cancelled = false;
+    const tryBind = () => {
+      if (cancelled) return;
+      if (!light.shadow?.map) {
+        requestAnimationFrame(tryBind);
+        return;
+      }
+      for (const mat of mats) mat.userData.patchShadow?.(light);
+    };
+    tryBind();
+    return () => {
+      cancelled = true;
+    };
+  }, [light, ...materials]);
 }

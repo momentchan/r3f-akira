@@ -7,10 +7,8 @@ import { buildCharacterMeshBVH } from '../../plants/field/bodyBounds';
 
 export type WrapHostBoundsPayload = {
   localBox: Box3;
-  worldBox: Box3;
   bvh: MeshBVH;
   geometry: BufferGeometry;
-  version: number;
 };
 
 type Args = {
@@ -38,7 +36,6 @@ export function useWrapHostBounds({
   revisionKey = 'default',
   onBounds,
 }: Args) {
-  const versionRef = useRef(0);
   const settleFrames = useRef(0);
   const builtKey = useRef('');
   const latestRef = useRef<WrapHostBoundsPayload | null>(null);
@@ -72,15 +69,12 @@ export function useWrapHostBounds({
     if (!built) return;
 
     disposePayload(latestRef.current);
-    versionRef.current += 1;
     builtKey.current = revisionKey;
 
     const payload: WrapHostBoundsPayload = {
       localBox: built.localBox,
-      worldBox: built.worldBox,
       bvh: built.bvh,
       geometry: built.geometry,
-      version: versionRef.current,
     };
     latestRef.current = payload;
     onBounds(payload);

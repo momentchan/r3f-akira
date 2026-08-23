@@ -198,14 +198,6 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
       showPaths: { value: d.debug.showPaths, label: 'Paths' },
       showSeeds: { value: d.debug.showSeeds, label: 'Ground Roots' },
       showCapsules: { value: d.debug.showCapsules, label: 'Body Regions' },
-      showCapsuleLabels: {
-        value: d.debug.showCapsuleLabels,
-        label: 'Region Labels',
-      },
-      showDiagnostics: {
-        value: d.debug.showDiagnostics,
-        label: 'Counts & Diagnostics',
-      },
       hideRenderedTendrils: {
         value: Boolean(d.debug.hideRenderedTendrils),
         label: 'Hide Rendered Tendrils',

@@ -229,7 +229,6 @@ export function PlantField({
     die: [dieMin, dieMax],
   }), [delayMin, delayMax, growMin, growMax, keepMin, keepMax, dieMin, dieMax]);
 
-  const boundsVersion = bodyBounds?.version ?? 0;
   const bvh = clearBody ? bodyBounds?.bvh : null;
   // Both hosts sit on the ground the flowers grow from, so both must be cleared
   // or stems plant straight through the backpack.
@@ -279,7 +278,7 @@ export function PlantField({
       reachScale,
     });
   }, [
-    bvh, clearanceHosts, boundsVersion, bodyBounds, backpackBounds, meshClearDistance,
+    bvh, clearanceHosts, bodyBounds, backpackBounds, meshClearDistance,
     reachScale,
   ]);
 
@@ -507,7 +506,7 @@ export function PlantField({
     founderShare, hopRange, primaryCount,
     flowerCount, arrangementSeed, roseRatio,
     bvh, clearanceHosts, meshClearDistance, faceClearRadius,
-    boundsVersion, resolvedHeadLocal,
+    resolvedHeadLocal,
     lenMin, lenMax, lengthExp, radMin, radMax, leanMin, leanMax,
     bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
 

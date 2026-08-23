@@ -485,4 +485,9 @@ export function cullFlowerBatches(gl, camera, flowerBatches, options) {
   for (const id in flowerBatches) {
     dispatchFlowerCull(gl, camera, flowerBatches[id], options);
   }
+  // stats-gl enables trackTimestamp. Each compute() takes a COMPUTE query;
+  // drain the pool once per frame or it hits the 2048 cap.
+  if (typeof gl.resolveTimestampsAsync === 'function') {
+    void gl.resolveTimestampsAsync(THREE.TimestampQuery.COMPUTE);
+  }
 }

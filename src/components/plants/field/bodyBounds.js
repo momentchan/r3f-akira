@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { collectBoneMap, findBone } from '../climb/limbCapsules';
 
 const _vertex = new THREE.Vector3();
 const _hit = {};
@@ -18,7 +19,7 @@ const COLUMN_Y1 = 1.5;
  * then build a MeshBVH for closest-point queries.
  * @param {THREE.Object3D} root character group
  * @param {THREE.Object3D} parent field parent (PlantField / scene group)
- * @returns {{ geometry: THREE.BufferGeometry, bvh: MeshBVH, localBox: THREE.Box3, worldBox: THREE.Box3 } | null}
+ * @returns {{ geometry: THREE.BufferGeometry, bvh: MeshBVH, localBox: THREE.Box3 } | null}
  */
 export function buildCharacterMeshBVH(root, parent) {
   root.updateWorldMatrix(true, true);
@@ -83,7 +84,7 @@ export function buildCharacterMeshBVH(root, parent) {
 
   const localBox = worldBoxToLocal(worldBox, parent);
 
-  return { geometry, bvh, localBox, worldBox: worldBox.clone() };
+  return { geometry, bvh, localBox };
 }
 
 /**
@@ -284,97 +285,54 @@ export function worldBoxToLocal(worldBox, parent) {
   return local;
 }
 
-const HEAD_BONE_RE = /\bhead\b|c_head|head\.x/i;
-const NECK_BONE_RE = /\bneck\b|c_neck|neck\.x/i;
-const HELMET_MESH_RE = /helmet/i;
+const HELMET_MESH_NAME = 'Helmet_Mesh';
+const HEAD_BONE_NAMES = ['c_head.x', 'head.x', 'head'];
 
-function scoreHeadBone(name) {
-  if (/^c_head(\.|$)/i.test(name) || name.toLowerCase() === 'c_head.x') return 10;
-  if (/^head(\.|$)/i.test(name) || /^head\.x$/i.test(name)) return 9;
-  if (HEAD_BONE_RE.test(name) && !/ref|scale_fix|twist/i.test(name)) return 7;
-  if (HEAD_BONE_RE.test(name)) return 4;
-  if (NECK_BONE_RE.test(name) && !/ref|twist/i.test(name)) return 2;
-  return -1;
-}
-
-function considerBone(obj, parent, world, state) {
-  if (!obj?.isBone) return;
-  const score = scoreHeadBone(obj.name || '');
-  if (score < state.bestScore) return;
-  obj.getWorldPosition(world);
-  parent.worldToLocal(world);
-  state.bestScore = score;
-  state.best = world.clone();
-}
-
-/**
- * Posed helmet mesh AABB center — object.origin is bind-root, so bake vertices.
- * Prefer the main helmet shell over glass/detail pieces.
- */
-function findHelmetMeshLocalPoint(root, parent) {
-  const world = new THREE.Vector3();
-  const candidates = [];
-
+function findNamedMesh(root, name) {
+  let found = null;
   root.traverse((obj) => {
-    if (!obj.isMesh || !obj.visible) return;
-    const name = obj.name || '';
-    if (!HELMET_MESH_RE.test(name)) return;
-    const position = obj.geometry?.getAttribute?.('position');
-    if (!position || position.count < 3) return;
-
-    const box = new THREE.Box3();
-    const step = Math.max(1, Math.floor(position.count / 64));
-    for (let i = 0; i < position.count; i += step) {
-      // getVertexPosition is mesh-local after skinning; object.origin is bind-root.
-      if (obj.isSkinnedMesh) obj.getVertexPosition(i, world);
-      else world.fromBufferAttribute(position, i);
-      world.applyMatrix4(obj.matrixWorld);
-      box.expandByPoint(world);
-    }
-    if (box.isEmpty()) return;
-
-    let score = 1;
-    if (/Helmet_Mesh$/i.test(name) && !/Details|Glass/i.test(name)) score = 10;
-    else if (/Helmet_Mesh/i.test(name) && !/Details|Glass/i.test(name)) score = 8;
-    else if (/Glass/i.test(name)) score = 3;
-    candidates.push({ score, box });
+    if (found || !obj.isMesh || !obj.visible) return;
+    if (obj.name === name) found = obj;
   });
+  return found;
+}
 
-  if (candidates.length === 0) return null;
-  candidates.sort((a, b) => b.score - a.score);
-  candidates[0].box.getCenter(world);
+/** Posed helmet AABB center in parent space. Mesh origin is bind-root, so bake verts. */
+function helmetLocalPoint(root, parent) {
+  const mesh = findNamedMesh(root, HELMET_MESH_NAME);
+  const position = mesh?.geometry?.getAttribute?.('position');
+  if (!position || position.count < 3) return null;
+
+  const world = new THREE.Vector3();
+  const box = new THREE.Box3();
+  const step = Math.max(1, Math.floor(position.count / 64));
+  for (let i = 0; i < position.count; i += step) {
+    if (mesh.isSkinnedMesh) mesh.getVertexPosition(i, world);
+    else world.fromBufferAttribute(position, i);
+    world.applyMatrix4(mesh.matrixWorld);
+    box.expandByPoint(world);
+  }
+  if (box.isEmpty()) return null;
+  box.getCenter(world);
   parent.worldToLocal(world);
   return world.clone();
 }
 
-/**
- * Best-effort head point in `parent` local space (for face breathing pocket).
- * Prefers posed helmet mesh AABB (skinned vertices), then head bones.
- * Skinned mesh *object* origins are ignored — they sit at the bind root.
- */
+/** Head point in `parent` local space (face keep-out). Helmet shell, else c_head.x. */
 export function findHeadLocalPoint(root, parent) {
   root.updateWorldMatrix(true, true);
   parent.updateWorldMatrix(true, false);
 
-  const skeletons = new Set();
-  root.traverse((obj) => {
-    if (obj.isSkinnedMesh && obj.skeleton) skeletons.add(obj.skeleton);
-  });
-  for (const sk of skeletons) sk.update();
-  root.updateWorldMatrix(true, true);
-
-  const fromHelmet = findHelmetMeshLocalPoint(root, parent);
+  const fromHelmet = helmetLocalPoint(root, parent);
   if (fromHelmet) return fromHelmet;
 
+  const bone = findBone(collectBoneMap(root), HEAD_BONE_NAMES);
+  if (!bone) return null;
+  bone.updateWorldMatrix(true, false);
   const world = new THREE.Vector3();
-  const state = { best: null, bestScore: -1 };
-
-  root.traverse((obj) => considerBone(obj, parent, world, state));
-  for (const sk of skeletons) {
-    for (const bone of sk.bones) considerBone(bone, parent, world, state);
-  }
-
-  return state.best;
+  bone.getWorldPosition(world);
+  parent.worldToLocal(world);
+  return world;
 }
 
 export function expandBoxXZ(localBox, margin) {

@@ -19,8 +19,8 @@ export default function App() {
   const setIsSoundOn = useExperienceStore((state) => state.setIsSoundOn);
   const gpuError = useExperienceStore((state) => state.gpuError);
   const setGpuError = useExperienceStore((state) => state.setGpuError);
-  const isMobile = useDeviceDetection();
   const { status } = useExperienceReady();
+  const isMobile = useDeviceDetection();
   const [showIntro, setShowIntro] = useState(() => !isDebugRoute());
 
   useEffect(() => {
@@ -64,6 +64,7 @@ export default function App() {
       )}
 
       {!gpuError && <ExperienceCanvas />}
+      
       <AudioButton />
       <ThemeToggle />
       <FlowTimeRail />
