@@ -4,8 +4,9 @@ import { useEffect } from 'react';
 import * as THREE from 'three/webgpu';
 import { DistortedCircle, WebGPUCanvas } from '@core';
 import { useShortcut } from '@core/hooks/useShortcut';
-import { useExperienceStore } from '../core/experienceStore';
+import { TIER1_TARGETS, useExperienceStore } from '../core/experienceStore';
 import { getLiveThemeColors } from '../components/scene/themeTween';
+import './audioButton.css';
 
 export const BGM_TRACKS = [
   { id: 'slow-moving-waves', url: '/audio/slow-moving-waves.m4a', volume: 1.25 },
@@ -54,6 +55,11 @@ function AudioButtonScene() {
 export function AudioButton() {
   const isStarted = useExperienceStore((state) => state.isStarted);
   const setIsSoundOn = useExperienceStore((state) => state.setIsSoundOn);
+  // Overlay WebGPU must not init beside the scene canvas. /debug skips intro
+  // and would otherwise mount both at once; wait until Tier 1 has compiled.
+  const sceneReady = useExperienceStore((state) =>
+    TIER1_TARGETS.every((id) => state.readyStatus[id]),
+  );
 
   useEffect(() => {
     if (isStarted) setIsSoundOn(true);
@@ -64,13 +70,13 @@ export function AudioButton() {
     setSound(!isSoundOn);
   });
 
-  if (!isStarted) return null;
+  if (!isStarted || !sceneReady) return null;
 
   return (
     <WebGPUCanvas
       width={SIZE}
       height={SIZE}
-      style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 40 }}
+      className="audio-button"
     >
       <AudioButtonScene />
     </WebGPUCanvas>

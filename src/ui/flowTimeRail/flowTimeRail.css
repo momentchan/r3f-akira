@@ -2,7 +2,7 @@
   --mark-col: 1.55rem;
   --rail-gutter: 8px;
   position: fixed;
-  left: max(10px, env(safe-area-inset-left));
+  left: var(--hud-left);
   top: 50%;
   transform: translateY(-50%);
   z-index: 20;
@@ -26,13 +26,19 @@
     text-shadow 0.5s ease;
 }
 
+@media (orientation: landscape) and (max-height: 500px) {
+  .flow-time-rail {
+    height: min(52vh, 220px);
+  }
+}
+
 .flow-time-rail--visible {
   opacity: 1;
 }
 
 .flow-time-rail__title {
   margin-left: calc(-1 * var(--mark-col));
-  font-size: 0.62rem;
+  font-size: var(--hud-type);
   letter-spacing: 0.28em;
   opacity: 0.7;
 }
@@ -51,7 +57,7 @@
   right: calc(100% + var(--rail-gutter));
   left: auto;
   transform: translateY(50%);
-  font-size: 0.58rem;
+  font-size: var(--hud-type-sm);
   letter-spacing: 0.08em;
   opacity: 0.5;
   white-space: nowrap;
@@ -78,7 +84,7 @@
   left: calc(50% + 10px);
   top: 50%;
   transform: translateY(-50%);
-  font-size: 0.62rem;
+  font-size: var(--hud-type);
   letter-spacing: 0.08em;
   white-space: nowrap;
   opacity: 0;
