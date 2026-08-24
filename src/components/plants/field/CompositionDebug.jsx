@@ -4,46 +4,88 @@ import { sampleAnchorField } from './fieldAnchors';
 
 /** Skip cells below this so the overlay does not paint bare ground. */
 const EMPTY_CELL = 0.06;
+/** World-space stroke of every pin rim, so elong / reach do not thicken it. */
+const RIM_WIDTH = 0.018;
+const RIM_SEGMENTS = 64;
 
-function CircleRing({
+function ellipseXZ(t, radius, elong, ax, az) {
+  const along = Math.cos(t) * radius * elong;
+  const across = Math.sin(t) * radius;
+  return {
+    x: along * ax - across * az,
+    z: along * az + across * ax,
+  };
+}
+
+/**
+ * Closed XZ strip of constant world width. Scaling a RingGeometry would stretch
+ * the stroke with `elong` and `reach`, so bigger pins looked like thicker rims.
+ */
+function createEllipseRimGeometry(radius, elong, axis, width = RIM_WIDTH, segments = RIM_SEGMENTS) {
+  const ax = axis.ax ?? 1;
+  const az = axis.az ?? 0;
+  const e = Math.max(elong, 1e-3);
+  const half = width * 0.5;
+  const pts = [];
+  for (let i = 0; i < segments; i += 1) {
+    pts.push(ellipseXZ((i / segments) * Math.PI * 2, radius, e, ax, az));
+  }
+  const positions = new Float32Array(segments * 2 * 3);
+  const indices = [];
+  for (let i = 0; i < segments; i += 1) {
+    const prev = pts[(i + segments - 1) % segments];
+    const next = pts[(i + 1) % segments];
+    const tx = next.x - prev.x;
+    const tz = next.z - prev.z;
+    const len = Math.hypot(tx, tz) || 1;
+    const nx = (-tz / len) * half;
+    const nz = (tx / len) * half;
+    const p = pts[i];
+    positions[i * 6] = p.x + nx;
+    positions[i * 6 + 1] = 0;
+    positions[i * 6 + 2] = p.z + nz;
+    positions[i * 6 + 3] = p.x - nx;
+    positions[i * 6 + 4] = 0;
+    positions[i * 6 + 5] = p.z - nz;
+    const a = i * 2;
+    const b = i * 2 + 1;
+    const c = ((i + 1) % segments) * 2;
+    const d = c + 1;
+    indices.push(a, b, c, b, d, c);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  return geo;
+}
+
+function EllipseRing({
   radius,
+  elong = 1,
+  axis = { ax: 1, az: 0 },
   y = 0.02,
-  color = '#ff4d6d',
-  opacity = 0.85,
-  segments = 64,
+  color,
+  opacity,
 }) {
-  const geometry = useMemo(() => {
-    const geo = new THREE.BufferGeometry();
-    const positions = new Float32Array((segments + 1) * 3);
-    for (let i = 0; i <= segments; i++) {
-      const a = (i / segments) * Math.PI * 2;
-      positions[i * 3] = Math.cos(a) * radius;
-      positions[i * 3 + 1] = 0;
-      positions[i * 3 + 2] = Math.sin(a) * radius;
-    }
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    return geo;
-  }, [radius, segments]);
-
-  useEffect(() => () => geometry.dispose(), [geometry]);
-
-  if (radius <= 0) return null;
-
-  // `line`, not `lineLoop`: the WebGPU renderer rejects THREE.LineLoop outright
-  // ("Objects of type THREE.LineLoop are not supported"), so every ring in this
-  // overlay silently drew nothing and spammed one error per ring per frame. The
-  // geometry already repeats its first point at i === segments, so a plain line
-  // strip closes the circle identically.
+  const ax = axis.ax ?? 1;
+  const az = axis.az ?? 0;
+  const geometry = useMemo(
+    () => (radius > 0 ? createEllipseRimGeometry(radius, elong, { ax, az }) : null),
+    [radius, elong, ax, az],
+  );
+  useEffect(() => () => geometry?.dispose(), [geometry]);
+  if (!geometry) return null;
   return (
-    <line geometry={geometry} position={[0, y, 0]} frustumCulled={false}>
-      <lineBasicMaterial
+    <mesh geometry={geometry} position={[0, y, 0]} frustumCulled={false}>
+      <meshBasicMaterial
         color={color}
         transparent
         opacity={opacity}
         depthTest={false}
         depthWrite={false}
+        side={THREE.DoubleSide}
       />
-    </line>
+    </mesh>
   );
 }
 
@@ -84,6 +126,8 @@ function fieldGridExtent(anchors, center, shapeWarp = 0) {
  * about whether the field or the sampler is at fault. This draws what the
  * sampler will actually see.
  *
+ * Painted on the grow plane, not as a HUD: the field is ground probability,
+ * so the body occludes it and flowers read as growing out of it.
  * One InstancedMesh, built once per anchor/knob change — never per frame.
  * Empty cells are skipped so bare ground stays visible.
  */
@@ -113,9 +157,12 @@ function AnchorFieldGrid({
     geo.rotateX(-Math.PI / 2);
     const mat = new THREE.MeshBasicMaterial({
       transparent: true,
-      opacity: 0.55,
-      depthTest: false,
+      opacity: 0.7,
+      depthTest: true,
       depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
       side: THREE.DoubleSide,
     });
     const inst = new THREE.InstancedMesh(geo, mat, cells.length);
@@ -125,7 +172,7 @@ function AnchorFieldGrid({
     for (let i = 0; i < cells.length; i += 1) {
       const cell = cells[i];
       m.makeScale(1, 1, 1);
-      m.setPosition(cell.x, 0.008 + cell.v * 0.004, cell.z);
+      m.setPosition(cell.x, 0.004, cell.z);
       inst.setMatrixAt(i, m);
       // Cool = sparse, warm = dense. Reads as a heat map at a glance.
       color.setHSL(0.58 - 0.58 * cell.v, 0.75, 0.28 + 0.34 * cell.v);
@@ -147,24 +194,34 @@ function AnchorFieldGrid({
 }
 
 /**
- * Anchor itself: the cause. Outer reach and inner keep-out.
+ * Pin itself: the cause. Outer reach in the elongated field frame.
  *
  * There is no separate field-centre marker any more. The static `centre drift`
  * that offset a mass from its anchor is gone, so the mass wanders around this
  * point under migration alone — the ring IS the cause and the centre.
  */
 function AnchorMarker({ anchor }) {
-  const { x, z, radius, inner, color, weight } = anchor;
+  const { x, z, radius, inner, color, elong, axis } = anchor;
   return (
     <group position={[x, 0, z]}>
-      <CircleRing radius={radius} y={0.03} color={color} opacity={0.9} />
-      <CircleRing radius={inner} y={0.028} color={color} opacity={0.4} />
-      <CircleRing
-        radius={Math.max(0.02, weight * 0.06)}
-        y={0.034}
+      <EllipseRing
+        radius={radius}
+        elong={elong}
+        axis={axis}
+        y={0.03}
         color={color}
-        opacity={0.6}
+        opacity={0.9}
       />
+      {inner > 1e-3 ? (
+        <EllipseRing
+          radius={inner}
+          elong={elong}
+          axis={axis}
+          y={0.028}
+          color={color}
+          opacity={0.4}
+        />
+      ) : null}
       <mesh position={[0, 0.06, 0]} frustumCulled={false}>
         <sphereGeometry args={[0.03, 10, 10]} />
         <meshBasicMaterial color={color} depthTest={false} depthWrite={false} />
@@ -176,10 +233,10 @@ function AnchorMarker({ anchor }) {
 /**
  * Composition overlay. Two independently toggled layers:
  *
- * `showAnchors`        — each anchor: reach ring, inner keep-out, and a weight
- *                        dot. Under migration the mass wanders around this
- *                        centre, so the ring shows the cause and the bound,
- *                        not the current mass.
+ * `showAnchors`        — each pin: elongated reach ring (same frame as the
+ *                        field) and a weight dot. Under migration the mass
+ *                        wanders around this centre, so the ring shows the
+ *                        cause and the bound, not the current mass.
  * `densityField`       — a heat grid sampled through the same `sampleAnchorField`
  *                        the sampler uses, so it shows what the sampler sees.
  */

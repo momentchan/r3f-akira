@@ -5,7 +5,7 @@ import { createFlowerControlsSchema } from '../look/flowerControls';
 import { DEFAULT_HOP_DECAY } from './fieldClusterLayout';
 import { deriveFieldAnchors } from './fieldAnchors';
 import { buildFieldStems } from './buildFieldStems';
-import { FIELD_CONTROLS_SCHEMA } from './fieldControls';
+import { FIELD_CONTROLS_SCHEMA, pinOverridesFromFieldControls } from './fieldControls';
 import { STEM_CONTROLS_SCHEMA } from '../stem/stemControls';
 import { STEM_DEFAULTS } from '../stem/stemDefaults';
 import { FieldRuntime } from './FieldRuntime';
@@ -45,6 +45,10 @@ export function PlantField({
     densityField,
     gridResolution,
     reachScale,
+    hipWeight, hipReach, hipElong,
+    handLWeight, handLReach, handLElong,
+    bootLWeight, bootLReach, bootLElong,
+    backpackWeight, backpackReach, backpackElong,
     shapeWarp,
     warpScale,
     barePatches,
@@ -153,14 +157,26 @@ export function PlantField({
       .map((host) => ({ bvh: host.bvh, localBox: host.localBox }))
   ), [bodyBounds, backpackBounds]);
 
-  const compositionGuide = useMemo(() => {
+  const bodyCenter = useMemo(() => {
     const box = bodyBounds?.localBox;
     const cx = box ? (box.min.x + box.max.x) * 0.5 : 0;
     const cz = box ? (box.min.z + box.max.z) * 0.5 : 0;
-    return { center: [cx, cz] };
+    return [cx, cz];
   }, [bodyBounds]);
 
-  // Bounds + reach only — changing flowerCount must not re-probe the BVH.
+  const pinOverrides = useMemo(() => pinOverridesFromFieldControls({
+    hipWeight, hipReach, hipElong,
+    handLWeight, handLReach, handLElong,
+    bootLWeight, bootLReach, bootLElong,
+    backpackWeight, backpackReach, backpackElong,
+  }), [
+    hipWeight, hipReach, hipElong,
+    handLWeight, handLReach, handLElong,
+    bootLWeight, bootLReach, bootLElong,
+    backpackWeight, backpackReach, backpackElong,
+  ]);
+
+  // Four density masses on posed contact (torso, forearm.l, calf.l, backpack).
   const anchorSet = useMemo(() => {
     if (!bodyBounds?.bvh || !bodyBounds?.capsules?.length) {
       return { anchors: [], diagnostics: { found: 0, expected: 0, issues: [] } };
@@ -169,14 +185,10 @@ export function PlantField({
       capsules: bodyBounds.capsules,
       bodyRight: bodyBounds.bodyRight,
       backpackBox: backpackBounds?.localBox ?? null,
-      hosts: clearanceHosts,
-      clearMargin: meshClearDistance,
       reachScale,
+      pinOverrides,
     });
-  }, [
-    bodyBounds, backpackBounds, meshClearDistance,
-    reachScale,
-  ]);
+  }, [bodyBounds, backpackBounds, reachScale, pinOverrides]);
 
   const anchorFieldOptions = useMemo(() => ({
     shapeWarp,
@@ -208,7 +220,7 @@ export function PlantField({
       },
       clearanceHosts,
       meshClearDistance,
-      bodyCenter: compositionGuide.center,
+      bodyCenter,
       hopMin: Math.min(hopRange[0], hopRange[1]),
       hopMax: Math.max(hopRange[0], hopRange[1]),
       hopDecay: DEFAULT_HOP_DECAY,
@@ -219,7 +231,7 @@ export function PlantField({
     anchorSet, shapeWarp,
     warpScale, barePatches, patchScale, arrangementSeed,
     migrateRange, migrateSpeed, clearanceHosts, meshClearDistance,
-    compositionGuide, hopRange,
+    bodyCenter, hopRange,
   ]);
 
   const anchorSamplerOptions = useMemo(() => ({
@@ -235,36 +247,12 @@ export function PlantField({
     barePatches, patchScale, arrangementSeed, clearanceHosts, meshClearDistance,
   ]);
 
-  // Buried anchors dump every slot onto the silhouette — log while the overlay is on.
-  useEffect(() => {
-    const { issues, found, expected } = anchorSet.diagnostics;
-    if (!expected) return;
-    if (showAnchors && anchorSet.anchors.length) {
-      console.info(`[PlantField] anchors ${found}/${expected}`);
-      for (const a of anchorSet.anchors) {
-        console.info(
-          `  ${a.id} src=${a.sourceId}`
-          + ` at(${a.x.toFixed(2)}, ${a.z.toFixed(2)})`
-          + ` w=${a.weight.toFixed(2)} inner=${a.inner.toFixed(2)} reach=${a.radius.toFixed(2)}`,
-        );
-      }
-    }
-    if (issues.length) {
-      console.warn(
-        `[PlantField] anchors ${found}/${expected}`,
-        issues.map((i) => (i.reason === 'buried'
-          ? `${i.id}:buried at(${i.at}) start=${i.startInner} reach=${i.reach} best=${i.bestClear}`
-          : `${i.id}:${i.reason}`)).join(' | '),
-      );
-    }
-  }, [anchorSet, showAnchors]);
-
   const { stems, diagnostics } = useMemo(() => buildFieldStems({
     anchors: anchorSet.anchors,
     flowerCount,
     clearanceHosts,
     meshClearDistance,
-    bodyCenter: compositionGuide.center,
+    bodyCenter,
     arrangementSeed,
     fieldOptions: anchorSamplerOptions,
     founderShare,
@@ -286,7 +274,7 @@ export function PlantField({
     taperMax,
     flareMin,
     flareMax,
-  }), [anchorSet, anchorSamplerOptions, compositionGuide,
+  }), [anchorSet, anchorSamplerOptions, bodyCenter,
     founderShare, hopRange,
     flowerCount, arrangementSeed, roseRatio,
     clearanceHosts, meshClearDistance,
@@ -325,7 +313,7 @@ export function PlantField({
         densityField={densityField}
         gridResolution={gridResolution}
         fieldOptions={anchorFieldOptions}
-        center={compositionGuide.center}
+        center={bodyCenter}
       />
       <FieldRuntime
         stems={stems}

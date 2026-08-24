@@ -35,7 +35,7 @@ canvas {
 
 .flower-cull-hud {
     position: fixed;
-    left: 12px;
+    right: 12px;
     bottom: 12px;
     z-index: 20;
     display: flex;

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -108,6 +108,60 @@ function createPlantDataTexture(count, rows = PLANT_DATA_ROWS) {
   tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.needsUpdate = true;
   return { tex, data, width, rows };
+}
+
+/** Tube identity — placement (xz, lean, bloom) is patched without a remesh. */
+function stemTubeKey(stem) {
+  const p = stem.params;
+  return `${stem.seed}:${stem.flowerType?.id}`
+    + `:${p.stemLength}:${p.stemRadius}:${p.leanAngle}:${p.bendDegree}`
+    + `:${p.radiusAttenuation}:${p.baseFlare}`;
+}
+
+function stemsTubeKey(stems) {
+  let key = String(stems.length);
+  for (let i = 0; i < stems.length; i += 1) key += `|${stemTubeKey(stems[i])}`;
+  return key;
+}
+
+function writePlantPlacement(plantData, plants) {
+  if (!plantData || !plants.length) return;
+  const { data, width, tex } = plantData;
+  for (let i = 0; i < plants.length; i += 1) {
+    const plant = plants[i];
+    const o1 = (width + i) * 4;
+    data[o1] = plant.position[0];
+    data[o1 + 1] = plant.position[1];
+    data[o1 + 2] = plant.position[2];
+    data[o1 + 3] = plant.yaw;
+  }
+  tex.needsUpdate = true;
+}
+
+/** Move existing plants onto a new layout without rebuilding merged tubes. */
+function applyStemLayout(rt, stems) {
+  const plants = rt.plants;
+  if (!plants.length || plants.length !== stems.length) return false;
+  for (let i = 0; i < plants.length; i += 1) {
+    if (plants[i].seed !== stems[i].seed) return false;
+  }
+  for (let i = 0; i < plants.length; i += 1) {
+    const stem = stems[i];
+    const plant = plants[i];
+    plant.position[0] = stem.position[0];
+    plant.position[1] = stem.position[1];
+    plant.position[2] = stem.position[2];
+    // Curve was baked at baseLeanAngle; yaw is the same trick respawn uses.
+    plant.yaw = (stem.leanOutwardAngle ?? 0) - plant.baseLeanAngle;
+    plant.anchorIndex = stem.anchorIndex;
+    plant.generation = stem.generation;
+    plant.clumpId = stem.clumpId ?? plant.clumpId;
+    plant.bloomCeiling = stem.bloomCeiling ?? 1;
+    plant.slotIndex = stem.slotIndex ?? plant.slotIndex;
+  }
+  writePlantPlacement(rt.plantData, plants);
+  rt.hearts = buildHeartRuntime(plants).list;
+  return true;
 }
 
 /**
@@ -257,6 +311,10 @@ export function FieldRuntime({
     syncStemLookControls(stemLookControls, stemFlowerUniforms);
   }, [stemLookControls, stemFlowerUniforms]);
 
+  // Pin / hop / field edits reshuffle xz but keep tube keys. Remesh only when
+  // the tube itself changes (count, seed, species, baked params) or tessellation.
+  const tubeKey = useMemo(() => stemsTubeKey(stems), [stems]);
+
   const stemBuild = useMemo(() => {
     if (!stems.length) {
       return { geometry: null, plantData: null, plants: [] };
@@ -316,12 +374,13 @@ export function FieldRuntime({
     geos.forEach((g) => g.dispose());
 
     return { geometry: merged, plantData, plants };
-    // lifecycleRanges and phaseSpread are deliberately NOT deps. Neither shapes
-    // geometry, and listing them meant nudging a timing slider rebuilt all 256
-    // tubes and re-ran mergeGeometries. phaseSpread was pure waste either way:
-    // the restore effect below overwrites `age` from the previous generation, so
-    // the fresh stagger was discarded the moment it was computed.
-  }, [stems, leanOut, stemSegments, radialSegs]);
+    // `stems` is read here but listed via tubeKey: a pin drag rebuilds slots
+    // with new xz and must not re-run mergeGeometries. Latest xz is patched
+    // onto living plants below. leanOut bakes into the curve, so it stays.
+    // lifecycleRanges / phaseSpread also stay out — timing sliders used to
+    // remesh 256 tubes for nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+  }, [tubeKey, leanOut, stemSegments, radialSegs]);
 
   const stemMaterial = useMemo(() => {
     if (!stemBuild.plantData) return null;
@@ -357,6 +416,12 @@ export function FieldRuntime({
     runtimeRef.current.plantData = stemBuild.plantData;
     runtimeRef.current.hearts = buildHeartRuntime(next).list;
   }, [stemBuild]);
+
+  // Pin / hop / field: same tubes, new slots. Layout effect so plantData
+  // updates before paint — otherwise the slider leads the mesh by a frame.
+  useLayoutEffect(() => {
+    applyStemLayout(runtimeRef.current, stems);
+  }, [stems]);
 
   // Timing changes reach living plants here instead of through a geometry rebuild.
   useEffect(() => {

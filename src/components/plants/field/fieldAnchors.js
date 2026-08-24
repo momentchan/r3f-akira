@@ -2,86 +2,52 @@ import { closestDistanceAtXZ, columnHitsHosts } from './bodyBounds';
 import { valueNoise3D } from '../climb/spatialNoise';
 
 /**
- * Anchors for the flower field.
+ * Density pins for the flower field — not flower positions.
  *
- * An anchor does NOT mean a flower grows there. It raises the probability of
- * vegetation appearing somewhere in its neighbourhood — the cluster centre is
- * allowed to drift off the anchor, neighbouring fields merge, and bare ground
- * survives between them. Placing flowers *at* anchors is what produces the
- * "arranged along a structure" look this exists to avoid.
+ * An anchor raises the chance of plants nearby. Clusters may drift off it,
+ * neighbouring fields merge, and bare ground can sit between them.
+ * Planting *on* the pins is what makes the layout look arranged.
  */
 
-/** Field-local Y above which a capsule station is not resting on the ground. */
+/** Skip a capsule endpoint above this Y — it is not on the ground. */
 const GROUND_BAND_MAX = 0.55;
-/** Probes around an anchor's inner ring when fitting it clear of the suit. */
-const FIT_PROBES = 8;
-const FIT_STEPS = 5;
-/** How quickly density rises off the keep-out edge, in world units. */
+/** World-unit distance over which density ramps up from the pin. */
 const CONTACT_RISE = 0.1;
 
 export const ANCHOR_COLORS = ['#ff9f1c', '#2ec4b6', '#3a86ff', '#c77dff'];
 
 /**
- * Deliberately four, not eleven.
+ * Four pins, not one per contact. Covering every limb outlines the silhouette.
  *
- * `u` is the station along the capsule's `a -> b` axis, and LIMB_CAPSULE_DEFS
- * documents `a -> b` as the anatomical growth direction — so for `forearm.r`,
- * `a` is the HAND and low `u` means the hand. For `torso`, `a` is `spine_01`, so
- * low `u` means the hip. Getting `u` backwards is the easiest silent mistake
- * here: the ids name the region, not the endpoint.
- *
- * One arm only. A cluster at every contact point is exactly how this becomes
- * silhouette-outlining.
+ * `id` is the host: a LIMB_CAPSULE_DEFS capsule, or `backpack`.
+ * The pin sits at capsule `a` (hand / hip / foot).
  */
 export const LAY_ANCHOR_DEFS = [
   {
-    id: 'hip',
-    source: 'torso',
-    u: 0.22,
+    id: 'torso',
     weight: 1.2,
-    // Reach has to exceed footprint + clearMargin by enough for fitInner to grow
-    // the inner ring clear of the suit, AND leave a wide band beyond it. Measured
-    // inner lands at 0.79, so 1.25 gave a 0.46-wide band and the slots read as a
-    // thin ring rather than a mass.
-    // Widened to close the gap toward the backpack, which read as a hole.
-    reach: 1.9,
-    // Lozenge along the body axis rather than a puck at the hip.
-    elong: 1.35,
+    reach: 1.9,   // wide enough to meet the backpack without becoming a ring
+    elong: 1.35,  // stretch along the body, not a puck at the hip
   },
   {
-    // The LEFT hand deliberately, not the right. Measured positions put the
-    // character's right hand at x=-0.84 and the backpack at x=-1.84 — the same
-    // side — so a right-hand anchor piles onto the heavy side and leaves the far
-    // side empty. One arm still, just the one that balances.
-    id: 'hand.l',
-    source: 'forearm.l',
-    u: 0.12,
+    // Left forearm, not right: the right hand sits on the backpack side, so a
+    // right-hand pin would stack on the heavy side and leave the far side empty.
+    id: 'forearm.l',
     weight: 0.85,
     reach: 0.8,
     elong: 1.5,
   },
   {
-    // The boot. A genuine ground-contact point, and it fills the region below the
-    // legs that three anchors left bare. calf.a is the FOOT, so u is low.
-    id: 'boot.l',
-    source: 'calf.l',
-    u: 0.16,
+    // Ground under the legs — the region three pins left bare.
+    id: 'calf.l',
     weight: 0.8,
     reach: 0.85,
     elong: 1.6,
   },
   {
     id: 'backpack',
-    source: 'backpack',
-    u: 0.5,
-    // Back up from 0.9: at that weight its slots spread so thin across the widened
-    // band that the backpack stopped reading as a growth source at all, which breaks
-    // one of the five questions the layout has to answer.
-    weight: 1.1,
-    // Sized against the bag, not the body: at 1.55 the annulus stretched to
-    // x = -0.24 and bled into the torso, so the two masses stopped reading as
-    // separate sources.
-    reach: 1.2,
+    weight: 1.3,  // 0.9 was too thin to read as its own source
+    reach: 1.2,   // sized to the bag; 1.55 bled into the torso
     elong: 1.15,
   },
 ];
@@ -91,15 +57,7 @@ function smoothstep01(t) {
   return c * c * (3 - 2 * c);
 }
 
-function station(capsule, u) {
-  return {
-    x: capsule.a.x + (capsule.b.x - capsule.a.x) * u,
-    y: capsule.a.y + (capsule.b.y - capsule.a.y) * u,
-    z: capsule.a.z + (capsule.b.z - capsule.a.z) * u,
-  };
-}
-
-/** Normalized XZ axis of a capsule, falling back when it is near-vertical. */
+/** Capsule direction in XZ. Near-vertical capsules use `fallback`. */
 function axisXZ(capsule, fallback) {
   const ax = capsule.b.x - capsule.a.x;
   const az = capsule.b.z - capsule.a.z;
@@ -108,7 +66,7 @@ function axisXZ(capsule, fallback) {
   return { ax: ax / len, az: az / len };
 }
 
-/** Distance to the closest of any host mesh at (x,z), or null if none hit. */
+/** Closest surface distance at (x, z) across hosts, or null. */
 function nearestHostDistance(hosts, x, z) {
   let best = null;
   for (let i = 0; i < hosts.length; i += 1) {
@@ -118,48 +76,6 @@ function nearestHostDistance(hosts, x, z) {
   return best;
 }
 
-/**
- * Grow the inner keep-out until the anchor's inner ring is mostly plantable.
- *
- * This exists to make one specific failure visible. If an anchor sits buried
- * inside the suit, every candidate around it gets pushed out to the same
- * silhouette contour, and its "cluster" degenerates into an arc on the body
- * outline — visually indistinguishable from the spiral being replaced, but now
- * carrying a confident false cause. Broken and unfalsifiable is worse than
- * broken, so report it as buried instead of silently producing that arc.
- *
- * Probes are generated in the anchor's OWN elongated frame, matching how
- * `anchorFalloff` measures distance. A circular probe ring penalised exactly the
- * along-body directions that `elong` exists to stretch clear, so a source in the
- * middle of a lying figure (the hip) could never pass however much reach it got.
- */
-function fitInner(x, z, r0, reach, hosts, margin, axis, elong) {
-  if (!hosts.length) return { inner: r0, clear: FIT_PROBES, bestClear: FIT_PROBES, buried: false };
-  let bestClear = 0;
-  for (let step = 0; step < FIT_STEPS; step += 1) {
-    const r = r0 * (1 + step * 0.35);
-    // Allow growth right up to the outer reach. Capping at 0.9 * reach starved
-    // wide sources of the growth steps they need and reported them as `buried`
-    // when they were merely under-provisioned.
-    if (r > reach) break;
-    let clear = 0;
-    for (let i = 0; i < FIT_PROBES; i += 1) {
-      const a = (i / FIT_PROBES) * Math.PI * 2;
-      const along = Math.cos(a) * r * elong;
-      const across = Math.sin(a) * r;
-      const px = x + along * axis.ax - across * axis.az;
-      const pz = z + along * axis.az + across * axis.ax;
-      const d = nearestHostDistance(hosts, px, pz);
-      if (d === null || d >= margin) clear += 1;
-    }
-    if (clear > bestClear) bestClear = clear;
-    // 4 of 8, not 5: half the ring clear is enough for an annulus that is
-    // deliberately lopsided against a body lying across it.
-    if (clear >= 4) return { inner: r, clear, bestClear, buried: false };
-  }
-  return { inner: r0, clear: 0, bestClear, buried: true };
-}
-
 function backpackSource(localBox) {
   if (!localBox || localBox.isEmpty()) return null;
   const halfX = (localBox.max.x - localBox.min.x) * 0.5;
@@ -167,31 +83,20 @@ function backpackSource(localBox) {
   return {
     x: (localBox.min.x + localBox.max.x) * 0.5,
     z: (localBox.min.z + localBox.max.z) * 0.5,
-    y: Math.max(localBox.min.y, 0),
-    // The larger half-extent, NOT the circumscribed half-diagonal. The diagonal
-    // starts the ring outside the box CORNERS, which is far too conservative
-    // against its flat faces — it pushed inner to 0.82 and, with a reach wide
-    // enough to give a usable band, the annulus reached almost to the torso.
-    // fitInner BVH-probes and grows this if it is genuinely too tight, so
-    // starting snug is safe.
-    footprint: Math.max(halfX, halfZ),
     axis: halfX >= halfZ ? { ax: 1, az: 0 } : { ax: 0, az: 1 },
   };
 }
 
 /**
- * @returns {{ anchors: Array, diagnostics: { found, expected, issues } }}
+ * Map posed capsules / backpack box onto the four pins.
+ * Flowers are placed later by sampling `sampleAnchorField`.
  */
 export function deriveFieldAnchors({
   capsules = [],
   bodyRight = null,
   backpackBox = null,
-  // `{ bvh }[]` — all hosts, not just the body. Fitting the backpack anchor
-  // against the body alone judged its ring against the wrong mesh.
-  hosts = [],
-  clearMargin = 0.12,
   reachScale = 1,
-  weightOverrides = null,
+  pinOverrides = null,
   defs = LAY_ANCHOR_DEFS,
 }) {
   const byId = new Map(capsules.map((capsule) => [capsule.id, capsule]));
@@ -207,15 +112,19 @@ export function deriveFieldAnchors({
 
   for (let defIndex = 0; defIndex < defs.length; defIndex += 1) {
     const def = defs[defIndex];
+    const pin = pinOverrides?.[def.id] ?? {};
+    const weight = pin.weight ?? def.weight;
+    const reach = pin.reach ?? def.reach;
+    const elong = pin.elong ?? def.elong;
+
     let src = null;
-    if (def.source === 'backpack') {
+    if (def.id === 'backpack') {
       src = backpackSource(backpackBox);
       if (!src) { issues.push({ id: def.id, reason: 'missing-backpack' }); continue; }
     } else {
-      const capsule = byId.get(def.source);
+      const capsule = byId.get(def.id);
       if (!capsule) { issues.push({ id: def.id, reason: 'missing-capsule' }); continue; }
-      const point = station(capsule, def.u);
-      // Keeps the module pose-agnostic instead of secretly Lay-only.
+      const point = capsule.a;
       if (point.y > GROUND_BAND_MAX) {
         issues.push({ id: def.id, reason: 'airborne' });
         continue;
@@ -223,53 +132,21 @@ export function deriveFieldAnchors({
       src = {
         x: point.x,
         z: point.z,
-        y: point.y,
-        // The suit is fatter than the bone capsule; fitInner makes the fudge safe.
-        footprint: capsule.radius * 1.9,
         axis: axisXZ(capsule, rightXZ),
       };
     }
 
-    const reach = def.reach * reachScale;
-    // Diagnostic ONLY. Its radius is deliberately not used as the density hole:
-    // excluding a whole circle around the anchor centre also excluded every bit of
-    // near-contact ground, so nothing could grow against the suit or the bag. The
-    // real "do not plant inside the mesh" rule is the silhouette column + surface
-    // margin mask, which lets density hug the outline without entering it.
-    const fit = fitInner(
-      src.x, src.z, src.footprint + clearMargin, reach, hosts, clearMargin,
-      src.axis, def.elong,
-    );
-    if (fit.buried) {
-      issues.push({
-        id: def.id,
-        reason: 'buried',
-        // Enough to diagnose without re-running: where it sat, how wide it had to
-        // start, and how close the best ring got to the 4-of-8 threshold.
-        at: `${src.x.toFixed(2)},${src.y.toFixed(2)},${src.z.toFixed(2)}`,
-        startInner: (src.footprint + clearMargin).toFixed(2),
-        reach: reach.toFixed(2),
-        bestClear: `${fit.bestClear}/${FIT_PROBES}`,
-      });
-      continue;
-    }
-
     const index = anchors.length;
-
-    const weight = weightOverrides?.[def.id] ?? def.weight;
-
     anchors.push({
       id: def.id,
       index,
       x: src.x,
       z: src.z,
       weight,
-      radius: reach,
-      // Just the mesh clearance, so flowers reach the surface.
-      inner: clearMargin,
+      radius: reach * reachScale,
+      inner: 0, // no hole at the pin; BVH keep-out is in sampleAnchorField
       axis: src.axis,
-      elong: def.elong,
-      sourceId: def.source,
+      elong,
       color: ANCHOR_COLORS[index % ANCHOR_COLORS.length],
     });
   }
@@ -280,15 +157,7 @@ export function deriveFieldAnchors({
   };
 }
 
-/**
- * Coherent 2-D domain warp.
- *
- * This displaces the sample POSITION before distance is measured, so the shape
- * itself becomes irregular rather than a circle of varying intensity. Because
- * the warp is spatially coherent and shared across anchors, neighbouring blobs
- * deform together and merge believably instead of looking like two circles
- * that happen to overlap.
- */
+/** Shift the sample before measuring distance, so blobs deform instead of pulsing. */
 function warpPoint(x, z, amount, frequency, seed) {
   if (amount <= 0) return { x, z };
   return {
@@ -298,41 +167,28 @@ function warpPoint(x, z, amount, frequency, seed) {
 }
 
 /**
- * Shared low-frequency presence mask — irregular bare patches across the WHOLE
- * composition, not per anchor.
- *
- * This is what stops an annulus reading as a closed ring: it punches organic gaps
- * straight through one. Being shared rather than per-anchor is deliberate, so the
- * negative space reads as one coherent set of clearings rather than as each
- * cluster having its own private holes.
+ * Bare patches shared across the whole field, not per pin.
+ * Breaks closed rings, and the gaps read as one set of clearings.
  */
 function presenceMask(x, z, amount, frequency, seed) {
   if (amount <= 0) return 1;
   const n = valueNoise3D(x * frequency, 21.4, z * frequency, seed + 5011) * 0.5 + 0.5;
-  // `amount` raises the cut, so higher = more bare ground.
-  const cut = amount * 0.85;
+  const cut = amount * 0.85; // higher amount → more bare ground
   return smoothstep01((n - cut) / 0.28);
 }
 
-/** One anchor's annular falloff at (x,z), measured from `cx,cz`. */
+/** One pin's falloff at (x, z), measured from (cx, cz). */
 function anchorFalloff(anchor, x, z, cx, cz) {
   const dx = x - cx;
   const dz = z - cz;
-  // Into the anchor's frame, then un-stretch along its axis so the field is a
-  // lozenge along the limb rather than a circle around a point.
+  // Local frame, then un-stretch along the limb so the field is a lozenge.
   const along = dx * anchor.axis.ax + dz * anchor.axis.az;
   const across = -dx * anchor.axis.az + dz * anchor.axis.ax;
   const d = Math.hypot(along / Math.max(anchor.elong, 1e-3), across);
   if (d >= anchor.radius || d <= anchor.inner) return 0;
 
-  // A true annulus: hard zero inside the fitted keep-out, a short rise just
-  // outside it, then a long falloff to the outer reach. An earlier version ramped
-  // from zero at the anchor *centre* up to full at `inner`, which put the highest
-  // density directly on top of the suit — the keep-out excluded nothing.
-  // Rise measured in ABSOLUTE distance, not as a fraction of the band: density
-  // should peak right against the surface and thin outward, because contact is
-  // what makes the vegetation read as caused by the body. Using a band fraction
-  // put the peak ~0.46 out from the anchor and left the contact ground bare.
+  // Peak near the pin, then fall to the outer reach.
+  // Mesh interior is zeroed later, so this can hug the surface.
   const rise = smoothstep01((d - anchor.inner) / CONTACT_RISE);
   const t = (d - anchor.inner) / Math.max(anchor.radius - anchor.inner, 1e-3);
   const fall = 1 - smoothstep01(t);
@@ -340,11 +196,10 @@ function anchorFalloff(anchor, x, z, cx, cz) {
 }
 
 /**
- * Probability of vegetation at (x,z), 0..1.
+ * Vegetation probability at (x, z), 0..1.
  *
- * Anchors are SUMMED before saturating, so neighbouring fields merge into one
- * mass instead of reading as N discs. That is deliberate: if the viewer can
- * count the clusters and get the anchor count, the system is visible.
+ * Pins are summed then clamped, so neighbours merge into one mass.
+ * If you can count the clusters and get four, the system is too visible.
  */
 export function sampleAnchorField(x, z, anchors, options = {}) {
   const {
@@ -367,9 +222,8 @@ export function sampleAnchorField(x, z, anchors, options = {}) {
   }
   if (sum <= 0) return 0;
 
-  // Checked after the sum so the BVH cost is only paid where there is density.
-  // Column first: unsigned closest-point is large inside a thick torso, so it
-  // cannot be the inside test. Surface distance still keeps stems off the skin.
+  // BVH only where density exists. Column test first: unsigned closest-point
+  // is large *inside* a thick torso, so it cannot be the inside test.
   if (hosts?.length) {
     if (columnHitsHosts(hosts, x, z)) return 0;
     if (meshClearDistance > 0) {
@@ -380,8 +234,7 @@ export function sampleAnchorField(x, z, anchors, options = {}) {
 
   let field = Math.min(1, sum / Math.max(mergeNorm, 1e-3));
 
-  // Gaps use the UNWARPED position: the clearings should be a property of the
-  // ground, not of whichever anchor happens to reach there.
+  // Gaps use the unwarped point so clearings belong to the ground, not a pin.
   field *= presenceMask(x, z, barePatches, patchScale, seed);
   if (field <= 0) return 0;
 

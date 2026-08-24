@@ -1,5 +1,6 @@
 import { folder } from 'leva';
 import { FIELD_DEFAULTS } from './fieldDefaults';
+import { LAY_ANCHOR_DEFS } from './fieldAnchors';
 
 const CLOSED = { collapsed: true };
 
@@ -19,14 +20,63 @@ function layoutGroup(d) {
   };
 }
 
-/** How big each mass is, and what stops it being an ellipse. */
-function shapeGroup(d) {
+/** Leva keys must be unique across folders, so each pin gets a prefix. */
+const PIN_PREFIX = {
+  torso: 'hip',
+  'forearm.l': 'handL',
+  'calf.l': 'bootL',
+  backpack: 'backpack',
+};
+
+const PIN_FOLDER = {
+  torso: 'hip',
+  'forearm.l': 'hand L',
+  'calf.l': 'boot L',
+  backpack: 'backpack',
+};
+
+function pinsGroup(d) {
+  const pinFolders = {};
+  for (const def of LAY_ANCHOR_DEFS) {
+    const p = PIN_PREFIX[def.id];
+    const controls = {};
+    controls[`${p}Weight`] = {
+      value: def.weight, min: 0, max: 2.5, step: 0.05, label: 'weight',
+    };
+    controls[`${p}Reach`] = {
+      value: def.reach, min: 0.2, max: 4, step: 0.05, label: 'reach',
+    };
+    controls[`${p}Elong`] = {
+      value: def.elong, min: 1, max: 2.5, step: 0.05, label: 'elong',
+    };
+    pinFolders[PIN_FOLDER[def.id]] = folder(controls, CLOSED);
+  }
   return {
-    // The only knob that scales the masses themselves: it multiplies every
-    // anchor's reach, which is the radius the falloff is measured against.
+    // Multiplies every pin's reach. Final radius = reach × all ×.
     reachScale: {
       value: d.anchors.reachScale ?? 1, min: 0.4, max: 2, step: 0.01,
+      label: 'all ×',
     },
+    ...pinFolders,
+  };
+}
+
+export function pinOverridesFromFieldControls(c) {
+  const out = {};
+  for (const def of LAY_ANCHOR_DEFS) {
+    const p = PIN_PREFIX[def.id];
+    out[def.id] = {
+      weight: c[`${p}Weight`] ?? def.weight,
+      reach: c[`${p}Reach`] ?? def.reach,
+      elong: c[`${p}Elong`] ?? def.elong,
+    };
+  }
+  return out;
+}
+
+/** How the masses stop being ellipses. Per-pin size lives in Pins. */
+function shapeGroup(d) {
+  return {
     // Shape, not intensity. This is the knob that makes a cluster stop being a
     // circle. `Debug > densityField` is what makes the difference legible.
     shapeWarp: {
@@ -142,6 +192,7 @@ export function createFieldControlsSchema(defaults = FIELD_DEFAULTS) {
   const d = defaults;
   return {
     Layout: folder(layoutGroup(d), CLOSED),
+    Pins: folder(pinsGroup(d), CLOSED),
     'Mass Shape': folder(shapeGroup(d), CLOSED),
     Clumping: folder(clumpingGroup(d), CLOSED),
     Evolution: folder(evolutionGroup(d), CLOSED),
