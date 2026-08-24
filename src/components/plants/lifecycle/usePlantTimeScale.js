@@ -29,11 +29,36 @@ function flowTimeUnit(pointerY) {
 const FLOW_REST_Y = FLOW_Y_PAD
   + ((1 - FLOW_TIME_MIN) / (FLOW_TIME_MAX - FLOW_TIME_MIN)) * (1 - FLOW_Y_PAD * 2);
 
+function isHudTarget(target) {
+  return (
+    target instanceof Element &&
+    Boolean(
+      target.closest('.theme-toggle') ||
+        target.closest('.audio-button') ||
+        target.closest('.flower-cull-hud'),
+    )
+  );
+}
+
+function isHeldPointer(event) {
+  return event.pointerType === 'touch' || event.pointerType === 'pen';
+}
+
+function unitY(clientY) {
+  return 1 - clientY / Math.max(window.innerHeight, 1);
+}
+
+function canWriteFlowTime() {
+  const { isStarted, flowIntroDone, cameraMode } = useExperienceStore.getState();
+  return isStarted && flowIntroDone && cameraMode === CAMERA_MODE.Flow;
+}
+
 /**
  * Writes the authored plant-time scale from camera mode.
  *
  * Camera motion is independent: this never reads orbit speed.
- * FLOW maps pointer Y (lower band = 0x, upper band = 8x; edges clamp early).
+ * FLOW desktop: mouse Y (lower band = 0x, upper band = 8x; edges clamp early).
+ * FLOW touch: one-finger vertical drag; lift keeps the last speed.
  * Explore (D) maps stillness. Frozen at 0 until ENTER.
  * FLOW holds 1x through the camera intro, then damps toward pointer Y.
  */
@@ -46,11 +71,62 @@ export function usePlantTimeScale({ enabled = true } = {}) {
   const smoothed = useRef(1);
 
   useEffect(() => {
-    const onMove = (event) => {
-      pointerY.current = 1 - event.clientY / Math.max(window.innerHeight, 1);
+    const heldIds = new Set();
+    let dragId = null;
+    let dragOrigin = null;
+    let dragging = false;
+
+    const endDrag = () => {
+      dragId = null;
+      dragOrigin = null;
+      dragging = false;
     };
-    window.addEventListener('pointermove', onMove, { passive: true });
-    return () => window.removeEventListener('pointermove', onMove);
+
+    const onPointerDown = (event) => {
+      if (!isHeldPointer(event)) return;
+      heldIds.add(event.pointerId);
+      if (heldIds.size !== 1 || !canWriteFlowTime() || isHudTarget(event.target)) {
+        endDrag();
+        return;
+      }
+      dragId = event.pointerId;
+      dragOrigin = { x: event.clientX, y: event.clientY };
+      dragging = false;
+    };
+
+    const onPointerMove = (event) => {
+      if (!isHeldPointer(event)) {
+        pointerY.current = unitY(event.clientY);
+        return;
+      }
+      if (dragId !== event.pointerId || heldIds.size !== 1 || !canWriteFlowTime()) {
+        return;
+      }
+      if (!dragging && dragOrigin) {
+        const dx = event.clientX - dragOrigin.x;
+        const dy = event.clientY - dragOrigin.y;
+        if (dx * dx + dy * dy < 64) return;
+        dragging = true;
+      }
+      if (dragging) pointerY.current = unitY(event.clientY);
+    };
+
+    const onPointerUp = (event) => {
+      if (!isHeldPointer(event)) return;
+      heldIds.delete(event.pointerId);
+      if (event.pointerId === dragId) endDrag();
+    };
+
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
   }, []);
 
   useFrame((_, delta) => {

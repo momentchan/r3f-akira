@@ -127,6 +127,16 @@ export function useFlowCamera({
   useEffect(() => {
     if (!enabled || !isStarted) return undefined;
 
+    const pointers = new Map();
+    let pinchStartDist = 0;
+    let pinchStartRadius = 0;
+
+    const pinchDist = () => {
+      const pts = [...pointers.values()];
+      if (pts.length < 2) return 0;
+      return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    };
+
     const onWheel = (event) => {
       if (!introDoneRef.current) return;
       event.preventDefault();
@@ -134,8 +144,54 @@ export function useFlowCamera({
       liveRadiusRef.current = THREE.MathUtils.clamp(next, radiusMin, radiusMax);
     };
 
+    const onPointerDown = (event) => {
+      if (event.pointerType === 'mouse') return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 2) {
+        pinchStartDist = pinchDist();
+        pinchStartRadius = liveRadiusRef.current;
+      }
+    };
+
+    const onPointerMove = (event) => {
+      if (!pointers.has(event.pointerId)) return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (!introDoneRef.current || pointers.size !== 2 || pinchStartDist < 1) {
+        return;
+      }
+      event.preventDefault();
+      const scale = pinchDist() / pinchStartDist;
+      if (scale < 1e-3) return;
+      // Pinch out → closer (smaller radius), matching wheel-up.
+      liveRadiusRef.current = THREE.MathUtils.clamp(
+        pinchStartRadius / scale,
+        radiusMin,
+        radiusMax,
+      );
+    };
+
+    const onPointerUp = (event) => {
+      pointers.delete(event.pointerId);
+      if (pointers.size === 2) {
+        pinchStartDist = pinchDist();
+        pinchStartRadius = liveRadiusRef.current;
+        return;
+      }
+      pinchStartDist = 0;
+    };
+
     window.addEventListener('wheel', onWheel, { passive: false });
-    return () => window.removeEventListener('wheel', onWheel);
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
   }, [enabled, isStarted, radiusMin, radiusMax]);
 
   useFrame((_, delta) => {

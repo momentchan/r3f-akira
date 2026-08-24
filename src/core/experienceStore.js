@@ -46,7 +46,7 @@ export const useExperienceStore = create((set) => ({
       Math.abs(state.stillness - stillness) < 0.002 ? state : { stillness },
     ),
 
-  // Authored plant-time multiplier (FLOW pointer Y, EXPLORE stillness).
+  // Authored plant-time multiplier (FLOW mouse Y / touch drag, EXPLORE stillness).
   plantTimeScale: 1,
   setPlantTimeScale: (plantTimeScale) =>
     set((state) =>

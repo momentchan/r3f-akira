@@ -11,18 +11,7 @@ import { SCENE_DEFAULTS } from './sceneDefaults';
 import { getLiveThemeColors } from './themeTween';
 import { PLANT_SHADOW_LIGHT_FLAG } from './plantShadowLayer';
 
-/**
- * Two-dimensional fbm, mirroring `mx_fractal_noise_float(p, 4, 2, 0.5)` — same
- * octave count, lacunarity and diminish, and the same unnormalized octave sum
- * (about +/-1.875), so it is a drop-in for it.
- *
- * The reason to hand-roll it: that node's layout declares `p` as vec3 and its
- * public wrapper does not convert, so passing `positionWorld.xz` pads to
- * vec3(x, z, 0) and every octave pays the 8-corner trilinear lattice.
- * `mx_noise_float` does `.convert('vec2|vec3')` and reaches the 4-corner 2-D
- * overload instead — half the gradient evaluations per octave, on a plane that
- * covers most of the screen.
- */
+/** Same look as mx_fractal_noise_float(p, 4, 2, 0.5), but 2D — that helper is vec3-only. */
 const fbm2 = /*@__PURE__*/ Fn(([p]) => {
   const point = vec2(p).toVar();
   const value = float(0).toVar();

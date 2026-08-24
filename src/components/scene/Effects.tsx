@@ -9,7 +9,6 @@ import { createSilkWeaveNode, createSilkWeaveUniforms } from '../postfx/createSi
 import { SILK_WEAVE_DEFAULTS } from '../postfx/silkWeaveDefaults';
 import { getLiveThemeColors } from './themeTween';
 import { isDebugRoute } from '../../core/debugRoute';
-import 'stats-gl/addons/StatsGLNode';
 
 export default function Effects() {
     const { gl, scene, camera } = useThree()
