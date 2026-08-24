@@ -10,6 +10,10 @@ import { SILK_WEAVE_DEFAULTS } from '../postfx/silkWeaveDefaults';
 import { getLiveThemeColors } from './themeTween';
 import { isDebugRoute } from '../../core/debugRoute';
 
+/** Weave frequency is authored for DPR 2. At low DPR the same count aliases
+ *  into dirt; fade strength / fiber noise instead of changing the thread count. */
+const SILK_AUTHORED_DPR = 2;
+
 export default function Effects() {
     const { gl, scene, camera } = useThree()
 
@@ -22,7 +26,7 @@ export default function Effects() {
     const silkControls = useControls('PostFX', {
         SilkWeave: folder({
             enabled: { value: d.enabled },
-            threadCount: { value: d.threadCount, min: 40, max: 1200, step: 1 },
+            threadCount: { value: d.threadCount, min: 40, max: 1700, step: 1 },
             strength: { value: d.strength, min: 0, max: 1, step: 0.01 },
             sharpness: { value: d.sharpness, min: 0.1, max: 4, step: 0.05 },
             threadVariation: { value: d.threadVariation, min: 0, max: 0.6, step: 0.01 },
@@ -37,10 +41,7 @@ export default function Effects() {
     useEffect(() => {
         silkUniforms.enabled.value = silkControls.enabled ? 1 : 0;
         silkUniforms.threadCount.value = silkControls.threadCount;
-        silkUniforms.strength.value = silkControls.strength;
         silkUniforms.sharpness.value = silkControls.sharpness;
-        silkUniforms.threadVariation.value = silkControls.threadVariation;
-        silkUniforms.irregularity.value = silkControls.irregularity;
         silkUniforms.blotchScale.value = silkControls.blotchScale;
         silkUniforms.blotchStrength.value = silkControls.blotchStrength;
         if (isDebugRoute()) {
@@ -88,6 +89,12 @@ export default function Effects() {
     // per-pixel cost is still paid when it is off. Bypass the whole pass instead
     // and draw the scene directly — the output is what the mix already produced.
     useFrame(() => {
+        const dpr = gl.getPixelRatio();
+        const t = Math.min(dpr / SILK_AUTHORED_DPR, 1);
+        silkUniforms.strength.value = silkControls.strength * t * t;
+        silkUniforms.threadVariation.value = silkControls.threadVariation * t;
+        silkUniforms.irregularity.value = silkControls.irregularity * t;
+
         if (!isDebugRoute()) {
             const live = getLiveThemeColors();
             (silkUniforms.tintColor.value as THREE.Color).copy(live.silkTint);
