@@ -23,12 +23,7 @@ export const FIELD_DEFAULTS = {
     // loosens each clump toward a scatter.
     founderShare: 0.14,
     hopRange: [0.2, 0.5],
-    // Scene-wide, NOT per anchor. One focal flower per cluster averages the image
-    // back out to uniform.
-    primaryCount: 4,
-    // Migration: hearts wander on their own clock. A dying flower picks among
-    // them weighted by live density × distance, then hops. Occupancy follows
-    // the field; live plants are never touched.
+    // Hearts wander; dying flowers hop around one. The probability field stays put.
     migrateRange: 0.6,
     migrateSpeed: 0.09,
   },

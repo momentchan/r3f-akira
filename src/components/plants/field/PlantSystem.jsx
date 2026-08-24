@@ -39,7 +39,6 @@ import {
   readDrawnFlowerCounts,
 } from '../vat/flowerInstanceCull';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
-import { animatedCentre } from './fieldAnchors';
 import {
   DEFAULT_HOP_DECAY,
   pickClumpHeart,
@@ -145,7 +144,6 @@ export function PlantSystem({
     light: null,
     // Reused every frame so the respawn field sampler allocates nothing.
     migrateOptions: null,
-    migrateCentres: [],
     hearts: [],
     // Scaled, pausable simulation time. Kept here rather than read off the render
     // clock so speed changes and the Space pause apply to the field drift too.
@@ -429,32 +427,16 @@ export function PlantSystem({
     if (!paused) rt.simTime += dt;
     const simTime = rt.simTime;
 
-    // Migration preamble, once per frame rather than once per plant. The animated
-    // centres depend only on time, and the options object is mutated in place so
-    // the hot loop allocates nothing.
-    let migrateOptions = null;
+    // Field stays pinned to derived anchors. Hearts hop on their own clock;
+    // dying flowers pick among them. migrateRange 0 freezes hearts.
+    let fieldOptions = null;
     if (migration?.anchors?.length) {
       if (!rt.migrateOptions) rt.migrateOptions = { ...migration.options };
-      migrateOptions = rt.migrateOptions;
-      Object.assign(migrateOptions, migration.options);
-      const centres = rt.migrateCentres;
-      centres.length = migration.anchors.length;
-      for (let a = 0; a < migration.anchors.length; a += 1) {
-        centres[a] = animatedCentre(
-          // simTime, not clock.elapsedTime: the drift has to scale with the sim
-          // rate and freeze with the Space pause. On the render clock, pausing the
-          // flowers left the masses sliding along underneath them.
-          migration.anchors[a], simTime,
-          migration.options.migrateRange ?? 0, migration.options.migrateSpeed ?? 0,
-        );
-      }
-      migrateOptions.centres = centres;
+      fieldOptions = rt.migrateOptions;
+      Object.assign(fieldOptions, migration.options);
 
-      // Hearts hop on their own clock, staggered per id so the whole field does
-      // not jump in one frame. migrateRange 0 freezes them; flowers still pick
-      // among the frozen set.
-      const range = freezeMigrate ? 0 : (migration.options.migrateRange ?? 0);
-      const speed = freezeMigrate ? 0 : (migration.options.migrateSpeed ?? 0);
+      const range = freezeMigrate ? 0 : (migration.migrateRange ?? 0);
+      const speed = freezeMigrate ? 0 : (migration.migrateSpeed ?? 0);
       if (range > 0 && speed > 0 && rt.hearts.length) {
         const period = heartPeriod(speed);
         const hopDecay = migration.hopDecay ?? DEFAULT_HOP_DECAY;
@@ -462,8 +444,6 @@ export function PlantSystem({
           const heart = rt.hearts[h];
           const phase = (heart.id * 0.728) % 1;
           const beat = Math.floor(simTime / period - phase);
-          // First observe: sync the counter without hopping, so spawn layout
-          // is the opening composition rather than an instant relocate.
           if (heart.beat < 0) {
             heart.beat = beat;
             continue;
@@ -472,7 +452,7 @@ export function PlantSystem({
           heart.beat = beat;
           const sample = {
             anchors: migration.anchors,
-            fieldOptions: migrateOptions,
+            fieldOptions,
             clearanceHosts: migration.clearanceHosts,
             clearMargin: migration.meshClearDistance,
             clearHeights: migration.clearHeights,
@@ -481,8 +461,6 @@ export function PlantSystem({
             seed: heart.id * 17 + 1,
             tick: heart.relocateTick,
           };
-          // Creep first: a field-weighted hop of up to migrateRange. If the
-          // local patch has gone bare, catch the drifted mass on this anchor.
           const crept = sampleClumpHop({
             ...sample,
             from: { x: heart.cx, z: heart.cz },
@@ -541,14 +519,14 @@ export function PlantSystem({
         plant.lifecycle.generation !== plant.generationSeen
         && stemGrow <= 0.001
       ) {
-        if (!freezeMigrate && migrateOptions && rt.hearts.length) {
+        if (!freezeMigrate && fieldOptions && rt.hearts.length) {
           const [bx, bz] = migration.bodyCenter ?? [0, 0];
           const hopMin = migration.hopMin ?? 0.07;
           const hopMax = migration.hopMax ?? 0.2;
           const hopDecay = migration.hopDecay ?? DEFAULT_HOP_DECAY;
           const sample = {
             anchors: migration.anchors,
-            fieldOptions: migrateOptions,
+            fieldOptions,
             clearanceHosts: migration.clearanceHosts,
             clearMargin: migration.meshClearDistance,
             clearHeights: migration.clearHeights,
@@ -562,7 +540,7 @@ export function PlantSystem({
             x: plant.position[0],
             z: plant.position[2],
             anchors: migration.anchors,
-            fieldOptions: migrateOptions,
+            fieldOptions,
             attractRadius: hopMax * 3,
             seed: plant.seed,
             tick: plant.respawnTick,

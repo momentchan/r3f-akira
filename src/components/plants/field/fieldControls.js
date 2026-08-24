@@ -59,11 +59,6 @@ function clumpingGroup(d) {
     hopRange: {
       value: d.anchors.hopRange ?? [0.07, 0.2], min: 0.02, max: 0.6, step: 0.01,
     },
-    // Scene-wide, not per mass. One focal flower per cluster averages the image
-    // back out to uniform.
-    primaryCount: {
-      value: d.anchors.primaryCount ?? 4, min: 0, max: 16, step: 1,
-    },
   };
 }
 

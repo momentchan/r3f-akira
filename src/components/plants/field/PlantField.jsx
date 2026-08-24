@@ -43,16 +43,10 @@ const S_HEIGHT = 22;
  * smaller, tighter ones packed around it.
  */
 const DEPTH_SIZE_DECAY = 0.88;
-/** The few the eye lands on get a boost on top of being founders. */
-const PRIMARY_SIZE_BOOST = 1.35;
 /** Frame 0 is a closed bud, so a floor here keeps a fringe bloom from vanishing. */
 const MIN_BLOOM = 0.32;
 /** Lower = fringe flowers close up faster as density drops. */
 const BLOOM_DENSITY_POW = 0.75;
-/** Minimum world distance between two primaries, so they never merge visually. */
-const PRIMARY_SEPARATION = 0.55;
-/** Share of the non-primary field promoted to secondary; the remainder are echoes. */
-const SECONDARY_SHARE = 0.34;
 
 /** Heights (field local Y) sampled for closest-point vs the lying suit. */
 const CLEAR_HEIGHTS = [0.05, 0.2, 0.4, 0.7, 1.0, 1.35];
@@ -105,7 +99,6 @@ export function PlantField({
     patchScale,
     founderShare,
     hopRange,
-    primaryCount,
     migrateRange,
     migrateSpeed,
     delay: [delayMin, delayMax],
@@ -298,8 +291,8 @@ export function PlantField({
   ]);
 
   // Runtime hearts + death-time pick. PlantSystem wanders each founder heart
-  // on a clock, then a dying flower chooses among them by field × distance
-  // and hops. Null when there are no anchors.
+  // on a clock, then a dying flower hops around one. The density field stays
+  // pinned to the derived anchors — motion is the hearts, not the probability map.
   const migration = useMemo(() => {
     if (!anchorSet.anchors.length) return null;
     return {
@@ -310,8 +303,6 @@ export function PlantField({
         barePatches,
         patchScale,
         seed: arrangementSeed,
-        migrateRange,
-        migrateSpeed,
         hosts: clearanceHosts,
         meshClearDistance,
       },
@@ -324,11 +315,13 @@ export function PlantField({
       hopMin: Math.min(hopRange[0], hopRange[1]),
       hopMax: Math.max(hopRange[0], hopRange[1]),
       hopDecay: DEFAULT_HOP_DECAY,
+      migrateRange,
+      migrateSpeed,
     };
   }, [
     anchorSet, shapeWarp,
-    warpScale, barePatches, patchScale, arrangementSeed, migrateRange,
-    migrateSpeed, clearanceHosts, meshClearDistance,
+    warpScale, barePatches, patchScale, arrangementSeed,
+    migrateRange, migrateSpeed, clearanceHosts, meshClearDistance,
     resolvedHeadLocal, faceClearRadius, compositionGuide, hopRange,
   ]);
 
@@ -378,69 +371,18 @@ export function PlantField({
     // Wait for posed MeshBVH before planting.
     if (!bvh) return { stems: [] };
 
-    /**
-     * Role from local density, capped scene-wide. One primary per cluster
-     * averages the image back to uniform. Ranking by the density each flower
-     * stands in keeps the hierarchy causal.
-     */
-    const classifyByDensity = (slotList, liveList, wanted) => {
-      const ranked = liveList
-        .map((li) => ({ li, f: slotList[li]?.fieldValue ?? 0 }))
-        .sort((a, b) => b.f - a.f);
-
-      // Primaries: the densest slots, but never adjacent — two focal blooms side by
-      // side read as one clump, which wastes the scene-wide cap.
-      const primaries = new Set();
-      const taken = [];
-      for (const { li } of ranked) {
-        if (primaries.size >= wanted) break;
-        const slot = slotList[li];
-        if (!slot) continue;
-        let tooClose = false;
-        for (const t of taken) {
-          if (Math.hypot(slot.x - t.x, slot.z - t.z) < PRIMARY_SEPARATION) {
-            tooClose = true;
-            break;
-          }
-        }
-        if (tooClose) continue;
-        primaries.add(li);
-        taken.push(slot);
-      }
-
-      // The rest split by percentile of the same ranking.
-      const rest = ranked.filter((r) => !primaries.has(r.li));
-      const secondaryCut = Math.floor(rest.length * SECONDARY_SHARE);
-      const secondaries = new Set(rest.slice(0, secondaryCut).map((r) => r.li));
-      return { primaries, secondaries };
-    };
-
-    const roleOf = (slotIndex, classes) => {
-      if (!classes) return 'secondary';
-      if (classes.primaries.has(slotIndex)) return 'primary';
-      return classes.secondaries.has(slotIndex) ? 'secondary' : 'echo';
-    };
-
-    const buildStem = (slot, slotIndex, classes = null) => {
+    const buildStem = (slot, slotIndex) => {
       const typeRoll = stableRandomRange(slotIndex, S_TYPE, arrangementSeed, 0, 1);
       const flowerType = typeRoll < roseRatio ? ROSE_TYPE : DAHLIA_TYPE;
-      const role = roleOf(slotIndex, classes);
-      // Size comes from the clump, not from distance to the body: depth decay
-      // (core large, fringe small) plus a rare primary boost.
+      // Core large, fringe small — generation is how far the hop walked.
       const sizeJit = stableRandomRange(slotIndex, S_ROLE_SIZE, arrangementSeed, -0.08, 0.08);
       const depth = slot.generation ?? 0;
-      const sizeMul = Math.pow(DEPTH_SIZE_DECAY, depth)
-        * (role === 'primary' ? PRIMARY_SIZE_BOOST : 1)
-        * (1 + sizeJit);
+      const sizeMul = Math.pow(DEPTH_SIZE_DECAY, depth) * (1 + sizeJit);
       // Independent of size on purpose, so tall does not imply large.
-      // One roll inside stemLength, biased toward min so a grazing camera
-      // does not read a mat. lengthExp is how rare the max is.
       const heightU = stableRandomRange(slotIndex, S_HEIGHT, arrangementSeed, 0, 1);
       const stemLength = lenMin + (lenMax - lenMin) * Math.pow(heightU, lengthExp);
       const bloomJit = stableRandomRange(slotIndex, S_BLOOM, arrangementSeed, -0.05, 0.05);
-      // Bloom ceiling scales the VAT frame, so an echo stays a bud or half-open.
-      // Density-driven: a flower is budded because it stands at the fringe of a
-      // mass, not because a traversal counter reached 2.
+      // VAT frame ceiling: fringe of a mass stays a bud, not because of a role label.
       const density = slot.fieldValue ?? 0;
       const bloomCeiling = Math.min(1, Math.max(
         MIN_BLOOM,
@@ -488,22 +430,19 @@ export function PlantField({
       hopMax: Math.max(hopRange[0], hopRange[1]),
     });
     if (diagnostics.shortfall > 0) {
-      // Under-filling silently is the failure that costs an afternoon: the
-      // field looks thin and the cause is invisible.
       console.warn(
         `[PlantField] anchor layout short by ${diagnostics.shortfall} of ${flowerCount}`
         + ` (${diagnostics.attempts} attempts) — widen reach or lower flowerCount`,
       );
     }
-    const classes = classifyByDensity(anchorSlotsRaw, anchorLiveRaw, primaryCount);
 
     return {
       stems: anchorLiveRaw.map(
-        (slotIndex) => buildStem(anchorSlotsRaw[slotIndex], slotIndex, classes),
+        (slotIndex) => buildStem(anchorSlotsRaw[slotIndex], slotIndex),
       ),
     };
   }, [anchorSet, anchorSamplerOptions, compositionGuide,
-    founderShare, hopRange, primaryCount,
+    founderShare, hopRange,
     flowerCount, arrangementSeed, roseRatio,
     bvh, clearanceHosts, meshClearDistance, faceClearRadius,
     resolvedHeadLocal,

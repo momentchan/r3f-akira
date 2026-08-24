@@ -160,7 +160,6 @@ export function sampleFieldPosition({
 }) {
   if (!anchors?.length) return null;
   const pad = fieldOptions.shapeWarp ?? 0;
-  const centres = fieldOptions.centres;
   const ctx = {
     anchors, fieldOptions, floor,
     head, faceClearRadius, clearanceHosts, clearMargin, clearHeights,
@@ -172,7 +171,7 @@ export function sampleFieldPosition({
       ? anchorIndex
       : pickAnchorIndex(anchors, tryIndex, seed);
     const anchor = anchors[ai];
-    const origin = centres?.[ai] ?? anchor;
+    const origin = anchor;
     const s = sampleInSupport(anchor, tryIndex, seed, pad, origin);
     const got = acceptCandidate(s.x, s.z, tryIndex, seed, ctx);
     if (got) return got;

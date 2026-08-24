@@ -316,30 +316,6 @@ function presenceMask(x, z, amount, frequency, seed) {
   return smoothstep01((n - cut) / 0.28);
 }
 
-/**
- * Where an anchor's field centre sits at time `t`.
- *
- * A slow 2-D noise walk around the anchor rather than an orbit: an orbit is a
- * regular path and would read as the clusters going round in circles. The walk
- * is bounded by `dist`, so a cluster wanders near its cause and never detaches
- * from it — the anchor stays the reason even while the mass moves.
- */
-export function animatedCentre(anchor, time, dist, speed) {
-  if (!(dist > 0) || !(speed > 0)) return { x: anchor.x, z: anchor.z };
-  const t = time * speed;
-  // valueNoise3D is -1..1, so the walk is centred on the anchor and the slot
-  // envelope (radius + migrateRange about the same point) covers it exactly.
-  //
-  // This walk is also the ONLY thing that offsets a mass from its cause. A static
-  // `centre drift` used to sit underneath it and was removed: at 0.18 against a
-  // 0.45 migration range it was unobservable, and two mechanisms for "the mass is
-  // not exactly on the anchor" is one too many.
-  return {
-    x: anchor.x + valueNoise3D(t, anchor.index * 13.7, 0.5, 101) * dist,
-    z: anchor.z + valueNoise3D(t, anchor.index * 13.7, 7.9, 227) * dist,
-  };
-}
-
 /** One anchor's annular falloff at (x,z), measured from `cx,cz`. */
 function anchorFalloff(anchor, x, z, cx, cz) {
   const dx = x - cx;
@@ -380,34 +356,16 @@ export function sampleAnchorField(x, z, anchors, options = {}) {
     barePatches = 0.4,
     patchScale = 1.1,
     seed = 0,
-    // Optional hard keep-out. A single per-anchor inner radius can only carve a
-    // circular hole, but the body is a star shape — arms and legs lie inside the
-    // annulus band. Without this the field promises density exactly where the
-    // clearance chain would reject it. Measured on the UNWARPED point: warp
-    // changes cluster shape, not which world cell is inside the suit.
     hosts = null,
     meshClearDistance = 0,
-    // Migration. `time` 0 or `migrateRange` 0 pins the centres where they were
-    // derived, so a still field is exactly the old behaviour.
-    time = 0,
-    migrateRange = 0,
-    migrateSpeed = 0,
-    // Precomputed animated centres, one per anchor. They depend only on `time`,
-    // so a per-frame caller should compute them ONCE and pass them in rather
-    // than having every sample redo the same noise walks.
-    centres = null,
   } = options;
 
-  // Warp once, then measure every anchor from the warped point, so all the blobs
-  // distort consistently and their overlaps stay coherent.
   const w = warpPoint(x, z, shapeWarp, warpScale, seed);
 
   let sum = 0;
   for (let i = 0; i < anchors.length; i += 1) {
-    const anchor = anchors[i];
-    const c = centres ? centres[i] : animatedCentre(anchor, time, migrateRange, migrateSpeed);
-    const falloff = anchorFalloff(anchor, w.x, w.z, c.x, c.z);
-    if (falloff > 0) sum += anchor.weight * falloff;
+    const falloff = anchorFalloff(anchors[i], w.x, w.z, anchors[i].x, anchors[i].z);
+    if (falloff > 0) sum += anchors[i].weight * falloff;
   }
   if (sum <= 0) return 0;
 
