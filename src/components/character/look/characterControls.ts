@@ -68,6 +68,8 @@ export function createCharacterControlsSchema(
   };
 }
 
+export const CHARACTER_CONTROLS_SCHEMA = createCharacterControlsSchema();
+
 function setFloat(uniform: UniformValue<number> | undefined, value: unknown) {
   if (!uniform || typeof value !== 'number' || !Number.isFinite(value)) return;
   uniform.value = value;

@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import type { MutableRefObject } from 'react';
 import type { Box3, BufferGeometry, Group, Object3D, Vector3 } from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
-import { buildCharacterMeshBVH, findHeadLocalPoint } from '../../plants/field/bodyBounds';
+import { buildCharacterMeshBVH } from '../../plants/field/bodyBounds';
 import {
   extractBodyRight,
   extractLimbCapsules,
@@ -15,8 +15,6 @@ export type BodyBoundsPayload = {
   bvh: MeshBVH;
   /** Owns boundsTree — dispose when replaced. */
   geometry: BufferGeometry;
-  /** Helmet mesh center, else head bone. */
-  headLocal: Vector3 | null;
   capsules: ReturnType<typeof extractLimbCapsules>;
   /** thigh.r − thigh.l, field-parent space. */
   bodyRight: Vector3;
@@ -72,7 +70,6 @@ export function useCharacterBodyBounds({
       localBox: built.localBox,
       bvh: built.bvh,
       geometry: built.geometry,
-      headLocal: findHeadLocalPoint(root, parent),
       capsules: extractLimbCapsules(root, parent),
       bodyRight: extractBodyRight(root, parent),
     };

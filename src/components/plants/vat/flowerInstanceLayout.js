@@ -10,7 +10,8 @@ import { FLOWER_CULL_DEFAULTS } from './flowerCullDefaults';
  *
  *   tip0     = world pos.xyz, scale
  *   tip1     = quat.xyz, VAT frame
- *   colorVar = hueShift, lightShift, shed, stemLength
+ *   colorVar = hueUnit, lightUnit, shed, stemLength
+ *   hue/light ± live on petal.hueRange / petal.lightRange and multiply in shader
  */
 export const flowerInstanceStructure = struct({
   tip0: 'vec4',

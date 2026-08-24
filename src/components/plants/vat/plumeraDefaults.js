@@ -12,8 +12,6 @@ export const PLUMERA_MATERIAL_DEFAULTS = mergeFlowerDefaults({
     gradientBandStrength: 0.12,
     thresholdLow: 0.14,
     thresholdHigh: 0.32,
-  },
-  colorVariation: {
     // Was 0.5 — the slider maximum — which randomized every instance across the
     // whole hue wheel, so the body flowers never read as one cream species. The
     // base palette is already the colour we want; this only needs enough drift to

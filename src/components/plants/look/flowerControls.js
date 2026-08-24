@@ -9,7 +9,7 @@ import {
 export { FLOWER_MASK_PATH, FLOWER_VEIN_PATH, ROSE_MASK_PATH } from './flowerDefaults';
 
 export function createFlowerControlsSchema(defaults = {}) {
-  const { petal, vein, mask, colorVariation, flowerSize } = mergeFlowerDefaults(defaults);
+  const { petal, vein, mask, flowerSize } = mergeFlowerDefaults(defaults);
 
   return {
     flowerSize: {
@@ -47,8 +47,8 @@ export function createFlowerControlsSchema(defaults = {}) {
       saturation: { value: petal.saturation ?? 1, min: 0, max: 2, step: 0.01 },
     }),
     'Color Variation': folder({
-      hueRange: { value: colorVariation.hueRange, min: 0, max: 0.5, step: 0.005, label: 'hue ±' },
-      lightRange: { value: colorVariation.lightRange, min: 0, max: 0.3, step: 0.005, label: 'light ±' },
+      hueRange: { value: petal.hueRange, min: 0, max: 0.5, step: 0.005, label: 'hue ±' },
+      lightRange: { value: petal.lightRange, min: 0, max: 0.3, step: 0.005, label: 'light ±' },
     }, { collapsed: true }),
     VeinTexture: folder({
       scale: { value: vein.scale, min: 0.1, max: 4, step: 0.01 },
@@ -78,6 +78,17 @@ export function createFlowerControlsSchema(defaults = {}) {
       edgeWidth: { value: mask.edgeWidth, min: 0, max: 6, step: 0.05, label: 'edge (screenspace)' },
       edgeColor: { value: mask.edgeColor },
     }),
+  };
+}
+
+/**
+ * Per-head random in [-1, 1]. Hue/light ± are uniforms; the shader multiplies.
+ */
+export function flowerInstanceColorUnit(plant) {
+  const unit = plant?.colorVariationUnit;
+  return {
+    hue: unit?.hue ?? 0,
+    light: unit?.light ?? 0,
   };
 }
 
@@ -112,6 +123,8 @@ export function syncFlowerControls(
   petal.midColor.value.set(controls.midColor);
   petal.tipColor.value.set(controls.tipColor);
   petal.saturation.value = controls.saturation;
+  if (typeof controls.hueRange === 'number') petal.hueRange.value = controls.hueRange;
+  if (typeof controls.lightRange === 'number') petal.lightRange.value = controls.lightRange;
 
   vein.scale.value = controls.scale;
   vein.rotation.value = controls.rotation;

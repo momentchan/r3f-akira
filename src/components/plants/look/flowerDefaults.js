@@ -18,6 +18,8 @@ export const FLOWER_DEFAULTS = {
     midColor: '#c9a8e8',
     tipColor: '#eee4f2',
     saturation: 1,
+    hueRange: 0.04,
+    lightRange: 0.05,
   },
   vein: {
     scale: 1,
@@ -46,10 +48,6 @@ export const FLOWER_DEFAULTS = {
     threshold: 0.24,
     edgeWidth: 2,
     edgeColor: '#3a2a33',
-  },
-  colorVariation: {
-    hueRange: 0.04,
-    lightRange: 0.05,
   },
   flowerSize: 4.2,
 };

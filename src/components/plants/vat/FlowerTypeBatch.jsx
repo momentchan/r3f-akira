@@ -11,6 +11,7 @@ import {
 import {
   configureFlowerTexture,
   FLOWER_VEIN_PATH,
+  flowerInstanceColorUnit,
   syncFlowerControls,
 } from '../look/flowerControls';
 import { syncStemLookControls } from '../stem/stemControls';
@@ -176,8 +177,8 @@ export function FlowerTypeBatch({
   );
 
   const colorKey = plants.map((plant) => {
-    const variation = plant.colorOverride ?? {};
-    return `${(variation.hueShift ?? 0).toFixed(5)}/${(variation.lightShift ?? 0).toFixed(5)}`;
+    const { hue, light } = flowerInstanceColorUnit(plant);
+    return `${hue.toFixed(5)}/${light.toFixed(5)}`;
   }).join(',');
   // Instance count only — attach maps are mutated in place on climb slot rebind
   // and must not remount the VAT meshes.
@@ -195,10 +196,10 @@ export function FlowerTypeBatch({
     const count = typePlants.length;
     const instanceStorage = createFlowerInstanceStorage(count);
     for (let i = 0; i < count; i += 1) {
-      const variation = typePlants[i].colorOverride ?? {};
+      const { hue, light } = flowerInstanceColorUnit(typePlants[i]);
       const o = i * FLOWER_INSTANCE_FLOATS + FLOWER_COLOR_OFFSET;
-      instanceStorage.data[o] = variation.hueShift ?? 0;
-      instanceStorage.data[o + 1] = variation.lightShift ?? 0;
+      instanceStorage.data[o] = hue;
+      instanceStorage.data[o + 1] = light;
       instanceStorage.data[o + 3] = typePlants[i].params?.stemLength ?? 1;
     }
     instanceStorage.attribute.needsUpdate = true;
@@ -362,10 +363,10 @@ export function FlowerTypeBatch({
     const typePlants = plantsRef.current;
     const { data, attribute } = batch.instanceStorage;
     for (let i = 0; i < typePlants.length; i += 1) {
-      const variation = typePlants[i].colorOverride ?? {};
+      const { hue, light } = flowerInstanceColorUnit(typePlants[i]);
       const o = i * FLOWER_INSTANCE_FLOATS + FLOWER_COLOR_OFFSET;
-      data[o] = variation.hueShift ?? 0;
-      data[o + 1] = variation.lightShift ?? 0;
+      data[o] = hue;
+      data[o + 1] = light;
       data[o + 3] = typePlants[i].params?.stemLength ?? 1;
     }
     attribute.needsUpdate = true;

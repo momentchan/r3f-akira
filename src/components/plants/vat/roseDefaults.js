@@ -11,8 +11,6 @@ export const ROSE_MATERIAL_DEFAULTS = mergeFlowerDefaults({
     gradientBandStrength: 0.14,
     thresholdLow: 0.1,
     thresholdHigh: 0.28,
-  },
-  colorVariation: {
     hueRange: 0.02,
     lightRange: 0.04,
   },

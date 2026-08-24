@@ -66,6 +66,8 @@ export function createStemSchema(
   };
 }
 
+export const STEM_CONTROLS_SCHEMA = createStemSchema();
+
 function createLeafSchema(defaults = STEM_DEFAULTS.leaves) {
   const d = defaults;
   return {

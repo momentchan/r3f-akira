@@ -11,8 +11,6 @@ import { valueNoise3D } from '../climb/spatialNoise';
  * "arranged along a structure" look this exists to avoid.
  */
 
-/** Probe heights for anchor fitting. Ground clearance only, so 3 not 6. */
-const FIT_HEIGHTS = [0.05, 0.2, 0.4];
 /** Field-local Y above which a capsule station is not resting on the ground. */
 const GROUND_BAND_MAX = 0.55;
 /** Probes around an anchor's inner ring when fitting it clear of the suit. */
@@ -114,7 +112,7 @@ function axisXZ(capsule, fallback) {
 function nearestHostDistance(hosts, x, z) {
   let best = null;
   for (let i = 0; i < hosts.length; i += 1) {
-    const hit = closestDistanceAtXZ(hosts[i].bvh, x, z, FIT_HEIGHTS);
+    const hit = closestDistanceAtXZ(hosts[i].bvh, x, z, hosts[i].localBox);
     if (hit && (best === null || hit.distance < best)) best = hit.distance;
   }
   return best;

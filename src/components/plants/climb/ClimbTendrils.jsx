@@ -14,11 +14,9 @@ import {
 } from '../stem/buildStemTube';
 import {
   advanceLifecycleState,
-  computeGrowthLifecycle,
   createLifecycleState,
   hashLifecycleIdentity,
 } from '../lifecycle/plantLifecycle';
-import { useLifecyclePauseHotkey } from '../lifecycle/useLifecyclePauseHotkey';
 import { getSimSpeed } from '../lifecycle/simSpeed';
 import { FieldLeaves } from '../stem/FieldLeaves';
 import { STEM_Y_MAX } from '../stem/stemDefaults';
@@ -35,9 +33,8 @@ import {
 } from './buildWrapCurve';
 import { ClimbDebug } from './ClimbDebug';
 import { treeSegmentGrowth } from './climbLifecycle';
-import { createClimbControlsSchema } from './climbControls';
+import { CLIMB_CONTROLS_SCHEMA } from './climbControls';
 import {
-  CLIMB_DEFAULTS,
   CLIMB_HOST_PROFILES,
   CLIMB_INTERNALS,
 } from './climbDefaults';
@@ -68,6 +65,8 @@ const TUBE_RADIAL_SEGMENTS = 5;
 const CLIMB_FLOWER_TYPE = PLUMERA_TYPE;
 
 preloadVATAssets(CLIMB_FLOWER_TYPE.metaUrl);
+
+const CLIMB_FLOWER_SCHEMA = createFlowerControlsSchema(CLIMB_FLOWER_TYPE.materialDefaults);
 
 function surfaceNormalAtPoint(host, point, target) {
   const geometry = host?.geometry;
@@ -335,16 +334,14 @@ export function ClimbTendrils({
   backpackBounds = null,
   wind = PLANT_WIND_DEFAULTS,
 }) {
-  const lifecyclePausedRef = useLifecyclePauseHotkey();
-  const schema = useMemo(() => createClimbControlsSchema(CLIMB_DEFAULTS), []);
-  const controls = useControls('Climbing Tendrils', schema, { collapsed: true });
-  const flowerSchema = useMemo(
-    () => createFlowerControlsSchema(CLIMB_FLOWER_TYPE.materialDefaults),
-    [],
+  const controls = useControls(
+    'Climbing Tendrils',
+    CLIMB_CONTROLS_SCHEMA,
+    { collapsed: true },
   );
   const flowerControls = useControls(
     `Flower.${CLIMB_FLOWER_TYPE.label}`,
-    flowerSchema,
+    CLIMB_FLOWER_SCHEMA,
     { collapsed: true },
   );
 
@@ -597,9 +594,6 @@ export function ClimbTendrils({
     // Fixed bloom count: density × awake rings. Hosts rebind on tree swap so
     // heads jump with the new wrap instead of vanishing on a sleeping route.
     const density = THREE.MathUtils.clamp(controls.flowerDensity, 0, 1);
-    const defaultColorVariation = CLIMB_FLOWER_TYPE.materialDefaults.colorVariation ?? {};
-    const hueRange = flowerControls.hueRange ?? defaultColorVariation.hueRange ?? 0;
-    const lightRange = flowerControls.lightRange ?? defaultColorVariation.lightRange ?? 0;
     const plants = stemBuild.plants;
     const ringIndices = [];
     for (let index = 0; index < plants.length; index += 1) {
@@ -624,20 +618,20 @@ export function ClimbTendrils({
           stemRadius: controls.tendrilRadius,
           stemLength: 1,
         },
-        colorOverride: {
-          hueShift: stableRandomRange(
+        colorVariationUnit: {
+          hue: stableRandomRange(
             slotIndex,
             42,
             CLIMB_INTERNALS.layoutSeed,
-            -hueRange,
-            hueRange,
+            -1,
+            1,
           ),
-          lightShift: stableRandomRange(
+          light: stableRandomRange(
             slotIndex,
             43,
             CLIMB_INTERNALS.layoutSeed,
-            -lightRange,
-            lightRange,
+            -1,
+            1,
           ),
         },
       });
@@ -652,8 +646,6 @@ export function ClimbTendrils({
     controls.tendrilRadius,
     debouncedPath.reshuffleRoutes,
     debouncedPath.tendrilCount,
-    flowerControls.hueRange,
-    flowerControls.lightRange,
   ]);
 
   const plantsRef = useRef(stemBuild.plants);
@@ -802,7 +794,6 @@ export function ClimbTendrils({
     const { data, tex } = plantData;
     // Shared global rate, so the climbers stay in step with the flower field.
     const dt = Math.min(delta, 0.1) * getSimSpeed();
-    const paused = lifecyclePausedRef.current;
     const treeGrowthFronts = treeGrowthFrontsRef.current;
     const activeTrees = activeTreesRef.current;
     const dormantTrees = dormantTreesRef.current;
@@ -816,14 +807,12 @@ export function ClimbTendrils({
       }
 
       const generationBefore = lifecycle.generation;
-      const { growth } = paused
-        ? computeGrowthLifecycle(lifecycle.age, lifecycle.durations)
-        : advanceLifecycleState(lifecycle, dt, lifecycleRef.current);
+      const { growth } = advanceLifecycleState(lifecycle, dt, lifecycleRef.current);
 
       // Finished a full cycle → sleep, and wake a different route in its place.
       // Either way the bloom rolls a new T along the wrap, so it does not sit
       // at the same spot on every generation of the same tendril.
-      if (!paused && lifecycle.generation !== generationBefore) {
+      if (lifecycle.generation !== generationBefore) {
         if (dormantTrees.length) {
           const pick = Math.floor(Math.random() * dormantTrees.length);
           const wakingId = dormantTrees[pick];

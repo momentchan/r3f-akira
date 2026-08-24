@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { collectBoneMap, findBone } from '../climb/limbCapsules';
 
 const _vertex = new THREE.Vector3();
 const _hit = {};
@@ -87,14 +86,29 @@ export function buildCharacterMeshBVH(root, parent) {
   return { geometry, bvh, localBox };
 }
 
+/** Stem-axis samples from just above ground to the host top. */
+const HEIGHT_COUNT = 4;
+const _heights = new Float32Array(HEIGHT_COUNT);
+
+function fillHeights(localBox) {
+  const y0 = 0.05;
+  const y1 = Number.isFinite(localBox?.max?.y)
+    ? Math.max(localBox.max.y, y0 + 0.1)
+    : COLUMN_Y1;
+  for (let i = 0; i < HEIGHT_COUNT; i += 1) {
+    _heights[i] = y0 + (y1 - y0) * (i / (HEIGHT_COUNT - 1));
+  }
+}
+
 /**
- * Min distance from a ground (x,z) sample to the posed mesh (checks several heights).
- * @returns {{ distance: number, point: THREE.Vector3 } | null}
+ * Min distance from a ground (x,z) sample to the posed mesh.
+ * Samples along the host height instead of a hardcoded Y list.
  */
-export function closestDistanceAtXZ(bvh, x, z, heights) {
+export function closestDistanceAtXZ(bvh, x, z, localBox = null) {
+  fillHeights(localBox);
   let best = null;
-  for (let i = 0; i < heights.length; i += 1) {
-    _vertex.set(x, heights[i], z);
+  for (let i = 0; i < HEIGHT_COUNT; i += 1) {
+    _vertex.set(x, _heights[i], z);
     const res = bvh.closestPointToPoint(_vertex, _hit, 0, Infinity);
     if (!res) continue;
     if (!best || res.distance < best.distance) {
@@ -146,7 +160,7 @@ export function columnHitsHosts(hosts, x, z) {
  * inside a volume points toward the centre and walks deeper in.
  * @returns {[number, number, boolean]} [x, z, ok]
  */
-export function clearPointFromBvh(x, z, bvh, margin, heights, localBox = null) {
+export function clearPointFromBvh(x, z, bvh, margin, localBox = null) {
   if (columnHitsBvh(bvh, x, z, localBox)) return [x, z, false];
 
   let px = x;
@@ -154,7 +168,7 @@ export function clearPointFromBvh(x, z, bvh, margin, heights, localBox = null) {
 
   for (let iter = 0; iter < 8; iter += 1) {
     if (columnHitsBvh(bvh, px, pz, localBox)) return [px, pz, false];
-    const hit = closestDistanceAtXZ(bvh, px, pz, heights);
+    const hit = closestDistanceAtXZ(bvh, px, pz, localBox);
     if (!hit || hit.distance >= margin) return [px, pz, true];
 
     let dx = px - hit.point.x;
@@ -172,7 +186,7 @@ export function clearPointFromBvh(x, z, bvh, margin, heights, localBox = null) {
   }
 
   if (columnHitsBvh(bvh, px, pz, localBox)) return [px, pz, false];
-  const finalHit = closestDistanceAtXZ(bvh, px, pz, heights);
+  const finalHit = closestDistanceAtXZ(bvh, px, pz, localBox);
   const ok = !finalHit || finalHit.distance >= margin;
   return [px, pz, ok];
 }
@@ -196,23 +210,23 @@ function boxNearXZ(box, x, z, margin) {
  *
  * `hosts` is `{ bvh, localBox }[]`. The box is an optional cheap reject — a point
  * further than `margin` from a host's footprint cannot be that host's nearest
- * surface, and skipping it avoids six BVH queries. This keeps the common case
+ * surface, and skipping it avoids extra BVH queries. This keeps the common case
  * (nowhere near the backpack) at single-host cost.
  *
  * @returns {[number, number, boolean]} [x, z, ok]
  */
-export function clearPointFromHosts(x, z, hosts, margin, heights) {
+export function clearPointFromHosts(x, z, hosts, margin) {
   const list = (hosts ?? []).filter((host) => host?.bvh);
   if (!list.length) return [x, z, true];
   if (list.length === 1) {
-    return clearPointFromBvh(x, z, list[0].bvh, margin, heights, list[0].localBox);
+    return clearPointFromBvh(x, z, list[0].bvh, margin, list[0].localBox);
   }
 
   const nearest = (px, pz) => {
     let best = null;
     for (const host of list) {
       if (host.localBox && !boxNearXZ(host.localBox, px, pz, margin)) continue;
-      const candidate = closestDistanceAtXZ(host.bvh, px, pz, heights);
+      const candidate = closestDistanceAtXZ(host.bvh, px, pz, host.localBox);
       if (candidate && (!best || candidate.distance < best.distance)) best = candidate;
     }
     return best;
@@ -252,19 +266,6 @@ export function clearPointFromHosts(x, z, hosts, margin, heights) {
   return [px, pz, ok];
 }
 
-/** Push XZ away from a soft circular keep-out (helmet pocket). */
-export function clearPointFromDisc(x, z, cx, cz, radius) {
-  if (radius <= 1e-5) return [x, z, true];
-  const dx = x - cx;
-  const dz = z - cz;
-  const d = Math.hypot(dx, dz);
-  if (d >= radius) return [x, z, true];
-  if (d < 1e-5) {
-    return [cx + radius, cz, true];
-  }
-  const s = radius / d;
-  return [cx + dx * s, cz + dz * s, true];
-}
 export function worldBoxToLocal(worldBox, parent) {
   const local = new THREE.Box3();
   const corner = new THREE.Vector3();
@@ -283,56 +284,6 @@ export function worldBoxToLocal(worldBox, parent) {
     }
   }
   return local;
-}
-
-const HELMET_MESH_NAME = 'Helmet_Mesh';
-const HEAD_BONE_NAMES = ['c_head.x', 'head.x', 'head'];
-
-function findNamedMesh(root, name) {
-  let found = null;
-  root.traverse((obj) => {
-    if (found || !obj.isMesh || !obj.visible) return;
-    if (obj.name === name) found = obj;
-  });
-  return found;
-}
-
-/** Posed helmet AABB center in parent space. Mesh origin is bind-root, so bake verts. */
-function helmetLocalPoint(root, parent) {
-  const mesh = findNamedMesh(root, HELMET_MESH_NAME);
-  const position = mesh?.geometry?.getAttribute?.('position');
-  if (!position || position.count < 3) return null;
-
-  const world = new THREE.Vector3();
-  const box = new THREE.Box3();
-  const step = Math.max(1, Math.floor(position.count / 64));
-  for (let i = 0; i < position.count; i += step) {
-    if (mesh.isSkinnedMesh) mesh.getVertexPosition(i, world);
-    else world.fromBufferAttribute(position, i);
-    world.applyMatrix4(mesh.matrixWorld);
-    box.expandByPoint(world);
-  }
-  if (box.isEmpty()) return null;
-  box.getCenter(world);
-  parent.worldToLocal(world);
-  return world.clone();
-}
-
-/** Head point in `parent` local space (face keep-out). Helmet shell, else c_head.x. */
-export function findHeadLocalPoint(root, parent) {
-  root.updateWorldMatrix(true, true);
-  parent.updateWorldMatrix(true, false);
-
-  const fromHelmet = helmetLocalPoint(root, parent);
-  if (fromHelmet) return fromHelmet;
-
-  const bone = findBone(collectBoneMap(root), HEAD_BONE_NAMES);
-  if (!bone) return null;
-  bone.updateWorldMatrix(true, false);
-  const world = new THREE.Vector3();
-  bone.getWorldPosition(world);
-  parent.worldToLocal(world);
-  return world;
 }
 
 export function expandBoxXZ(localBox, margin) {

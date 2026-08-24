@@ -111,10 +111,10 @@ function createPlantDataTexture(count, rows = PLANT_DATA_ROWS) {
 }
 
 /**
- * Single plant field system: one merged stem mesh + GPU-culled VAT heads per type,
- * plus one instanced leaf mesh.
+ * Field runtime: merged stem mesh, GPU-culled VAT heads, instanced leaves,
+ * lifecycle, and heart hops. PlantField authors the opening stems.
  */
-export function PlantSystem({
+export function FieldRuntime({
   stems,
   leanOut = 0,
   phaseSpread = 1,
@@ -128,9 +128,7 @@ export function PlantSystem({
   shedControls = null,
   lifecycleRanges,
   migration = null,
-  lifecyclePausedRef = null,
   flowerControlsById,
-  flowerColorVariationById,
   stemLookControls = null,
   leafControls = null,
   cullControls = null,
@@ -377,21 +375,13 @@ export function PlantSystem({
     const map = new Map();
     FLOWER_TYPES.forEach((t) => map.set(t.id, { type: t, plants: [], indices: [] }));
     stemBuild.plants.forEach((p, i) => {
-      const id = p.flowerType.id;
-      const bucket = map.get(id);
+      const bucket = map.get(p.flowerType.id);
       if (!bucket) return;
-      const ranges = flowerColorVariationById?.[id] ?? {};
-      bucket.plants.push({
-        ...p,
-        colorOverride: {
-          hueShift: (p.colorVariationUnit?.hue ?? 0) * (ranges.hueRange ?? 0),
-          lightShift: (p.colorVariationUnit?.light ?? 0) * (ranges.lightRange ?? 0),
-        },
-      });
+      bucket.plants.push(p);
       bucket.indices.push(i);
     });
     return [...map.values()].filter((b) => b.plants.length > 0);
-  }, [stemBuild.plants, flowerColorVariationById]);
+  }, [stemBuild.plants]);
 
   useFrame(({ scene, clock, gl, camera }, delta) => {
     const rt = runtimeRef.current;
@@ -418,13 +408,10 @@ export function PlantSystem({
       }
     }
 
-    const paused = Boolean(lifecyclePausedRef?.current);
-    // Simulation clock. Lifecycle progress and the field drift both read it, so
-    // changing the rate moves the flowers and the masses they sit on together.
-    // Clamp first, then scale: the clamp exists to stop a backgrounded tab from
-    // skipping a whole cycle on refocus, and scaling before it would defeat that.
+    // Simulation clock. Lifecycle and heart hops both read it.
+    // Clamp first, then scale: Space pause is getSimSpeed() === 0.
     const dt = Math.min(delta, 0.1) * getSimSpeed();
-    if (!paused) rt.simTime += dt;
+    rt.simTime += dt;
     const simTime = rt.simTime;
 
     // Field stays pinned to derived anchors. Hearts hop on their own clock;
@@ -455,9 +442,6 @@ export function PlantSystem({
             fieldOptions,
             clearanceHosts: migration.clearanceHosts,
             clearMargin: migration.meshClearDistance,
-            clearHeights: migration.clearHeights,
-            head: migration.head,
-            faceClearRadius: migration.faceClearRadius,
             seed: heart.id * 17 + 1,
             tick: heart.relocateTick,
           };
@@ -493,9 +477,9 @@ export function PlantSystem({
         wind,
       );
 
-      if (!paused) advanceLifecycleState(plant.lifecycle, dt, lifecycleRanges);
-      // Recomputed (rather than using advance's return) so the petal-shed hold on
-      // the stem is applied in both the paused and running paths.
+      advanceLifecycleState(plant.lifecycle, dt, lifecycleRanges);
+      // Recomputed (rather than using advance's return) so the petal-shed hold
+      // on the stem is applied after the clock step.
       const growthState = computeGrowthLifecycle(
         plant.lifecycle.age,
         plant.lifecycle.durations,
@@ -529,9 +513,6 @@ export function PlantSystem({
             fieldOptions,
             clearanceHosts: migration.clearanceHosts,
             clearMargin: migration.meshClearDistance,
-            clearHeights: migration.clearHeights,
-            head: migration.head,
-            faceClearRadius: migration.faceClearRadius,
             seed: plant.seed,
             tick: plant.respawnTick,
           };
@@ -667,7 +648,7 @@ export function PlantSystem({
   }
 
   return (
-    <AsyncCompile id={`plant-system-${stems.length}`}>
+    <AsyncCompile id={`field-runtime-${stems.length}`}>
       <group>
         <mesh
           ref={enablePlantShadowLayer}

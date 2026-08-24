@@ -112,15 +112,8 @@ function lifecycleGroup(d) {
 /** Where flowers may not go. */
 function keepOutGroup(d) {
   return {
-    clearBody: { value: d.surround.clearBody },
     meshClearDistance: {
       value: d.surround.meshClearDistance, min: 0.0, max: 1, step: 0.01,
-    },
-    // A hard pocket, and now the ONLY helmet protection: the soft negative anchor
-    // that used to feather density outward from it has been removed, so density
-    // stops at this edge rather than thinning through it.
-    faceClearRadius: {
-      value: d.surround.faceClearRadius ?? 0.38, min: 0, max: 1.2, step: 0.01,
     },
   };
 }
@@ -157,3 +150,5 @@ export function createFieldControlsSchema(defaults = FIELD_DEFAULTS) {
     Debug: folder(debugGroup(d), CLOSED),
   };
 }
+
+export const FIELD_CONTROLS_SCHEMA = createFieldControlsSchema();

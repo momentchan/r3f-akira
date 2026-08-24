@@ -4,7 +4,7 @@ import { Mesh, MeshBasicMaterial } from 'three';
 import { BVHHelper } from 'three-mesh-bvh';
 
 /**
- * Debug: BVHHelper leaf boxes. BVH is the source of truth for body clearance.
+ * Debug: BVHHelper leaf boxes for a clearance host (body or backpack).
  */
 export function BodyBoundsDebug({
   geometry = null,

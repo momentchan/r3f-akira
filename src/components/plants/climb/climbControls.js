@@ -212,3 +212,5 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
     }, CLOSED),
   };
 }
+
+export const CLIMB_CONTROLS_SCHEMA = createClimbControlsSchema();

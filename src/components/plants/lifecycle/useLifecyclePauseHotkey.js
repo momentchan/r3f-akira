@@ -1,7 +1,5 @@
 import { useEffect } from 'react';
-
-const lifecyclePausedRef = { current: false };
-let subscriberCount = 0;
+import { toggleSimPause } from './simSpeed';
 
 function onKeyDown(event) {
   if (event.code !== 'Space' || event.repeat) return;
@@ -13,20 +11,13 @@ function onKeyDown(event) {
   }
 
   event.preventDefault();
-  lifecyclePausedRef.current = !lifecyclePausedRef.current;
+  toggleSimPause();
 }
 
-/** Shared Space-key pause state for every mounted plant lifecycle system. */
+/** Space zeros getSimSpeed() so field and climb stop together. */
 export function useLifecyclePauseHotkey() {
   useEffect(() => {
-    subscriberCount += 1;
-    if (subscriberCount === 1) window.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      subscriberCount -= 1;
-      if (subscriberCount === 0) window.removeEventListener('keydown', onKeyDown);
-    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
-
-  return lifecyclePausedRef;
 }

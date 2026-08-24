@@ -1,5 +1,5 @@
 import { stableRandomRange } from '@core';
-import { clearPointFromDisc, clearPointFromHosts } from './bodyBounds';
+import { clearPointFromHosts } from './bodyBounds';
 import { sampleAnchorField } from './fieldAnchors';
 
 /**
@@ -113,8 +113,7 @@ function acceptCandidate(
   sx, sz, tryIndex, seed,
   {
     anchors, fieldOptions, floor = 0,
-    head, faceClearRadius = 0,
-    clearanceHosts, clearMargin, clearHeights,
+    clearanceHosts, clearMargin,
   },
 ) {
   const field = sampleAnchorField(sx, sz, anchors, fieldOptions);
@@ -123,16 +122,11 @@ function acceptCandidate(
 
   let x = sx;
   let z = sz;
-  if (faceClearRadius > 0 && head) {
-    [x, z] = clearPointFromDisc(x, z, head.x, head.z, faceClearRadius);
-  }
-  const [px, pz, ok] = clearPointFromHosts(x, z, clearanceHosts, clearMargin, clearHeights);
+  const [px, pz, ok] = clearPointFromHosts(x, z, clearanceHosts, clearMargin);
   if (!ok) return null;
   x = px;
   z = pz;
 
-  if (faceClearRadius > 0 && head
-    && Math.hypot(x - head.x, z - head.z) < faceClearRadius * 0.92) return null;
   const settled = sampleAnchorField(x, z, anchors, fieldOptions);
   if (settled <= floor) return null;
   return { x, z, field: settled };
@@ -150,9 +144,6 @@ export function sampleFieldPosition({
   floor = 0,
   clearanceHosts = [],
   clearMargin = 0.12,
-  clearHeights,
-  head = null,
-  faceClearRadius = 0,
   seed = 0,
   tick = 0,
   anchorIndex = -1,
@@ -162,7 +153,7 @@ export function sampleFieldPosition({
   const pad = fieldOptions.shapeWarp ?? 0;
   const ctx = {
     anchors, fieldOptions, floor,
-    head, faceClearRadius, clearanceHosts, clearMargin, clearHeights,
+    clearanceHosts, clearMargin,
   };
 
   for (let t = 0; t < maxTries; t += 1) {
@@ -195,9 +186,6 @@ export function sampleClumpHop({
   floor = 0,
   clearanceHosts = [],
   clearMargin = 0.12,
-  clearHeights,
-  head = null,
-  faceClearRadius = 0,
   seed = 0,
   tick = 0,
   maxTries = MAX_TRIES,
@@ -205,7 +193,7 @@ export function sampleClumpHop({
   if (!from || !anchors?.length) return null;
   const ctx = {
     anchors, fieldOptions, floor,
-    head, faceClearRadius, clearanceHosts, clearMargin, clearHeights,
+    clearanceHosts, clearMargin,
   };
   const parentGen = Math.max(0, generation - 1);
   const decay = generation <= 0 ? 1 : 1 / (1 + parentGen * hopDecay);
@@ -284,9 +272,6 @@ export function buildAnchorClusterSlots({
   count,
   clearanceHosts = [],
   clearMargin = 0.12,
-  clearHeights,
-  head = null,
-  faceClearRadius = 0,
   bodyCenter = [0, 0],
   arrangementSeed = 0,
   fieldOptions = {},
@@ -312,7 +297,7 @@ export function buildAnchorClusterSlots({
 
   const ctx = {
     anchors, fieldOptions, floor: 0,
-    head, faceClearRadius, clearanceHosts, clearMargin, clearHeights,
+    clearanceHosts, clearMargin,
   };
 
   const tryAccept = (sx, sz, tryIndex) => {

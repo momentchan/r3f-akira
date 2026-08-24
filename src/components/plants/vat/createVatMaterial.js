@@ -196,8 +196,8 @@ export function createInstancedVatFlowerMaterials(
       usePetalCutout,
       useMaskEdge,
       colorVariation: {
-        hueShift: colorVar.x,
-        lightShift: colorVar.y,
+        hueShift: colorVar.x.mul(flowerUniforms.petal.hueRange),
+        lightShift: colorVar.y.mul(flowerUniforms.petal.lightRange),
       },
       debugTint,
       debugTintColor: debugTintColorNode,

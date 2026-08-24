@@ -2,7 +2,7 @@ import { useLayoutEffect, type RefObject } from 'react';
 import { useControls } from 'leva';
 import type { Object3D } from 'three';
 import {
-  createCharacterControlsSchema,
+  CHARACTER_CONTROLS_SCHEMA,
   syncCharacterControls,
 } from '../look/characterControls';
 import { setDirtGroundY } from '../materials/createToonNodeMaterial';
@@ -18,7 +18,7 @@ export function useCharacterLook(
 ) {
   const controls = useControls(
     'Character',
-    () => createCharacterControlsSchema(),
+    CHARACTER_CONTROLS_SCHEMA,
     { collapsed: true },
   );
 

@@ -1,6 +1,6 @@
 import { CameraControls } from '@react-three/drei';
 import { useControls } from 'leva';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three/webgpu';
 import { useExperienceStore } from '../../core/experienceStore';
 import { usePlantTimeScale } from '../plants/lifecycle/usePlantTimeScale';
@@ -24,7 +24,8 @@ export function CameraViewControl() {
   const cameraMode = useExperienceStore((state) => state.cameraMode);
   const setCameraMode = useExperienceStore((state) => state.setCameraMode);
 
-  const schema = useMemo(
+  const [params] = useControls(
+    'Camera',
     () =>
       createCameraControlsSchema(CAMERA_DEFAULTS, {
         onLogLookAt: () => {
@@ -41,10 +42,8 @@ export function CameraViewControl() {
         },
         onRestartFlow: () => setFlowGeneration((n) => n + 1),
       }),
-    [],
+    { collapsed: true },
   );
-
-  const [params] = useControls('Camera', () => schema, { collapsed: true });
 
   useEffect(() => {
     if (!isStarted) return undefined;

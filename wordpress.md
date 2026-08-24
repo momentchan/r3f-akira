@@ -1,8 +1,8 @@
 <!--
 Codrops title / subtitle (paste into the post header, not as H1 in the body):
 
-Title: Still: A Cartoon Print Look and a Generative Garden in WebGPU
-Subtitle: Building chapter 3 of an interactive astronaut series — quantized toon shading, ink shadows, and plants that bloom around a resting figure, then climb it.
+Title: Still: A Japanese Print Look and a Generative Garden in WebGPU
+Subtitle: Building chapter 3 of an interactive astronaut series — anime-flat shading, ink shadows, and plants that bloom around a resting figure, then climb it.
 
 Tags: case study, Three.js, TSL, WebGPU, procedural, toon
 -->
@@ -44,7 +44,7 @@ Tags: case study, Three.js, TSL, WebGPU, procedural, toon
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
-<p>Technically, this chapter is two experiments. Can a <strong>cartoon / print look</strong> live in a browser — the graphic punch of Japanese anime, and the flat color of traditional Japanese print? And can a <strong>generative garden</strong> bloom around a resting figure, then wrap him, without me placing every vine by hand?</p>
+<p>Technically, this chapter is two experiments. Can a <strong>Japanese print look</strong> live in a browser — the graphic punch of anime, and the flat color of traditional print? And can a <strong>generative garden</strong> bloom around a resting figure, then wrap him, without me placing every vine by hand?</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading -->
@@ -412,7 +412,7 @@ const hit = bvh.raycastFirst(ray, THREE.DoubleSide, 0, rayOffset * 1.6);</code><
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p><em>Still</em> is another step, not “more grass.” Each chapter in this series is a new expression. Here the astronaut finally stops. The picture language becomes print. A generative garden can colonize a body that is no longer trying to reach the horizon.</p>
+<p><em>Still</em> is another step, not “more grass.” Each chapter in this series is a new expression. Here the astronaut finally stops. The picture language becomes Japanese print. A generative garden can colonize a body that is no longer trying to reach the horizon.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->

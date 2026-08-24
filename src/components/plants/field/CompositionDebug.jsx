@@ -47,32 +47,6 @@ function CircleRing({
   );
 }
 
-function DiscFill({
-  radius,
-  y = 0.015,
-  color = '#ff4d6d',
-  opacity = 0.12,
-}) {
-  if (radius <= 0) return null;
-  return (
-    <mesh
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, y, 0]}
-      frustumCulled={false}
-    >
-      <circleGeometry args={[radius, 48]} />
-      <meshBasicMaterial
-        color={color}
-        transparent
-        opacity={opacity}
-        depthTest={false}
-        depthWrite={false}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
-  );
-}
-
 /**
  * Half-side of the debug sampling square, from the body centre.
  *
@@ -203,17 +177,15 @@ function AnchorMarker({ anchor }) {
  * Composition overlay. Two independently toggled layers:
  *
  * `showAnchors`        — each anchor: reach ring, inner keep-out, and a weight
- *                        dot; plus the hard face pocket. Under migration the
- *                        mass wanders around this centre, so the ring shows the
- *                        cause and the bound, not the current mass.
+ *                        dot. Under migration the mass wanders around this
+ *                        centre, so the ring shows the cause and the bound,
+ *                        not the current mass.
  * `densityField`       — a heat grid sampled through the same `sampleAnchorField`
  *                        the sampler uses, so it shows what the sampler sees.
  */
 export function CompositionDebug({
   visible = false,
   center = [0, 0],
-  headLocal = null,
-  faceClearRadius = 0,
   anchors = null,
   showAnchors = false,
   densityField = false,
@@ -221,11 +193,6 @@ export function CompositionDebug({
   gridResolution = 56,
 }) {
   if (!visible) return null;
-
-  const [cx, cz] = center;
-  const headX = headLocal?.x ?? cx;
-  const headZ = headLocal?.z ?? cz;
-  const headFound = Boolean(headLocal?.found ?? headLocal);
 
   return (
     <group>
@@ -245,21 +212,6 @@ export function CompositionDebug({
           ))}
         </group>
       ) : null}
-
-      {showAnchors && (
-        <group position={[headX, 0, headZ]}>
-          <DiscFill radius={faceClearRadius} color="#ff4d6d" opacity={0.16} />
-          <CircleRing radius={faceClearRadius} color="#ff4d6d" y={0.03} />
-          <mesh position={[0, 0.06, 0]} frustumCulled={false}>
-            <sphereGeometry args={[0.035, 12, 12]} />
-            <meshBasicMaterial
-              color={headFound ? '#ff4d6d' : '#888888'}
-              depthTest={false}
-              depthWrite={false}
-            />
-          </mesh>
-        </group>
-      )}
     </group>
   );
 }

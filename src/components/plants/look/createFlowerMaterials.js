@@ -195,6 +195,8 @@ export function createFlowerUniforms() {
       midColor: uniform(new THREE.Color(petal.midColor)),
       tipColor: uniform(new THREE.Color(petal.tipColor)),
       saturation: uniform(petal.saturation ?? 1),
+      hueRange: uniform(petal.hueRange),
+      lightRange: uniform(petal.lightRange),
     },
     vein: {
       scale: uniform(vein.scale),
@@ -351,7 +353,7 @@ export function createFlowerVertexColorMaterial(
     normalSource = normalLocal,
     usePetalCutout = true,
     useMaskEdge = true,
-    /** Optional TSL nodes: { hueShift, lightShift } for per-instance petal variation. */
+    /** Optional TSL nodes: instance unit × look-range uniforms. */
     colorVariation = null,
     /** Uniform 0..1 — mixes heads toward debugTintColor so GPU-drawn instances are obvious. */
     debugTint = null,

@@ -15,6 +15,7 @@ import { DirectionalLight } from '../components/scene/DirectionalLight';
 import Effects from '../components/scene/Effects';
 import { ShadowCatcher } from '../components/scene/ShadowCatcher';
 import { setSimSpeedMul } from '../components/plants/lifecycle/simSpeed';
+import { useLifecyclePauseHotkey } from '../components/plants/lifecycle/useLifecyclePauseHotkey';
 import { getLiveThemeColors } from '../components/scene/themeTween';
 import { FLOW_OVERHEAD } from '../components/camera/cameraShots';
 import { TIER1_TARGETS, useExperienceStore } from '../core/experienceStore';
@@ -56,6 +57,7 @@ function SceneContent() {
   const fieldParentRef = useRef(null);
   const [bodyBounds, setBodyBounds] = useState(null);
   const [backpackBounds, setBackpackBounds] = useState(null);
+  useLifecyclePauseHotkey();
 
   const { simSpeed } = useControls('Sim', {
     simSpeed: { value: 1, min: 0, max: 12, step: 0.1, label: 'simSpeed ×' },

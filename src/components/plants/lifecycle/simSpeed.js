@@ -1,24 +1,34 @@
 /**
- * Shared plant-time rate: authoredScale × debugMul.
- * Module-level so field, climb, and stems read the same value each frame.
- * Scales lifecycle and field drift. Wind and camera stay on the render clock.
+ * Shared plant-time rate. Field and climb multiply dt by getSimSpeed().
+ * Wind and camera stay on the render clock.
+ *
+ * Three writers, so three values:
+ *   authored — camera / intro (usePlantTimeScale)
+ *   debugMul — Leva simSpeed ×
+ *   paused   — Space; a flag so unpause does not wipe the other two
  */
 
-const authoredScaleRef = { current: 0 };
-const debugMulRef = { current: 1 };
+let authoredScale = 0;
+let debugMul = 1;
+let paused = false;
 
 function finiteNonNeg(value, fallback) {
   return Number.isFinite(value) ? Math.max(0, value) : fallback;
 }
 
 export function getSimSpeed() {
-  return authoredScaleRef.current * debugMulRef.current;
+  if (paused) return 0;
+  return authoredScale * debugMul;
+}
+
+export function toggleSimPause() {
+  paused = !paused;
 }
 
 export function setAuthoredSimScale(value) {
-  authoredScaleRef.current = finiteNonNeg(value, 1);
+  authoredScale = finiteNonNeg(value, 1);
 }
 
 export function setSimSpeedMul(value) {
-  debugMulRef.current = finiteNonNeg(value, 1);
+  debugMul = finiteNonNeg(value, 1);
 }
