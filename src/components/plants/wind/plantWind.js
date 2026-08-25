@@ -22,7 +22,9 @@ export function windDirection(windAngle) {
 /** Shared two-frequency field: a broad travelling wave plus fine turbulence. */
 export function computeWindGust(baseX, baseZ, time, params = PLANT_WIND_DEFAULTS) {
   if (!params.enabled || params.windStrength <= 0) return 0;
-  const { dirX, dirZ } = windDirection(params.windAngle);
+  const angle = params.windAngle * (Math.PI / 180);
+  const dirX = Math.cos(angle);
+  const dirZ = Math.sin(angle);
   const travel = time * params.windSpeed;
   const u = baseX * params.windScale + dirX * travel;
   const v = baseZ * params.windScale + dirZ * travel;
@@ -40,11 +42,21 @@ export function computeWindSway(
   time,
   params = PLANT_WIND_DEFAULTS,
   response = 1,
+  out,
 ) {
-  if (!params.enabled || params.windStrength <= 0) return [0, 0];
-  const { dirX, dirZ } = windDirection(params.windAngle);
+  const sway = out ?? [0, 0];
+  if (!params.enabled || params.windStrength <= 0) {
+    sway[0] = 0;
+    sway[1] = 0;
+    return sway;
+  }
+  const angle = params.windAngle * (Math.PI / 180);
+  const dirX = Math.cos(angle);
+  const dirZ = Math.sin(angle);
   const amount = computeWindGust(baseX, baseZ, time, params)
     * params.windStrength
     * response;
-  return [dirX * amount, dirZ * amount];
+  sway[0] = dirX * amount;
+  sway[1] = dirZ * amount;
+  return sway;
 }

@@ -13,12 +13,12 @@ const S_SIZE = 18;
 const S_BLOOM = 19;
 const S_HEIGHT = 22;
 
-/** Head scale falls with hop generation — core of a clump stays larger. */
-const DEPTH_SIZE_DECAY = 0.88;
 /** VAT frame 0 is a closed bud; floor so fringe flowers still read. */
 const MIN_BLOOM = 0.32;
 /** Lower = fringe closes faster as local density drops. */
 const BLOOM_DENSITY_POW = 0.75;
+/** Head scale follows the same field as bloom, not hop depth. */
+const MIN_SIZE = 0.7;
 
 /**
  * `sizeMul` scales the flower HEAD (via stemRadius). Stem length is passed in
@@ -46,12 +46,12 @@ function buildStem(slot, slotIndex, opts) {
   const typeRoll = stableRandomRange(slotIndex, S_TYPE, arrangementSeed, 0, 1);
   const flowerType = typeRoll < roseRatio ? roseType : dahliaType;
   const sizeJit = stableRandomRange(slotIndex, S_SIZE, arrangementSeed, -0.08, 0.08);
-  const depth = slot.generation ?? 0;
-  const sizeMul = Math.pow(DEPTH_SIZE_DECAY, depth) * (1 + sizeJit);
+  const density = slot.fieldValue ?? 0;
+  const sizeMul = (MIN_SIZE + (1 - MIN_SIZE) * Math.pow(density, BLOOM_DENSITY_POW))
+    * (1 + sizeJit);
   const heightU = stableRandomRange(slotIndex, S_HEIGHT, arrangementSeed, 0, 1);
   const stemLength = lenMin + (lenMax - lenMin) * Math.pow(heightU, lengthExp);
   const bloomJit = stableRandomRange(slotIndex, S_BLOOM, arrangementSeed, -0.05, 0.05);
-  const density = slot.fieldValue ?? 0;
   const bloomCeiling = Math.min(1, Math.max(
     MIN_BLOOM,
     MIN_BLOOM + (1 - MIN_BLOOM) * Math.pow(density, BLOOM_DENSITY_POW) + bloomJit,
@@ -61,7 +61,6 @@ function buildStem(slot, slotIndex, opts) {
     leanOutwardAngle: slot.leanOutwardAngle,
     slotIndex,
     anchorIndex: slot.anchorIndex,
-    generation: slot.generation,
     clumpId: slot.clumpId ?? slotIndex,
     bloomCeiling,
     seed: slotIndex * 13 + 1 + arrangementSeed * 17,
@@ -81,8 +80,8 @@ function buildStem(slot, slotIndex, opts) {
 }
 
 /**
- * Place opening stems from anchors. Returns authored plants; FieldRuntime
- * owns geometry merge, lifecycle, and per-frame motion.
+ * Place hearts, then stems around them with the same hop death uses.
+ * FieldRuntime owns geometry merge, lifecycle, and per-frame motion.
  */
 export function buildFieldStems({
   anchors,
@@ -92,7 +91,7 @@ export function buildFieldStems({
   bodyCenter,
   arrangementSeed,
   fieldOptions,
-  founderShare,
+  hearts: heartFrac,
   hopMin,
   hopMax,
   roseRatio,
@@ -112,11 +111,9 @@ export function buildFieldStems({
   flareMin,
   flareMax,
 }) {
-  if (!anchors.length) {
-    return { stems: [], diagnostics: null };
-  }
+  if (!anchors.length) return { stems: [], hearts: [] };
 
-  const { slots, liveIndices, diagnostics } = buildAnchorClusterSlots({
+  const { slots, liveIndices, hearts } = buildAnchorClusterSlots({
     anchors,
     count: flowerCount,
     clearanceHosts,
@@ -124,33 +121,32 @@ export function buildFieldStems({
     bodyCenter,
     arrangementSeed,
     fieldOptions,
-    founderShare,
+    hearts: heartFrac,
     hopMin,
     hopMax,
   });
 
-  return {
-    stems: liveIndices.map((slotIndex) => (
-      buildStem(slots[slotIndex], slotIndex, {
-        arrangementSeed,
-        roseRatio,
-        roseType,
-        dahliaType,
-        lenMin,
-        lenMax,
-        lengthExp,
-        radMin,
-        radMax,
-        leanMin,
-        leanMax,
-        bendMin,
-        bendMax,
-        taperMin,
-        taperMax,
-        flareMin,
-        flareMax,
-      })
-    )),
-    diagnostics,
-  };
+  const stems = liveIndices.map((slotIndex) => (
+    buildStem(slots[slotIndex], slotIndex, {
+      arrangementSeed,
+      roseRatio,
+      roseType,
+      dahliaType,
+      lenMin,
+      lenMax,
+      lengthExp,
+      radMin,
+      radMax,
+      leanMin,
+      leanMax,
+      bendMin,
+      bendMax,
+      taperMin,
+      taperMax,
+      flareMin,
+      flareMax,
+    })
+  ));
+
+  return { stems, hearts };
 }

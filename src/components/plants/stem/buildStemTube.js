@@ -11,37 +11,17 @@ export function seededRng(seed) {
   };
 }
 
-function applyTubeRadiusTaper(geometry, curve, tubularSegments, radialSegments, taperFn) {
-  const pos = geometry.attributes.position;
-  const vertsPerRing = radialSegments + 1;
-  const ringCenter = new THREE.Vector3();
-
-  for (let i = 0; i <= tubularSegments; i++) {
-    const t = i / tubularSegments;
-    const scale = taperFn(t);
-    curve.getPointAt(t, ringCenter);
-
-    for (let j = 0; j <= radialSegments; j++) {
-      const idx = i * vertsPerRing + j;
-      const dx = pos.getX(idx) - ringCenter.x;
-      const dy = pos.getY(idx) - ringCenter.y;
-      const dz = pos.getZ(idx) - ringCenter.z;
-      pos.setXYZ(
-        idx,
-        ringCenter.x + dx * scale,
-        ringCenter.y + dy * scale,
-        ringCenter.z + dz * scale,
-      );
-    }
-  }
-
-  pos.needsUpdate = true;
-  geometry.computeVertexNormals();
+function write3(arr, k, x, y, z) {
+  arr[k] = x;
+  arr[k + 1] = y;
+  arr[k + 2] = z;
 }
 
-/**
- * Build a Catmull-Rom stem curve in plant-local space (base at origin).
- */
+function radiusScale(t, radiusAttenuation, baseFlare, extra = 1) {
+  return (1 - (1 - radiusAttenuation) * t) + baseFlare * extra * (1 - t) ** 3;
+}
+
+/** Catmull-Rom in plant-local space, base at origin. */
 export function buildStemCurve({
   seed,
   stemLength,
@@ -61,7 +41,6 @@ export function buildStemCurve({
     Math.cos(leanRad) * stemLength,
     Math.cos(leanAzimuth) * Math.sin(leanRad) * stemLength,
   );
-
   const bendAzimuth = rng() * Math.PI * 2;
   const bendMag = bendDegree * stemLength;
   const bend = new THREE.Vector3(
@@ -69,7 +48,6 @@ export function buildStemCurve({
     0,
     Math.cos(bendAzimuth) * bendMag,
   );
-
   const from = new THREE.Vector3(0, -BASE_BURY, 0);
   return new THREE.CatmullRomCurve3(
     [
@@ -83,16 +61,7 @@ export function buildStemCurve({
   );
 }
 
-/**
- * Arc-length-uniform samples of `curve`, for callers that look one up per frame.
- *
- * `getPointAt`/`getTangentAt` are not cheap: each is a binary search through the
- * arc-length table, and `getTangentAt` evaluates the curve twice more. Sampling
- * with the same segment count the tube uses makes interpolation land on the chord
- * between ring centres — which is exactly where the rendered tube surface is, so
- * a head placed from this table sits on the tube rather than on the ideal curve
- * the tube only approximates.
- */
+/** Positions + tangents along the stem, for placing a flower head each frame. */
 export function buildCurveSampleTable(curve, segments) {
   const count = Math.max(2, Math.floor(segments) + 1);
   const points = new Float32Array(count * 3);
@@ -103,18 +72,13 @@ export function buildCurveSampleTable(curve, segments) {
     const u = i / (count - 1);
     curve.getPointAt(u, point);
     curve.getTangentAt(u, tangent).normalize();
-    const k = i * 3;
-    points[k] = point.x;
-    points[k + 1] = point.y;
-    points[k + 2] = point.z;
-    tangents[k] = tangent.x;
-    tangents[k + 1] = tangent.y;
-    tangents[k + 2] = tangent.z;
+    write3(points, i * 3, point.x, point.y, point.z);
+    write3(tangents, i * 3, tangent.x, tangent.y, tangent.z);
   }
   return { points, tangents, count };
 }
 
-/** Interpolate a `buildCurveSampleTable` result. `u` is clamped to 0..1. */
+/** Lerp a sample table. `u` is 0..1. */
 export function sampleCurveTable(table, u, outPoint, outTangent) {
   const { points, tangents, count } = table;
   const f = Math.min(Math.max(u, 0), 1) * (count - 1);
@@ -135,10 +99,7 @@ export function sampleCurveTable(table, u, outPoint, outTangent) {
   return outPoint;
 }
 
-/**
- * TubeGeometry along `curve` with taper + baked centerline attribute.
- * Optionally stamps `plantId` on every vertex for batched field shading.
- */
+/** Tapered TubeGeometry + centerline attrs. `plantId` is for batched field shading. */
 export function buildStemTubeGeometry(curve, {
   stemRadius,
   stemSegments,
@@ -146,65 +107,47 @@ export function buildStemTubeGeometry(curve, {
   radiusAttenuation,
   baseFlare,
   plantId = null,
-  offset = null,
 }) {
   const geo = new THREE.TubeGeometry(curve, stemSegments, stemRadius, radialSegs, false);
-
-  applyTubeRadiusTaper(geo, curve, stemSegments, radialSegs, (t) => {
-    const linearTaper = 1 - (1 - radiusAttenuation) * t;
-    const flare = baseFlare * Math.pow(1 - t, 3);
-    return linearTaper + flare;
-  });
-
+  const pos = geo.attributes.position;
   const vertsPerRing = radialSegs + 1;
-  const centers = new Float32Array(geo.attributes.position.count * 3);
-  const previousPositions = new Float32Array(geo.attributes.position.count * 3);
-  const previousCenters = new Float32Array(geo.attributes.position.count * 3);
+  const vertCount = pos.count;
+  const centers = new Float32Array(vertCount * 3);
+  const previousPositions = new Float32Array(vertCount * 3);
+  const previousCenters = new Float32Array(vertCount * 3);
   const rc = new THREE.Vector3();
   const previousRc = new THREE.Vector3();
-  const position = geo.attributes.position;
-  for (let i = 0; i <= stemSegments; i++) {
-    curve.getPointAt(i / stemSegments, rc);
+
+  for (let i = 0; i <= stemSegments; i += 1) {
+    const t = i / stemSegments;
+    const scale = radiusScale(t, radiusAttenuation, baseFlare);
+    curve.getPointAt(t, rc);
     curve.getPointAt(Math.max(i - 1, 0) / stemSegments, previousRc);
-    for (let j = 0; j <= radialSegs; j++) {
-      const previousVertexIndex = Math.max(i - 1, 0) * vertsPerRing + j;
-      const k = (i * vertsPerRing + j) * 3;
-      centers[k] = rc.x;
-      centers[k + 1] = rc.y;
-      centers[k + 2] = rc.z;
-      previousPositions[k] = position.getX(previousVertexIndex);
-      previousPositions[k + 1] = position.getY(previousVertexIndex);
-      previousPositions[k + 2] = position.getZ(previousVertexIndex);
-      previousCenters[k] = previousRc.x;
-      previousCenters[k + 1] = previousRc.y;
-      previousCenters[k + 2] = previousRc.z;
+    for (let j = 0; j <= radialSegs; j += 1) {
+      const idx = i * vertsPerRing + j;
+      const prevIdx = Math.max(i - 1, 0) * vertsPerRing + j;
+      pos.setXYZ(
+        idx,
+        rc.x + (pos.getX(idx) - rc.x) * scale,
+        rc.y + (pos.getY(idx) - rc.y) * scale,
+        rc.z + (pos.getZ(idx) - rc.z) * scale,
+      );
+      const k = idx * 3;
+      write3(centers, k, rc.x, rc.y, rc.z);
+      write3(previousPositions, k, pos.getX(prevIdx), pos.getY(prevIdx), pos.getZ(prevIdx));
+      write3(previousCenters, k, previousRc.x, previousRc.y, previousRc.z);
     }
   }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
   geo.setAttribute('center', new THREE.BufferAttribute(centers, 3));
   geo.setAttribute('previousPosition', new THREE.BufferAttribute(previousPositions, 3));
   geo.setAttribute('previousCenter', new THREE.BufferAttribute(previousCenters, 3));
-
   if (plantId != null) {
-    const ids = new Float32Array(geo.attributes.position.count);
+    const ids = new Float32Array(vertCount);
     ids.fill(plantId);
     geo.setAttribute('plantId', new THREE.BufferAttribute(ids, 1));
   }
-
-  if (offset) {
-    geo.translate(offset[0], offset[1], offset[2]);
-    const c = geo.attributes.center;
-    const pp = geo.attributes.previousPosition;
-    const pc = geo.attributes.previousCenter;
-    for (let i = 0; i < c.count; i++) {
-      c.setXYZ(i, c.getX(i) + offset[0], c.getY(i) + offset[1], c.getZ(i) + offset[2]);
-      pp.setXYZ(i, pp.getX(i) + offset[0], pp.getY(i) + offset[1], pp.getZ(i) + offset[2]);
-      pc.setXYZ(i, pc.getX(i) + offset[0], pc.getY(i) + offset[1], pc.getZ(i) + offset[2]);
-    }
-    c.needsUpdate = true;
-    pp.needsUpdate = true;
-    pc.needsUpdate = true;
-  }
-
   return geo;
 }
 
@@ -214,11 +157,7 @@ const _packB = new THREE.Vector3();
 const _packNormal = new THREE.Vector3();
 const _packVertex = new THREE.Vector3();
 
-/**
- * Pack many stem tubes into one BufferGeometry (no mergeGeometries / no temp TubeGeometry).
- * `curves` items: `{ curve: THREE.Curve, plantId: number }`.
- * UV.x = path t (used by batched grow discard); `center` + `plantId` match field stems.
- */
+/** Many stems in one BufferGeometry. UV.x is path t. */
 export function buildPackedStemTubes(curves, {
   stemRadius,
   stemSegments,
@@ -232,17 +171,14 @@ export function buildPackedStemTubes(curves, {
   const rings = stemSegments + 1;
   const vertsPerRing = radialSegs + 1;
   const vertsPerStem = rings * vertsPerRing;
-  const totalVerts = n * vertsPerStem;
-  const totalIndices = n * stemSegments * radialSegs * 6;
-
-  const positions = new Float32Array(totalVerts * 3);
-  const normals = new Float32Array(totalVerts * 3);
-  const uvs = new Float32Array(totalVerts * 2);
-  const centers = new Float32Array(totalVerts * 3);
-  const previousPositions = new Float32Array(totalVerts * 3);
-  const previousCenters = new Float32Array(totalVerts * 3);
-  const plantIds = new Float32Array(totalVerts);
-  const indices = new Uint32Array(totalIndices);
+  const positions = new Float32Array(n * vertsPerStem * 3);
+  const normals = new Float32Array(n * vertsPerStem * 3);
+  const uvs = new Float32Array(n * vertsPerStem * 2);
+  const centers = new Float32Array(n * vertsPerStem * 3);
+  const previousPositions = new Float32Array(n * vertsPerStem * 3);
+  const previousCenters = new Float32Array(n * vertsPerStem * 3);
+  const plantIds = new Float32Array(n * vertsPerStem);
+  const indices = new Uint32Array(n * stemSegments * radialSegs * 6);
 
   let iOffset = 0;
   let vOffset = 0;
@@ -255,53 +191,45 @@ export function buildPackedStemTubes(curves, {
       radiusEndScale,
       baseFlareScale = 1,
     } = curves[s];
-    const hasBranchRadiusProfile = Number.isFinite(radiusStartScale)
+    const branchProfile = Number.isFinite(radiusStartScale)
       && Number.isFinite(radiusEndScale);
     const frames = curve.computeFrenetFrames(stemSegments, false);
 
     for (let i = 0; i <= stemSegments; i += 1) {
       const t = i / stemSegments;
       const smoothT = t * t * (3 - 2 * t);
-      const radiusScale = hasBranchRadiusProfile
-        ? radiusStartScale
-          + (radiusEndScale - radiusStartScale) * smoothT
+      const scale = branchProfile
+        ? radiusStartScale + (radiusEndScale - radiusStartScale) * smoothT
           + baseFlare * baseFlareScale * (1 - t) ** 3
-        : (1 - (1 - radiusAttenuation) * t) + baseFlare * (1 - t) ** 3;
-      const r = stemRadius * radiusScale;
+        : radiusScale(t, radiusAttenuation, baseFlare);
+      const r = stemRadius * scale;
       curve.getPointAt(t, _packP);
       _packN.copy(frames.normals[i]);
       _packB.copy(frames.binormals[i]);
 
       for (let j = 0; j <= radialSegs; j += 1) {
         const v = (j / radialSegs) * Math.PI * 2;
-        const sin = Math.sin(v);
-        const cos = -Math.cos(v);
         _packNormal
           .copy(_packN)
-          .multiplyScalar(cos)
-          .addScaledVector(_packB, sin)
+          .multiplyScalar(-Math.cos(v))
+          .addScaledVector(_packB, Math.sin(v))
           .normalize();
         _packVertex.copy(_packP).addScaledVector(_packNormal, r);
 
         const idx = vOffset + i * vertsPerRing + j;
         const i3 = idx * 3;
-        positions[i3] = _packVertex.x;
-        positions[i3 + 1] = _packVertex.y;
-        positions[i3 + 2] = _packVertex.z;
-        normals[i3] = _packNormal.x;
-        normals[i3 + 1] = _packNormal.y;
-        normals[i3 + 2] = _packNormal.z;
-        centers[i3] = _packP.x;
-        centers[i3 + 1] = _packP.y;
-        centers[i3 + 2] = _packP.z;
-        const previousIdx = vOffset + Math.max(i - 1, 0) * vertsPerRing + j;
-        const previousI3 = previousIdx * 3;
-        previousPositions[i3] = positions[previousI3];
-        previousPositions[i3 + 1] = positions[previousI3 + 1];
-        previousPositions[i3 + 2] = positions[previousI3 + 2];
-        previousCenters[i3] = centers[previousI3];
-        previousCenters[i3 + 1] = centers[previousI3 + 1];
-        previousCenters[i3 + 2] = centers[previousI3 + 2];
+        write3(positions, i3, _packVertex.x, _packVertex.y, _packVertex.z);
+        write3(normals, i3, _packNormal.x, _packNormal.y, _packNormal.z);
+        write3(centers, i3, _packP.x, _packP.y, _packP.z);
+        const prevI3 = (vOffset + Math.max(i - 1, 0) * vertsPerRing + j) * 3;
+        write3(
+          previousPositions, i3,
+          positions[prevI3], positions[prevI3 + 1], positions[prevI3 + 2],
+        );
+        write3(
+          previousCenters, i3,
+          centers[prevI3], centers[prevI3 + 1], centers[prevI3 + 2],
+        );
         uvs[idx * 2] = t;
         uvs[idx * 2 + 1] = j / radialSegs;
         plantIds[idx] = plantId;
@@ -312,17 +240,14 @@ export function buildPackedStemTubes(curves, {
       for (let j = 0; j < radialSegs; j += 1) {
         const a = vOffset + i * vertsPerRing + j;
         const b = vOffset + (i + 1) * vertsPerRing + j;
-        const c = b + 1;
-        const d = a + 1;
         indices[iOffset++] = a;
         indices[iOffset++] = b;
-        indices[iOffset++] = d;
+        indices[iOffset++] = a + 1;
         indices[iOffset++] = b;
-        indices[iOffset++] = c;
-        indices[iOffset++] = d;
+        indices[iOffset++] = b + 1;
+        indices[iOffset++] = a + 1;
       }
     }
-
     vOffset += vertsPerStem;
   }
 

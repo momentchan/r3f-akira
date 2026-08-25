@@ -13,12 +13,12 @@ export function useFlowerCullControls() {
       step: 0.1,
       label: 'LOD distance',
     },
-    freezeTips: { value: d.freezeTips, label: 'bench: freeze tips' },
-    forceAllLow: { value: d.forceAllLow, label: 'bench: force all low' },
+    freezeTips: { value: d.freezeTips, label: 'freeze tips' },
+    forceAllLow: { value: d.forceAllLow, label: 'force all low' },
     flowerCastShadows: { value: d.flowerCastShadows, label: 'flower head shadows' },
     lowShadowCasters: { value: d.lowShadowCasters, label: 'low-poly shadow casters' },
-    hideStems: { value: d.hideStems, label: 'bench: hide stems' },
-    hideLeaves: { value: d.hideLeaves, label: 'bench: hide leaves' },
-    freezeMigrate: { value: d.freezeMigrate, label: 'bench: freeze migrate' },
+    hideStems: { value: d.hideStems, label: 'hide stems' },
+    hideLeaves: { value: d.hideLeaves, label: 'hide leaves' },
+    freezeMigrate: { value: d.freezeMigrate, label: 'freeze migrate' },
   }, { collapsed: false });
 }

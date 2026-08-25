@@ -11,6 +11,7 @@ export const FIELD_DEFAULTS = {
    */
   anchors: {
     showAnchors: false,
+    showHearts: false,
     densityField: false,
     reachScale: 1.37,
     // Domain warp: displaces the sample position before distance is measured, so
@@ -19,9 +20,8 @@ export const FIELD_DEFAULTS = {
     warpScale: 5,
     barePatches: 0.25,
     patchScale: 1.7,
-    // Dispersal. Fewer founders = fewer, tighter bouquets; a wider hop range
-    // loosens each clump toward a scatter.
-    founderShare: 0.14,
+    // 0.14 → about 1 in 7 flowers sit on a heart. Lower = fewer, bigger clumps.
+    hearts: 0.14,
     hopRange: [0.2, 0.5],
     // Hearts wander; dying flowers hop around one. The probability field stays put.
     migrateRange: 0.6,

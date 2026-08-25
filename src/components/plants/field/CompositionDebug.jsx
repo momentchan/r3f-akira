@@ -194,11 +194,8 @@ function AnchorFieldGrid({
 }
 
 /**
- * Pin itself: the cause. Outer reach in the elongated field frame.
- *
- * There is no separate field-centre marker any more. The static `centre drift`
- * that offset a mass from its anchor is gone, so the mass wanders around this
- * point under migration alone — the ring IS the cause and the centre.
+ * Pin reach in the elongated field frame. Hearts hop around this centre;
+ * the ring is the bound, not the current clump location.
  */
 function AnchorMarker({ anchor }) {
   const { x, z, radius, inner, color, elong, axis } = anchor;

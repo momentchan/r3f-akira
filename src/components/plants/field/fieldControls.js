@@ -99,13 +99,13 @@ function shapeGroup(d) {
 /** How flowers organise inside a mass. Dispersal is the layout. */
 function clumpingGroup(d) {
   return {
-    // Low = few large bouquets; high approaches plain field sampling, because
-    // almost everything becomes a founder rather than spreading from one.
-    founderShare: {
-      value: d.anchors.founderShare ?? 0.14, min: 0.03, max: 0.6, step: 0.01,
+    // 0.14 → about 1 in 7 of a pin's flowers sit on a heart.
+    // Lower = fewer, bigger clumps; higher = more, smaller clumps.
+    hearts: {
+      value: d.anchors.hearts ?? 0.14, min: 0.03, max: 0.6, step: 0.01,
     },
-    // Tighter = agglomerated clumps, wider = loose scatter. Decays with dispersal
-    // depth, so this is the range for the first generation.
+    // Tighter = agglomerated clumps, wider = loose scatter. Opening and death
+    // both hop this far off the chosen heart.
     hopRange: {
       value: d.anchors.hopRange ?? [0.07, 0.2], min: 0.02, max: 0.6, step: 0.01,
     },
@@ -174,6 +174,9 @@ function debugGroup(d) {
   return {
     showAnchors: {
       value: d.anchors.showAnchors ?? false,
+    },
+    showHearts: {
+      value: d.anchors.showHearts ?? false,
     },
     // Samples the same function the sampler does, so it shows what the sampler sees.
     densityField: {

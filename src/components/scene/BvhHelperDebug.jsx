@@ -3,10 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import { Mesh, MeshBasicMaterial } from 'three';
 import { BVHHelper } from 'three-mesh-bvh';
 
-/**
- * Debug: BVHHelper leaf boxes for a clearance host (body or backpack).
- */
-export function BodyBoundsDebug({
+/** MeshBVH leaf boxes for a clearance host (body, backpack, …). */
+export function BvhHelperDebug({
   geometry = null,
   visible = false,
   depth = 10,

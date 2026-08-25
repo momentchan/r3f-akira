@@ -3,13 +3,10 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { AsyncCompile } from '@core';
-import { isDebugRoute } from '../../../core/debugRoute';
 import {
   createBatchedStemMaterial,
   createFlowerUniforms,
 } from '../look/createFlowerMaterials';
-import { FLOWER_LOD_DEBUG_COLORS } from '../vat/flowerCullDefaults';
-import { getFlowerBenchLabel, publishFlowerBench } from '../vat/flowerBench';
 import { FieldLeaves } from '../stem/FieldLeaves';
 import { syncStemLookControls } from '../stem/stemControls';
 import {
@@ -26,150 +23,82 @@ import {
   createLifecycleState,
   restoreLifecycleProgress,
 } from '../lifecycle/plantLifecycle';
-import { computeWindSway } from '../stem/wind';
-import { PLANT_WIND_DEFAULTS } from '../wind/plantWind';
+import { computeWindSway, PLANT_WIND_DEFAULTS } from '../wind/plantWind';
 import {
   FlowerTypeBatch,
   cullFlowerBatches,
   updateFlowerBatchTips,
 } from '../vat/FlowerTypeBatch';
-import {
-  countActiveFlowerHeads,
-  countTotalFlowerSlots,
-  readDrawnFlowerCounts,
-} from '../vat/flowerInstanceCull';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
-import {
-  DEFAULT_HOP_DECAY,
-  pickClumpHeart,
-  sampleClumpHop,
-  sampleFieldPosition,
-} from './fieldClusterLayout';
 import { getSimSpeed } from '../lifecycle/simSpeed';
 import { enablePlantShadowLayer } from '../../scene/plantShadowLayer';
-
-/**
- * One heart per opening founder. Hearts wander on their own clock; dying
- * flowers pick among them by field × distance. The list is the pick target —
- * the Map is only for looking a founder up while building.
- */
-function buildHeartRuntime(plants) {
-  const byId = new Map();
-  const list = [];
-  for (let i = 0; i < plants.length; i += 1) {
-    const p = plants[i];
-    const id = p.clumpId ?? i;
-    let h = byId.get(id);
-    if (!h) {
-      h = {
-        id,
-        anchorIndex: p.anchorIndex ?? 0,
-        cx: p.position[0],
-        cz: p.position[2],
-        beat: -1,
-        relocateTick: 0,
-      };
-      byId.set(id, h);
-      list.push(h);
-    }
-    if ((p.generation ?? 1) === 0) {
-      h.cx = p.position[0];
-      h.cz = p.position[2];
-      h.anchorIndex = p.anchorIndex ?? h.anchorIndex;
-    }
-  }
-  return { byId, list };
-}
-
-/** Sim-seconds between heart hops. Default migrateSpeed 0.035 → 10s. */
-function heartPeriod(migrateSpeed) {
-  return 0.35 / Math.max(migrateSpeed, 0.001);
-}
+import { HeartDebug } from './HeartDebug';
+import { hopHearts, respawnPlant } from './fieldMigrate';
+import {
+  applyStemLayout,
+  createPlantDataTexture,
+  stemsTubeKey,
+  writePlantState,
+} from './fieldPlantData';
+import {
+  mountFlowerCullHud,
+  pollFlowerCullCounts,
+  tickFlowerCullFps,
+  unmountFlowerCullHud,
+} from './flowerCullHud';
 
 const _lightWorld = new THREE.Vector3();
 const _lightTarget = new THREE.Vector3();
+const _windSway = [0, 0];
 
-/**
- * Per-plant data, one texel column per plant:
- *   row 0 = [stemGrow, swayX, swayZ, _]
- *   row 1 = [offsetX, offsetY, offsetZ, yaw]   (runtime placement)
- * Row 1 is what lets a plant move + turn on respawn without rebuilding the
- * merged stem geometry.
- */
-const PLANT_DATA_ROWS = 2;
-
-function createPlantDataTexture(count, rows = PLANT_DATA_ROWS) {
-  const width = Math.max(1, THREE.MathUtils.ceilPowerOfTwo(count));
-  const data = new Float32Array(width * rows * 4);
-  const tex = new THREE.DataTexture(data, width, rows, THREE.RGBAFormat, THREE.FloatType);
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
-  tex.wrapS = THREE.ClampToEdgeWrapping;
-  tex.wrapT = THREE.ClampToEdgeWrapping;
-  tex.needsUpdate = true;
-  return { tex, data, width, rows };
-}
-
-/** Tube identity — placement (xz, lean, bloom) is patched without a remesh. */
-function stemTubeKey(stem) {
-  const p = stem.params;
-  return `${stem.seed}:${stem.flowerType?.id}`
-    + `:${p.stemLength}:${p.stemRadius}:${p.leanAngle}:${p.bendDegree}`
-    + `:${p.radiusAttenuation}:${p.baseFlare}`;
-}
-
-function stemsTubeKey(stems) {
-  let key = String(stems.length);
-  for (let i = 0; i < stems.length; i += 1) key += `|${stemTubeKey(stems[i])}`;
-  return key;
-}
-
-function writePlantPlacement(plantData, plants) {
-  if (!plantData || !plants.length) return;
-  const { data, width, tex } = plantData;
-  for (let i = 0; i < plants.length; i += 1) {
-    const plant = plants[i];
-    const o1 = (width + i) * 4;
-    data[o1] = plant.position[0];
-    data[o1 + 1] = plant.position[1];
-    data[o1 + 2] = plant.position[2];
-    data[o1 + 3] = plant.yaw;
-  }
-  tex.needsUpdate = true;
-}
-
-/** Move existing plants onto a new layout without rebuilding merged tubes. */
-function applyStemLayout(rt, stems) {
-  const plants = rt.plants;
-  if (!plants.length || plants.length !== stems.length) return false;
-  for (let i = 0; i < plants.length; i += 1) {
-    if (plants[i].seed !== stems[i].seed) return false;
-  }
-  for (let i = 0; i < plants.length; i += 1) {
-    const stem = stems[i];
-    const plant = plants[i];
-    plant.position[0] = stem.position[0];
-    plant.position[1] = stem.position[1];
-    plant.position[2] = stem.position[2];
-    // Curve was baked at baseLeanAngle; yaw is the same trick respawn uses.
-    plant.yaw = (stem.leanOutwardAngle ?? 0) - plant.baseLeanAngle;
-    plant.anchorIndex = stem.anchorIndex;
-    plant.generation = stem.generation;
-    plant.clumpId = stem.clumpId ?? plant.clumpId;
-    plant.bloomCeiling = stem.bloomCeiling ?? 1;
-    plant.slotIndex = stem.slotIndex ?? plant.slotIndex;
-  }
-  writePlantPlacement(rt.plantData, plants);
-  rt.hearts = buildHeartRuntime(plants).list;
-  return true;
+function createFieldPlant(stem, plantId, { stemSegments, radialSegs, leanOut, ranges, stagger }) {
+  const curve = buildStemCurve({
+    seed: stem.seed,
+    stemLength: stem.params.stemLength,
+    leanAngle: stem.params.leanAngle,
+    bendDegree: stem.params.bendDegree,
+    leanOutwardAngle: stem.leanOutwardAngle,
+    leanOut,
+  });
+  const geometry = buildStemTubeGeometry(curve, {
+    stemRadius: stem.params.stemRadius,
+    stemSegments,
+    radialSegs,
+    radiusAttenuation: stem.params.radiusAttenuation,
+    baseFlare: stem.params.baseFlare,
+    plantId,
+  });
+  return {
+    geometry,
+    plant: {
+      ...stem,
+      plantId,
+      curve,
+      curveTable: buildCurveSampleTable(curve, stemSegments),
+      position: [stem.position[0], stem.position[1], stem.position[2]],
+      yaw: 0,
+      slotIndex: stem.slotIndex ?? -1,
+      baseLeanAngle: stem.leanOutwardAngle ?? 0,
+      bloomCeiling: stem.bloomCeiling ?? 1,
+      respawnTick: 0,
+      generationSeen: 0,
+      lifecycle: createLifecycleState({
+        seed: stem.seed,
+        ranges,
+        initialStagger: stagger,
+        rerollEachGeneration: true,
+      }),
+    },
+  };
 }
 
 /**
- * Field runtime: merged stem mesh, GPU-culled VAT heads, instanced leaves,
- * lifecycle, and heart hops. PlantField authors the opening stems.
+ * Merged stems, GPU-culled VAT heads, leaves, lifecycle, heart hops.
+ * PlantField authors opening stems and hearts.
  */
 export function FieldRuntime({
   stems,
+  hearts = [],
   leanOut = 0,
   phaseSpread = 1,
   stemSegments = 32,
@@ -177,11 +106,12 @@ export function FieldRuntime({
   stemYMax = 0.05,
   bloomStart = 0.23,
   bloomFrac = 0.3,
-  petalShedFrac = 0, // fraction of `die` spent dropping petals before the stem goes
-  shedStemOverlap = 0, // 0 = stem waits for every petal, 1 = both start together
+  petalShedFrac = 0,
+  shedStemOverlap = 0,
   shedControls = null,
   lifecycleRanges,
   migration = null,
+  showHearts = false,
   flowerControlsById,
   stemLookControls = null,
   leafControls = null,
@@ -191,14 +121,10 @@ export function FieldRuntime({
   const runtimeRef = useRef({
     plants: [],
     plantData: null,
-    stemMesh: null,
     flowerBatches: {},
     light: null,
-    // Reused every frame so the respawn field sampler allocates nothing.
     migrateOptions: null,
     hearts: [],
-    // Scaled, pausable simulation time. Kept here rather than read off the render
-    // clock so speed changes and the Space pause apply to the field drift too.
     simTime: 0,
     cullReadPending: false,
     cullReadAt: 0,
@@ -207,25 +133,20 @@ export function FieldRuntime({
     fpsAcc: 0,
   });
 
-  const freezeTips = Boolean(cullControls?.freezeTips);
-  const forceAllLow = Boolean(cullControls?.forceAllLow);
-  const noFlowerShadows = cullControls?.flowerCastShadows === false;
-  const hideStems = Boolean(cullControls?.hideStems);
-  const hideLeaves = Boolean(cullControls?.hideLeaves);
-  const freezeMigrate = Boolean(cullControls?.freezeMigrate);
-  const lowShadowCasters = Boolean(cullControls?.lowShadowCasters);
-  const benchMode = getFlowerBenchLabel({
-    freezeTips,
-    forceAllLow,
-    noFlowerShadows,
-    lowShadowCasters,
-    hideStems,
-    hideLeaves,
-    freezeMigrate,
-  });
+  const {
+    freezeTips = false,
+    forceAllLow = false,
+    flowerCastShadows = true,
+    hideStems = false,
+    hideLeaves = false,
+    freezeMigrate = false,
+    lowShadowCasters = false,
+    tintDrawn = false,
+    enabled: gpuCull = true,
+    lodDistance,
+  } = cullControls ?? {};
+  const noFlowerShadows = flowerCastShadows === false;
 
-  // Lifecycle timing does not shape geometry, so it must not be a rebuild input.
-  // Read through refs and applied in place below; see the stemBuild deps note.
   const lifecycleRangesRef = useRef(lifecycleRanges);
   lifecycleRangesRef.current = lifecycleRanges;
   const phaseSpreadRef = useRef(phaseSpread);
@@ -233,77 +154,13 @@ export function FieldRuntime({
   const cullHudRef = useRef(null);
 
   useEffect(() => {
-    const showStats = isDebugRoute();
-    const showLegend = cullControls?.tintDrawn;
-    if (!showStats && !showLegend) {
-      cullHudRef.current?.root.remove();
-      cullHudRef.current = null;
-      return undefined;
-    }
-
-    const rgbCss = ([r, g, b]) => (
-      `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`
-    );
-
-    const root = document.createElement('div');
-    root.className = 'flower-cull-hud';
-
-    let totalEl = null;
-    let activeEl = null;
-    let drawnEl = null;
-    let dprEl = null;
-    let fpsEl = null;
-    if (showStats) {
-      totalEl = document.createElement('span');
-      activeEl = document.createElement('span');
-      drawnEl = document.createElement('span');
-      dprEl = document.createElement('span');
-      fpsEl = document.createElement('span');
-      totalEl.textContent = 'total 0';
-      activeEl.textContent = 'active 0';
-      drawnEl.textContent = 'drawn 0';
-      dprEl.textContent = 'dpr —';
-      fpsEl.textContent = 'fps —';
-      root.append(totalEl, activeEl, drawnEl, dprEl, fpsEl);
-    }
-
-    let legendEl = null;
-    if (showLegend) {
-      legendEl = document.createElement('div');
-      legendEl.className = 'flower-cull-lod-legend';
-      for (const [label, color] of [
-        ['LOD0 hi-poly', FLOWER_LOD_DEBUG_COLORS.hi],
-        ['LOD1 low-poly', FLOWER_LOD_DEBUG_COLORS.lo],
-      ]) {
-        const row = document.createElement('span');
-        const swatch = document.createElement('i');
-        swatch.style.background = rgbCss(color);
-        row.append(swatch, document.createTextNode(label));
-        legendEl.append(row);
-      }
-      root.append(legendEl);
-    }
-
-    document.body.appendChild(root);
-    cullHudRef.current = {
-      root, totalEl, activeEl, drawnEl, dprEl, fpsEl, legendEl,
-    };
+    cullHudRef.current = mountFlowerCullHud(tintDrawn);
     return () => {
-      root.remove();
+      unmountFlowerCullHud(cullHudRef.current);
       cullHudRef.current = null;
     };
-  }, [
-    cullControls?.tintDrawn,
-    cullControls?.freezeTips,
-    cullControls?.forceAllLow,
-    cullControls?.flowerCastShadows,
-    cullControls?.lowShadowCasters,
-    cullControls?.hideStems,
-    cullControls?.hideLeaves,
-    cullControls?.freezeMigrate,
-  ]);
+  }, [tintDrawn]);
 
-  // Shared stem look from top-level Stem panel.
   const stemFlowerUniforms = useMemo(() => createFlowerUniforms(), []);
 
   useEffect(() => {
@@ -311,10 +168,10 @@ export function FieldRuntime({
     syncStemLookControls(stemLookControls, stemFlowerUniforms);
   }, [stemLookControls, stemFlowerUniforms]);
 
-  // Pin / hop / field edits reshuffle xz but keep tube keys. Remesh only when
-  // the tube itself changes (count, seed, species, baked params) or tessellation.
-  const tubeKey = useMemo(() => stemsTubeKey(stems), [stems]);
-
+  const tubeKey = stemsTubeKey(stems);
+  // Baked tube identity: seed, species, curve, radius, lean. Placement lives in
+  // the plant DataTexture, so a position-only layout change must not remesh.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- stems via tubeKey
   const stemBuild = useMemo(() => {
     if (!stems.length) {
       return { geometry: null, plantData: null, plants: [] };
@@ -323,63 +180,20 @@ export function FieldRuntime({
     const plantData = createPlantDataTexture(stems.length);
     const geos = [];
     const plants = stems.map((stem, plantId) => {
-      const curve = buildStemCurve({
-        seed: stem.seed,
-        stemLength: stem.params.stemLength,
-        leanAngle: stem.params.leanAngle,
-        bendDegree: stem.params.bendDegree,
-        leanOutwardAngle: stem.leanOutwardAngle,
-        leanOut,
-      });
-      // Baked in plant-local space — placement lives in plantData row 1 so a plant
-      // can be moved/turned at respawn without re-merging this geometry.
-      const geo = buildStemTubeGeometry(curve, {
-        stemRadius: stem.params.stemRadius,
+      const { geometry, plant } = createFieldPlant(stem, plantId, {
         stemSegments,
         radialSegs,
-        radiusAttenuation: stem.params.radiusAttenuation,
-        baseFlare: stem.params.baseFlare,
-        plantId,
+        leanOut,
+        ranges: lifecycleRangesRef.current,
+        stagger: phaseSpreadRef.current,
       });
-      geos.push(geo);
-
-      return {
-        ...stem,
-        plantId,
-        curve,
-        // Same segment count as the tube above, so the head tracks the geometry
-        // it is attached to rather than the ideal curve.
-        curveTable: buildCurveSampleTable(curve, stemSegments),
-        // Mutated at runtime, so clone rather than aliasing the layout memo.
-        position: [stem.position[0], stem.position[1], stem.position[2]],
-        yaw: 0,
-        // Home slot + the lean azimuth the curve was baked for; a new slot's yaw
-        // is the delta from this, which keeps "lean outward" pointing outward.
-        slotIndex: stem.slotIndex ?? -1,
-        baseLeanAngle: stem.leanOutwardAngle ?? 0,
-        // Normalized once here so the per-frame loop needs no fallback.
-        bloomCeiling: stem.bloomCeiling ?? 1,
-        respawnTick: 0,
-        generationSeen: 0,
-        lifecycle: createLifecycleState({
-          seed: stem.seed,
-          ranges: lifecycleRangesRef.current,
-          initialStagger: phaseSpreadRef.current,
-          rerollEachGeneration: true,
-        }),
-      };
+      geos.push(geometry);
+      return plant;
     });
 
     const merged = mergeGeometries(geos, false);
     geos.forEach((g) => g.dispose());
-
     return { geometry: merged, plantData, plants };
-    // `stems` is read here but listed via tubeKey: a pin drag rebuilds slots
-    // with new xz and must not re-run mergeGeometries. Latest xz is patched
-    // onto living plants below. leanOut bakes into the curve, so it stays.
-    // lifecycleRanges / phaseSpread also stay out — timing sliders used to
-    // remesh 256 tubes for nothing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [tubeKey, leanOut, stemSegments, radialSegs]);
 
   const stemMaterial = useMemo(() => {
@@ -392,38 +206,31 @@ export function FieldRuntime({
       startScale: GROWTH_START_SCALE,
       growthSegments: stemSegments,
     });
-  }, [stemBuild.plantData, stemFlowerUniforms]);
+  }, [stemBuild.plantData, stemFlowerUniforms, stemSegments]);
 
-  useEffect(() => {
-    const prev = runtimeRef.current.plants;
+  useLayoutEffect(() => {
+    const rt = runtimeRef.current;
     const next = stemBuild.plants;
-    // Keep lifecycle progress across layout rebuilds with the same seeds.
-    if (prev?.length && next.length === prev.length) {
-      for (let i = 0; i < next.length; i += 1) {
-        if (prev[i]?.seed === next[i].seed) {
-          restoreLifecycleProgress(
-            next[i].lifecycle,
-            prev[i].lifecycle,
-            lifecycleRanges,
-          );
-          // Layout rebuilds reset generationSeen to 0; a restored lifecycle that
-          // already wrapped would otherwise hop on the first frame.
-          next[i].generationSeen = prev[i].generationSeen;
+    if (rt.plants !== next) {
+      const prev = rt.plants;
+      if (prev?.length === next.length) {
+        for (let i = 0; i < next.length; i += 1) {
+          if (prev[i]?.seed === next[i].seed) {
+            restoreLifecycleProgress(
+              next[i].lifecycle,
+              prev[i].lifecycle,
+              lifecycleRanges,
+            );
+            next[i].generationSeen = prev[i].generationSeen;
+          }
         }
       }
+      rt.plants = next;
+      rt.plantData = stemBuild.plantData;
     }
-    runtimeRef.current.plants = next;
-    runtimeRef.current.plantData = stemBuild.plantData;
-    runtimeRef.current.hearts = buildHeartRuntime(next).list;
-  }, [stemBuild]);
+    applyStemLayout(rt, stems, hearts);
+  }, [stemBuild, stems, hearts]);
 
-  // Pin / hop / field: same tubes, new slots. Layout effect so plantData
-  // updates before paint — otherwise the slider leads the mesh by a frame.
-  useLayoutEffect(() => {
-    applyStemLayout(runtimeRef.current, stems);
-  }, [stems]);
-
-  // Timing changes reach living plants here instead of through a geometry rebuild.
   useEffect(() => {
     for (const plant of runtimeRef.current.plants) {
       applyLifecycleRanges(plant.lifecycle, lifecycleRanges);
@@ -453,98 +260,50 @@ export function FieldRuntime({
     const { plants, plantData, flowerBatches } = rt;
     if (!plants.length || !plantData) return;
 
-    if (!rt.light) {
+    if (!rt.light || !rt.light.parent) {
+      rt.light = null;
       scene.traverse((obj) => {
-        if (obj.isDirectionalLight) rt.light = obj;
+        if (!rt.light && obj.isDirectionalLight) rt.light = obj;
       });
     }
-    const light = rt.light;
-    if (light) {
-      light.updateWorldMatrix(true, false);
-      light.target.updateWorldMatrix(true, false);
-      light.getWorldPosition(_lightWorld);
-      light.target.getWorldPosition(_lightTarget);
+    if (rt.light) {
+      rt.light.updateWorldMatrix(true, false);
+      rt.light.target.updateWorldMatrix(true, false);
+      rt.light.getWorldPosition(_lightWorld);
+      rt.light.target.getWorldPosition(_lightTarget);
       const dir = _lightWorld.sub(_lightTarget).normalize();
       stemFlowerUniforms.lightDir.value.copy(dir);
-      // for..in rather than Object.values: this runs every frame and the latter
-      // allocates an array each time.
       for (const id in flowerBatches) {
         flowerBatches[id].flowerUniforms.lightDir.value.copy(dir);
       }
     }
 
-    // Simulation clock. Lifecycle and heart hops both read it.
-    // Clamp first, then scale: Space pause is getSimSpeed() === 0.
     const dt = Math.min(delta, 0.1) * getSimSpeed();
     rt.simTime += dt;
-    const simTime = rt.simTime;
 
-    // Field stays pinned to derived anchors. Hearts hop on their own clock;
-    // dying flowers pick among them. migrateRange 0 freezes hearts.
     let fieldOptions = null;
     if (migration?.anchors?.length) {
       if (!rt.migrateOptions) rt.migrateOptions = { ...migration.options };
       fieldOptions = rt.migrateOptions;
       Object.assign(fieldOptions, migration.options);
-
-      const range = freezeMigrate ? 0 : (migration.migrateRange ?? 0);
-      const speed = freezeMigrate ? 0 : (migration.migrateSpeed ?? 0);
-      if (range > 0 && speed > 0 && rt.hearts.length) {
-        const period = heartPeriod(speed);
-        const hopDecay = migration.hopDecay ?? DEFAULT_HOP_DECAY;
-        for (let h = 0; h < rt.hearts.length; h += 1) {
-          const heart = rt.hearts[h];
-          const phase = (heart.id * 0.728) % 1;
-          const beat = Math.floor(simTime / period - phase);
-          if (heart.beat < 0) {
-            heart.beat = beat;
-            continue;
-          }
-          if (beat === heart.beat) continue;
-          heart.beat = beat;
-          const sample = {
-            anchors: migration.anchors,
-            fieldOptions,
-            clearanceHosts: migration.clearanceHosts,
-            clearMargin: migration.meshClearDistance,
-            seed: heart.id * 17 + 1,
-            tick: heart.relocateTick,
-          };
-          const crept = sampleClumpHop({
-            ...sample,
-            from: { x: heart.cx, z: heart.cz },
-            generation: 1,
-            hopMin: range * 0.25,
-            hopMax: range,
-            hopDecay,
-          });
-          const next = crept ?? sampleFieldPosition({
-            ...sample,
-            anchorIndex: heart.anchorIndex,
-          });
-          if (next) {
-            heart.cx = next.x;
-            heart.cz = next.z;
-          }
-          heart.relocateTick += 1;
-        }
-      }
+      if (!freezeMigrate) hopHearts(rt.hearts, migration, fieldOptions, rt.simTime);
     }
-    const { data, width, tex } = plantData;
-    const time = clock.elapsedTime;
 
-    for (let i = 0; i < plants.length; i++) {
+    const time = clock.elapsedTime;
+    for (let i = 0; i < plants.length; i += 1) {
       const plant = plants[i];
-      const [swayX, swayZ] = computeWindSway(
+      computeWindSway(
         plant.position[0],
         plant.position[2],
         time,
         wind,
+        1,
+        _windSway,
       );
+      const swayX = _windSway[0];
+      const swayZ = _windSway[1];
 
       advanceLifecycleState(plant.lifecycle, dt, lifecycleRanges);
-      // Recomputed (rather than using advance's return) so the petal-shed hold
-      // on the stem is applied after the clock step.
       const growthState = computeGrowthLifecycle(
         plant.lifecycle.age,
         plant.lifecycle.durations,
@@ -558,155 +317,61 @@ export function FieldRuntime({
         bloomStart,
         petalShedFrac,
       );
-      // Read once and never scaled: the lifecycle alone owns how grown a stem is.
       const stemGrow = growthState.growth;
 
-      // Respawn: pick a live heart by field × distance, then hop around it.
-      // Hearts have already moved on their own clock this frame. Gated on
-      // stemGrow ~ 0 so it only ever teleports while fully retracted.
       if (
         plant.lifecycle.generation !== plant.generationSeen
         && stemGrow <= 0.001
       ) {
-        if (!freezeMigrate && fieldOptions && rt.hearts.length) {
-          const [bx, bz] = migration.bodyCenter ?? [0, 0];
-          const hopMin = migration.hopMin ?? 0.07;
-          const hopMax = migration.hopMax ?? 0.2;
-          const hopDecay = migration.hopDecay ?? DEFAULT_HOP_DECAY;
-          const sample = {
-            anchors: migration.anchors,
-            fieldOptions,
-            clearanceHosts: migration.clearanceHosts,
-            clearMargin: migration.meshClearDistance,
-            seed: plant.seed,
-            tick: plant.respawnTick,
-          };
-          const heart = pickClumpHeart({
-            hearts: rt.hearts,
-            x: plant.position[0],
-            z: plant.position[2],
-            anchors: migration.anchors,
-            fieldOptions,
-            attractRadius: hopMax * 3,
-            seed: plant.seed,
-            tick: plant.respawnTick,
-          });
-          if (heart) {
-            const got = sampleClumpHop({
-              ...sample,
-              from: { x: heart.cx, z: heart.cz },
-              generation: plant.generation ?? 1,
-              hopMin,
-              hopMax,
-              hopDecay,
-            });
-            if (got) {
-              plant.position[0] = got.x;
-              plant.position[2] = got.z;
-              plant.yaw = Math.atan2(got.x - bx, got.z - bz) - plant.baseLeanAngle;
-              plant.clumpId = heart.id;
-            }
-            plant.respawnTick += 1;
-          }
+        if (!freezeMigrate && fieldOptions) {
+          respawnPlant(plant, rt.hearts, migration, fieldOptions);
         }
         plant.generationSeen = plant.lifecycle.generation;
       }
 
-      // No migration gate. It used to scale stemGrow by the local density, which
-      // meant a flower halfway through blooming shrank back down because the field
-      // had moved off it — the lifecycle got interrupted, and it read as a flower
-      // growing in reverse for no visible reason. It also cost ~45% of the built
-      // count in permanently dormant plants.
-      //
-      // Migration now expresses itself through WHERE the next flower appears, not
-      // by retracting live ones: hearts wander on a timer, a death picks among
-      // them by field × distance, then hops. Every plant still runs a full
-      // grow/hold/shed/retract cycle wherever it stands.
       plant.stemGrow = stemGrow;
-      // Ceiling applied HERE rather than inside computeBloomLifecycle: that
-      // function deliberately forces flowerFrame to 1 during petal shed to avoid
-      // a pop, and the ramp reaches 1 at openEnd, so scaling the result holds the
-      // shed at exactly the value the ramp just arrived at — continuous either way.
       plant.flowerFrame = flowerFrame * plant.bloomCeiling;
       plant.flowerScale = flowerScale;
       plant.shed = shed;
       plant.swayX = swayX;
       plant.swayZ = swayZ;
-
-      const o = i * 4;
-      data[o] = stemGrow;
-      data[o + 1] = swayX;
-      data[o + 2] = swayZ;
-      data[o + 3] = 0;
-
-      const o1 = (width + i) * 4;
-      data[o1] = plant.position[0];
-      data[o1 + 1] = plant.position[1];
-      data[o1 + 2] = plant.position[2];
-      data[o1 + 3] = plant.yaw;
     }
-    // Texels past plants.length are never written, and the backing Float32Array
-    // starts zeroed, so there is nothing to clear here.
-    tex.needsUpdate = true;
+    writePlantState(plantData, plants);
 
-    if (freezeTips) {
-      if (!rt.tipsFrozen) {
-        updateFlowerBatchTips(flowerBatches, plants);
-        rt.tipsFrozen = true;
-      }
-    } else {
-      rt.tipsFrozen = false;
+    if (!freezeTips || !rt.tipsFrozen) {
       updateFlowerBatchTips(flowerBatches, plants);
     }
-    const tint = cullControls?.tintDrawn ? 1 : 0;
+    rt.tipsFrozen = freezeTips;
+
+    const tint = tintDrawn ? 1 : 0;
     for (const id in flowerBatches) {
-      const batch = flowerBatches[id];
-      const tints = batch.debugTints ?? (batch.debugTint ? [batch.debugTint] : []);
+      const tints = flowerBatches[id].debugTints
+        ?? (flowerBatches[id].debugTint ? [flowerBatches[id].debugTint] : []);
       for (let i = 0; i < tints.length; i += 1) {
         if (tints[i]) tints[i].value = tint;
       }
     }
     cullFlowerBatches(gl, camera, flowerBatches, {
-      enabled: cullControls?.enabled !== false,
+      enabled: gpuCull,
     });
 
     rt.fpsFrames += 1;
     rt.fpsAcc += delta;
     if (rt.fpsAcc >= 1) {
       const fps = rt.fpsFrames / rt.fpsAcc;
-      publishFlowerBench({
-        mode: benchMode,
-        fps,
-        at: performance.now(),
-      });
-      const hud = cullHudRef.current;
-      if (hud?.fpsEl) hud.fpsEl.textContent = `fps ${fps.toFixed(1)}`;
-      if (hud?.dprEl) hud.dprEl.textContent = `dpr ${gl.getPixelRatio().toFixed(2)}`;
+      tickFlowerCullFps(cullHudRef.current, gl, fps);
       rt.fpsFrames = 0;
       rt.fpsAcc = 0;
     }
 
-    if (isDebugRoute() && !rt.cullReadPending && clock.elapsedTime - rt.cullReadAt > 0.25) {
-      rt.cullReadPending = true;
-      rt.cullReadAt = clock.elapsedTime;
-      const total = countTotalFlowerSlots(flowerBatches);
-      const active = countActiveFlowerHeads(flowerBatches);
-      readDrawnFlowerCounts(gl, flowerBatches).then((perLod) => {
-        rt.cullReadPending = false;
-        const hud = cullHudRef.current;
-        if (!hud?.totalEl) return;
-        const drawn = perLod.reduce((sum, n) => sum + n, 0);
-        hud.totalEl.textContent = `total ${total}`;
-        hud.activeEl.textContent = `active ${active}`;
-        // Per-band split: drawn == active but both bands non-zero for the same
-        // heads is a different failure than drawn simply being too high.
-        hud.drawnEl.textContent = `drawn ${drawn} [${perLod.join('/')}]`;
-        if (hud.dprEl) hud.dprEl.textContent = `dpr ${gl.getPixelRatio().toFixed(2)}`;
-      }).catch(() => {
-        rt.cullReadPending = false;
-      });
-    }
-  }, 1);
+    pollFlowerCullCounts(
+      cullHudRef.current,
+      gl,
+      flowerBatches,
+      rt,
+      clock.elapsedTime,
+    );
+  });
 
   if (!stems.length || !stemBuild.geometry || !stemMaterial) {
     return null;
@@ -745,13 +410,18 @@ export function FieldRuntime({
               stemLookControls={stemLookControls}
               shedControls={shedControls}
               runtimeRef={runtimeRef}
-              lodDistance={cullControls?.lodDistance}
+              lodDistance={lodDistance}
               forceAllLow={forceAllLow}
               noFlowerShadows={noFlowerShadows}
               lowShadowCasters={lowShadowCasters}
             />
           </Suspense>
         ))}
+        <HeartDebug
+          runtimeRef={runtimeRef}
+          visible={showHearts}
+          capacity={stems.length}
+        />
       </group>
     </AsyncCompile>
   );

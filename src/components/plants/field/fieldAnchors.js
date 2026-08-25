@@ -16,29 +16,22 @@ const CONTACT_RISE = 0.1;
 
 export const ANCHOR_COLORS = ['#ff9f1c', '#2ec4b6', '#3a86ff', '#c77dff'];
 
-/**
- * Four pins, not one per contact. Covering every limb outlines the silhouette.
- *
- * `id` is the host: a LIMB_CAPSULE_DEFS capsule, or `backpack`.
- * The pin sits at capsule `a` (hand / hip / foot).
- */
+/** Four host pins. Each capsule pin sits at `a` (hand / hip / foot). */
 export const LAY_ANCHOR_DEFS = [
   {
     id: 'torso',
     weight: 1.2,
-    reach: 1.9,   // wide enough to meet the backpack without becoming a ring
-    elong: 1.35,  // stretch along the body, not a puck at the hip
+    reach: 1.9,
+    elong: 1.35,
   },
   {
-    // Left forearm, not right: the right hand sits on the backpack side, so a
-    // right-hand pin would stack on the heavy side and leave the far side empty.
+    // Left only: the right hand sits on the backpack side.
     id: 'forearm.l',
     weight: 0.85,
     reach: 0.8,
     elong: 1.5,
   },
   {
-    // Ground under the legs — the region three pins left bare.
     id: 'calf.l',
     weight: 0.8,
     reach: 0.85,
@@ -46,8 +39,8 @@ export const LAY_ANCHOR_DEFS = [
   },
   {
     id: 'backpack',
-    weight: 1.3,  // 0.9 was too thin to read as its own source
-    reach: 1.2,   // sized to the bag; 1.55 bled into the torso
+    weight: 1.3,
+    reach: 1.2,
     elong: 1.15,
   },
 ];
@@ -108,7 +101,6 @@ export function deriveFieldAnchors({
   })();
 
   const anchors = [];
-  const issues = [];
 
   for (let defIndex = 0; defIndex < defs.length; defIndex += 1) {
     const def = defs[defIndex];
@@ -120,15 +112,12 @@ export function deriveFieldAnchors({
     let src = null;
     if (def.id === 'backpack') {
       src = backpackSource(backpackBox);
-      if (!src) { issues.push({ id: def.id, reason: 'missing-backpack' }); continue; }
+      if (!src) continue;
     } else {
       const capsule = byId.get(def.id);
-      if (!capsule) { issues.push({ id: def.id, reason: 'missing-capsule' }); continue; }
+      if (!capsule) continue;
       const point = capsule.a;
-      if (point.y > GROUND_BAND_MAX) {
-        issues.push({ id: def.id, reason: 'airborne' });
-        continue;
-      }
+      if (point.y > GROUND_BAND_MAX) continue;
       src = {
         x: point.x,
         z: point.z,
@@ -151,10 +140,7 @@ export function deriveFieldAnchors({
     });
   }
 
-  return {
-    anchors,
-    diagnostics: { found: anchors.length, expected: defs.length, issues },
-  };
+  return anchors;
 }
 
 /** Shift the sample before measuring distance, so blobs deform instead of pulsing. */

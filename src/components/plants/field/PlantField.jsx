@@ -1,8 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useControls } from 'leva';
 import { preloadVATAssets } from '@core/vat';
 import { createFlowerControlsSchema } from '../look/flowerControls';
-import { DEFAULT_HOP_DECAY } from './fieldClusterLayout';
 import { deriveFieldAnchors } from './fieldAnchors';
 import { buildFieldStems } from './buildFieldStems';
 import { FIELD_CONTROLS_SCHEMA, pinOverridesFromFieldControls } from './fieldControls';
@@ -10,7 +9,7 @@ import { STEM_CONTROLS_SCHEMA } from '../stem/stemControls';
 import { STEM_DEFAULTS } from '../stem/stemDefaults';
 import { FieldRuntime } from './FieldRuntime';
 import { FLOWER_TYPES } from '../vat/flowerTypes';
-import { BodyBoundsDebug } from '../../scene/BodyBoundsDebug';
+import { BvhHelperDebug } from '../../scene/BvhHelperDebug';
 import { CompositionDebug } from './CompositionDebug';
 import { PLANT_WIND_DEFAULTS } from '../wind/plantWind';
 
@@ -29,7 +28,6 @@ export function PlantField({
   position = [0, 0, 0],
   bodyBounds = null,
   backpackBounds = null,
-  onStemBases,
   wind = PLANT_WIND_DEFAULTS,
   cullControls = null,
 }) {
@@ -42,6 +40,7 @@ export function PlantField({
     meshClearDistance,
     bvhHelperDepth,
     showAnchors,
+    showHearts,
     densityField,
     gridResolution,
     reachScale,
@@ -53,7 +52,7 @@ export function PlantField({
     warpScale,
     barePatches,
     patchScale,
-    founderShare,
+    hearts: heartFrac,
     hopRange,
     migrateRange,
     migrateSpeed,
@@ -177,10 +176,8 @@ export function PlantField({
   ]);
 
   // Four density masses on posed contact (torso, forearm.l, calf.l, backpack).
-  const anchorSet = useMemo(() => {
-    if (!bodyBounds?.bvh || !bodyBounds?.capsules?.length) {
-      return { anchors: [], diagnostics: { found: 0, expected: 0, issues: [] } };
-    }
+  const anchors = useMemo(() => {
+    if (!bodyBounds?.bvh || !bodyBounds?.capsules?.length) return [];
     return deriveFieldAnchors({
       capsules: bodyBounds.capsules,
       bodyRight: bodyBounds.bodyRight,
@@ -190,13 +187,12 @@ export function PlantField({
     });
   }, [bodyBounds, backpackBounds, reachScale, pinOverrides]);
 
-  const anchorFieldOptions = useMemo(() => ({
+  const fieldOptions = useMemo(() => ({
     shapeWarp,
     warpScale,
     barePatches,
     patchScale,
     seed: arrangementSeed,
-    // Same keep-out as planting, so the overlay does not show illegal density.
     hosts: clearanceHosts,
     meshClearDistance,
   }), [
@@ -206,56 +202,33 @@ export function PlantField({
 
   // Hearts wander; dying flowers hop around one. Density field stays on the anchors.
   const migration = useMemo(() => {
-    if (!anchorSet.anchors.length) return null;
+    if (!anchors.length) return null;
     return {
-      anchors: anchorSet.anchors,
-      options: {
-        shapeWarp,
-        warpScale,
-        barePatches,
-        patchScale,
-        seed: arrangementSeed,
-        hosts: clearanceHosts,
-        meshClearDistance,
-      },
+      anchors,
+      options: fieldOptions,
       clearanceHosts,
       meshClearDistance,
       bodyCenter,
       hopMin: Math.min(hopRange[0], hopRange[1]),
       hopMax: Math.max(hopRange[0], hopRange[1]),
-      hopDecay: DEFAULT_HOP_DECAY,
       migrateRange,
       migrateSpeed,
     };
   }, [
-    anchorSet, shapeWarp,
-    warpScale, barePatches, patchScale, arrangementSeed,
+    anchors, fieldOptions,
     migrateRange, migrateSpeed, clearanceHosts, meshClearDistance,
     bodyCenter, hopRange,
   ]);
 
-  const anchorSamplerOptions = useMemo(() => ({
-    shapeWarp,
-    warpScale,
-    barePatches,
-    patchScale,
-    seed: arrangementSeed,
-    hosts: clearanceHosts,
-    meshClearDistance,
-  }), [
-    shapeWarp, warpScale,
-    barePatches, patchScale, arrangementSeed, clearanceHosts, meshClearDistance,
-  ]);
-
-  const { stems, diagnostics } = useMemo(() => buildFieldStems({
-    anchors: anchorSet.anchors,
+  const { stems, hearts } = useMemo(() => buildFieldStems({
+    anchors,
     flowerCount,
     clearanceHosts,
     meshClearDistance,
     bodyCenter,
     arrangementSeed,
-    fieldOptions: anchorSamplerOptions,
-    founderShare,
+    fieldOptions,
+    hearts: heartFrac,
     hopMin: Math.min(hopRange[0], hopRange[1]),
     hopMax: Math.max(hopRange[0], hopRange[1]),
     roseRatio,
@@ -274,49 +247,37 @@ export function PlantField({
     taperMax,
     flareMin,
     flareMax,
-  }), [anchorSet, anchorSamplerOptions, bodyCenter,
-    founderShare, hopRange,
+  }), [anchors, fieldOptions, bodyCenter,
+    heartFrac, hopRange,
     flowerCount, arrangementSeed, roseRatio,
     clearanceHosts, meshClearDistance,
     lenMin, lenMax, lengthExp, radMin, radMax, leanMin, leanMax,
-    bendMin, bendMax, taperMin, taperMax, flareMin, flareMax]);
-
-  useEffect(() => {
-    if (!diagnostics?.shortfall) return;
-    console.warn(
-      `[PlantField] anchor layout short by ${diagnostics.shortfall} of ${flowerCount}`
-      + ` (${diagnostics.attempts} attempts) — widen reach or lower flowerCount`,
-    );
-  }, [diagnostics, flowerCount]);
-
-  useEffect(() => {
-    if (!onStemBases) return;
-    onStemBases(stems.map((s) => ({ x: s.position[0], z: s.position[2] })));
-  }, [stems, onStemBases]);
+    bendMin, bendMax, taperMin, taperMax,     flareMin, flareMax]);
 
   return (
     <group position={position}>
-      <BodyBoundsDebug
+      <BvhHelperDebug
         geometry={bodyBounds?.geometry ?? null}
         visible={Boolean(bvhHelper && bodyBounds?.geometry)}
         depth={bvhHelperDepth}
       />
-      <BodyBoundsDebug
+      <BvhHelperDebug
         geometry={backpackBounds?.geometry ?? null}
         visible={Boolean(bvhHelper && backpackBounds?.geometry)}
         depth={bvhHelperDepth}
       />
       <CompositionDebug
         visible={Boolean(showAnchors || densityField)}
-        anchors={anchorSet.anchors}
+        anchors={anchors}
         showAnchors={showAnchors}
         densityField={densityField}
         gridResolution={gridResolution}
-        fieldOptions={anchorFieldOptions}
+        fieldOptions={fieldOptions}
         center={bodyCenter}
       />
       <FieldRuntime
         stems={stems}
+        hearts={hearts}
         leanOut={leanOutward}
         phaseSpread={initialPhaseSpread}
         stemSegments={stemSegments}
@@ -329,6 +290,7 @@ export function PlantField({
         shedControls={shedControls}
         lifecycleRanges={lifecycleRanges}
         migration={migration}
+        showHearts={showHearts}
         flowerControlsById={flowerControlsById}
         stemLookControls={stemLookControls}
         leafControls={leafControls}

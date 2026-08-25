@@ -55,14 +55,12 @@ function AudioButtonScene() {
 export function AudioButton() {
   const isStarted = useExperienceStore((state) => state.isStarted);
   const setIsSoundOn = useExperienceStore((state) => state.setIsSoundOn);
-  // Overlay WebGPU must not init beside the scene canvas. /debug skips intro
-  // and would otherwise mount both at once; wait until Tier 1 has compiled.
   const sceneReady = useExperienceStore((state) =>
     TIER1_TARGETS.every((id) => state.readyStatus[id]),
   );
 
   useEffect(() => {
-    if (isStarted) setIsSoundOn(true);
+    if (isStarted) setIsSoundOn(false);
   }, [isStarted, setIsSoundOn]);
 
   useShortcut('m', () => {
