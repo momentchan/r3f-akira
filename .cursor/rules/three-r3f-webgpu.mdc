@@ -1,0 +1,22 @@
+---
+description: Three.js, React Three Fiber, WebGPU, and TSL implementation standards
+globs: "{src/app,src/components,src/core,packages/three-core/src}/**/*.{js,jsx,ts,tsx}"
+alwaysApply: false
+---
+
+# Three / R3F / WebGPU
+
+Before implementing, reviewing, or refactoring 3D rendering code, read:
+
+- `packages/three-core/guides/R3F_RUNTIME.md`
+- `packages/three-core/guides/WEBGPU_TSL_R182.md`
+
+Apply only guidance relevant to the current system. Repository requirements take
+priority over conditional examples.
+
+- Keep continuous frame values outside React rendering.
+- Let R3F own the renderer and final render loop.
+- Make imperative GPU resource ownership and cleanup explicit.
+- Use `three/webgpu`, TSL, and NodeMaterial for the WebGPU path.
+- Treat renderer flags, compute, indirect draw, and culling as measured choices.
+- Verify version-sensitive APIs against the installed Three.js revision.
