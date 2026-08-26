@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "article": "vite --config article-preview/vite.config.js",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

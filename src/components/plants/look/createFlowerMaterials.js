@@ -353,6 +353,7 @@ export function createFlowerVertexColorMaterial(
     normalSource = normalLocal,
     usePetalCutout = true,
     useMaskEdge = true,
+    useVeins = true,
     /** Optional TSL nodes: instance unit × look-range uniforms. */
     colorVariation = null,
     /** Uniform 0..1 — mixes heads toward debugTintColor so GPU-drawn instances are obvious. */
@@ -363,7 +364,9 @@ export function createFlowerVertexColorMaterial(
   const useMask = usePetalCutout || useMaskEdge;
   const petal = flowerUniforms.petal;
   const stem = flowerUniforms.stem;
-  const veinLinesFn = createVeinLinesFromTextureFn(veinTexture, flowerUniforms.vein);
+  const veinLinesFn = useVeins
+    ? createVeinLinesFromTextureFn(veinTexture, flowerUniforms.vein)
+    : Fn(() => float(0.0));
   const maskAlphaFn = useMask ? createMaskAlphaFn(maskTexture) : null;
   const maskEdgeFn = useMaskEdge ? createMaskEdgeFn(maskAlphaFn) : null;
 

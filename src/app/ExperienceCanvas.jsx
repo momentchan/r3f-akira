@@ -20,6 +20,7 @@ import { getLiveThemeColors } from '../components/scene/themeTween';
 import { FLOW_OVERHEAD } from '../components/camera/cameraShots';
 import { TIER1_TARGETS, useExperienceStore } from '../core/experienceStore';
 import { BGM_TRACKS } from '../ui/AudioButton';
+import { Demo, useDemoControls } from '../components/demo/Demo';
 
 function createWebGPURenderer(canvas) {
   const renderer = new THREE.WebGPURenderer({
@@ -66,6 +67,7 @@ function SceneContent() {
 
   const plantWind = usePlantWindControls();
   const flowerCull = useFlowerCullControls();
+  const { lookSphere } = useDemoControls();
 
   const setComponentReady = useExperienceStore((state) => state.setComponentReady);
   const setAudioListener = useExperienceStore((state) => state.setAudioListener);
@@ -73,45 +75,53 @@ function SceneContent() {
   return (
     <>
       <group ref={fieldParentRef} position={[0, -1, 0]}>
-        <Suspense fallback={null}>
-          <AsyncCompile id={TIER1_TARGETS[0]} onReady={setComponentReady}>
-            <Character
-              position={[0, 0.6, 0]}
-              scale={1.5}
-              fieldParentRef={fieldParentRef}
-              onBounds={setBodyBounds}
-            />
-          </AsyncCompile>
-          <AsyncCompile id={TIER1_TARGETS[1]} onReady={setComponentReady}>
-            <Backpack
-              position={[-1.8, 0.1, -0.5]}
-              rotation={[
-                THREE.MathUtils.degToRad(0),
-                THREE.MathUtils.degToRad(200),
-                THREE.MathUtils.degToRad(-5),
-              ]}
-              scale={1.5}
-              fieldParentRef={fieldParentRef}
-              onBounds={setBackpackBounds}
-            />
-          </AsyncCompile>
-        </Suspense>
+        {lookSphere ? (
+          <Suspense fallback={null}>
+            <Demo />
+          </Suspense>
+        ) : (
+          <>
+            <Suspense fallback={null}>
+              <AsyncCompile id={TIER1_TARGETS[0]} onReady={setComponentReady}>
+                <Character
+                  position={[0, 0.6, 0]}
+                  scale={1.5}
+                  fieldParentRef={fieldParentRef}
+                  onBounds={setBodyBounds}
+                />
+              </AsyncCompile>
+              <AsyncCompile id={TIER1_TARGETS[1]} onReady={setComponentReady}>
+                <Backpack
+                  position={[-1.8, 0.1, -0.5]}
+                  rotation={[
+                    THREE.MathUtils.degToRad(0),
+                    THREE.MathUtils.degToRad(200),
+                    THREE.MathUtils.degToRad(-5),
+                  ]}
+                  scale={1.5}
+                  fieldParentRef={fieldParentRef}
+                  onBounds={setBackpackBounds}
+                />
+              </AsyncCompile>
+            </Suspense>
+            <Suspense fallback={null}>
+              <PlantField
+                bodyBounds={bodyBounds}
+                backpackBounds={backpackBounds}
+                wind={plantWind}
+                cullControls={flowerCull}
+              />
+            </Suspense>
+            <Suspense fallback={null}>
+              <ClimbTendrils
+                bodyBounds={bodyBounds}
+                backpackBounds={backpackBounds}
+                wind={plantWind}
+              />
+            </Suspense>
+          </>
+        )}
         <ShadowCatcher />
-        <Suspense fallback={null}>
-          <PlantField
-            bodyBounds={bodyBounds}
-            backpackBounds={backpackBounds}
-            wind={plantWind}
-            cullControls={flowerCull}
-          />
-        </Suspense>
-        <Suspense fallback={null}>
-          <ClimbTendrils
-            bodyBounds={bodyBounds}
-            backpackBounds={backpackBounds}
-            wind={plantWind}
-          />
-        </Suspense>
       </group>
 
       <SceneBackground />
