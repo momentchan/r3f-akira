@@ -1,11 +1,11 @@
-<!--
+<p><!--
 Codrops title / subtitle (paste into the post header, not as H1 in the body):
 
 Title: Still: A Japanese Print Look and a Generative Garden in WebGPU
 Subtitle: Building chapter 3 of an interactive astronaut series — anime-flat shading, ink shadows, and plants that bloom around a resting figure, then climb it.
 
 Tags: case study, Three.js, TSL, WebGPU, procedural, toon
--->
+--></p>
 
 <!-- wp:video -->
 <figure class="wp-block-video"><!-- [VIDEO: Still hero reel — lying astronaut, flower masses, tendrils, slow camera] --></figure>
@@ -24,40 +24,42 @@ Tags: case study, Three.js, TSL, WebGPU, procedural, toon
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p><em>Still</em> is an interactive WebGPU project and chapter 3 of a series I have been building on the web. Same astronaut. Each chapter expands the story a little, and tries a new visual expression.</p>
+<p><em>Still</em> is chapter 3 of an interactive astronaut story I have been making on the web (<a href="https://tympanus.net/codrops/2026/04/21/false-earth-from-webgl-limits-to-a-webgpu-driven-world/">previous Codrops article</a>). With each chapter I push the story forward and experiment with the look and the systems behind it.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>In <em><a href="https://drift-co0.pages.dev/">Drift</a></em>, he is lost in space, drifting, longing to return home. An AI-generated diary holds the loneliness and the memories of his family.</p>
+<p>In <em><a href="https://drift-co0.pages.dev/">Drift</a></em>, he could not go home. An AI diary held his loneliness and the memory of his family. In <em><a href="https://tympanus.net/codrops/2026/04/21/false-earth-from-webgl-limits-to-a-webgpu-driven-world/">False Earth</a></em>, he landed on ground that looked like Earth but was not — grass without end, beams when he ran, flowers blooming and dying in seconds. He had lived in a world that only answered if he kept moving.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>In <em><a href="https://tympanus.net/codrops/2026/04/21/false-earth-from-webgl-limits-to-a-webgpu-driven-world/">False Earth</a></em>, he has landed. The grass never ends. Cosmic beams fall when he moves. Flowers bloom and die in seconds. He keeps running.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>Now he is tired. He lies down. The horizon stays where it has always been. Flowers open around him and scatter their petals. Tendrils find the orange suit and start to cross it. The rest of this chapter’s plot is still open. The setting is not: rest, and life growing over a body that has finally stopped.</p>
+<p>After running for what feels like forever, he finally stops. The horizon remains where it has always been. He lies down and lets the world continue without him. For the first time, there is nowhere he is trying to reach. As he becomes still, time no longer seems to pass at a single pace. Around him, flowers emerge, bloom, and scatter their petals while he remains where he is.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:image -->
 <figure class="wp-block-image"><!-- [IMAGE: the chapter tableau — flower masses around him, tendrils across the suit] --></figure>
 <!-- /wp:image -->
 
-<!-- wp:paragraph -->
-<p>Technically, this chapter is two experiments. Can a <strong>Japanese print look</strong> live in a browser — the graphic punch of anime, and the flat color of traditional print? And can a <strong>generative garden</strong> bloom around a resting figure, then wrap him, without me placing every vine by hand?</p>
-<!-- /wp:paragraph -->
-
 <!-- wp:heading -->
-<h2 class="wp-block-heading">The Look</h2>
+<h2 class="wp-block-heading">Japanese Print Style</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>Grass was the soul of <em>False Earth</em>. Here the soul is the picture language. I wanted that hard anime graphic on the web. <em>Akira</em> was the loud reference — orange, outline, few steps of color. When I looked longer, traditional Japanese print had the same habits: flat fields, a dirty paper, an edge that is drawn, not photographed. That is why the suit is quantized and outlined. It is not PBR.</p>
+<p>I watched <em>Akira</em> and could not get it out of my head — orange, outline, a world drawn, not photographed. That pulled me into anime graphics: the hard edge, the few steps of color, a picture that hits harder than a photoreal render. Digging further, I found the same habits in traditional Japanese print. Flat fields. Dirty paper. An edge that is ink. I just wanted to try that look, and this chapter is where it landed."</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:image -->
-<figure class="wp-block-image"><!-- [IMAGE: inspiration refs — anime graphic / Akira energy; traditional print or woodblock] --></figure>
+<!-- wp:gallery {"linkTo":"none"} -->
+<figure class="wp-block-gallery has-nested-images columns-default is-cropped"><!-- wp:image {"id":119903,"sizeSlug":"large","linkDestination":"none"} -->
+<figure class="wp-block-image size-large"><img src="https://tympanus.net/codrops/wp-content/uploads/2026/08/image-5-600x900.png" alt="" class="wp-image-119903"/></figure>
 <!-- /wp:image -->
+
+<!-- wp:image {"id":119907,"sizeSlug":"large","linkDestination":"none"} -->
+<figure class="wp-block-image size-large"><img src="https://tympanus.net/codrops/wp-content/uploads/2026/08/image-9-678x900.png" alt="" class="wp-image-119907"/></figure>
+<!-- /wp:image --></figure>
+<!-- /wp:gallery -->
+
+<!-- wp:paragraph -->
+<p>The suit, the backpack, the flowers, and the stems share that language. Quantized light. A drawn edge. Ink on the ground. Paper over the frame.</p>
+<!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":4} -->
 <h4 class="wp-block-heading"><strong>Quantized Lighting</strong></h4>
@@ -188,15 +190,11 @@ const overlaid = sceneColor.mul(tint).mul(fabric).mul(blotch);</code></pre>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>What you see first is not the vines. It is the garden around him.</p>
+<p>VAT flowers already existed in <em>False Earth</em> — bloom and die baked into a texture, replayed on the GPU. Here they are not an infinite plane. They gather as masses next to a lying body, without a wreath around the silhouette.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>VAT flowers already existed in <em>False Earth</em> — bloom and die baked into a texture, replayed on the GPU. I did not want another infinite plane. I wanted masses that feel placed next to a lying body, without looking arranged.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>The rule I kept writing down: the system should feel intentional without becoming visible. If you can count the clusters and get four, the layout failed. A wreath around the silhouette failed the same way.</p>
+<p>The layout rule is simple: the system should feel intentional without becoming visible. If you can count the clusters and get four, the layout failed.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":4} -->
@@ -204,7 +202,7 @@ const overlaid = sceneColor.mul(tint).mul(fabric).mul(blotch);</code></pre>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>I derive four anchors from the posed body and the backpack: <strong>hip</strong>, <strong>left hand</strong>, <strong>left boot</strong>, <strong>backpack</strong>. An anchor does not mean a flower grows there. It raises the probability of vegetation in the neighbourhood. The cluster centre is allowed to drift off. Neighbouring fields merge. Bare ground survives between them.</p>
+<p>I derive four anchors from the posed body and the backpack: <strong>hip</strong>, <strong>left hand</strong>, <strong>left boot</strong>, <strong>backpack</strong>. An anchor does not mean a flower grows there. It raises the probability of vegetation in the neighbourhood. The probability field stays put. Neighbouring fields merge. Bare ground survives between them.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":4} -->
@@ -216,11 +214,11 @@ const overlaid = sceneColor.mul(tint).mul(fabric).mul(blotch);</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":4} -->
-<h4 class="wp-block-heading"><strong>Founders and Hops</strong></h4>
+<h4 class="wp-block-heading"><strong>Hearts and Hops</strong></h4>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>Placement is not a golden-angle spiral. A few <strong>founders</strong> land by rejection against the field. Offspring <strong>hop</strong> from there; hop length decays with generation. A handful of scene-wide primaries stay large. The fringe stays buds. Dense core, thin edge — like a real thicket, not a decorator ring.</p>
+<p>Placement is not a golden-angle spiral. About one in seven flowers sit on a <strong>heart</strong> — a rejection sample against the density field. The rest <strong>hop</strong> a short fixed range off a heart. Head size and how far a flower can bloom both follow local density, not hop depth or a “primary” role. Dense core, fringe buds — like a real thicket, not a decorator ring.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:image -->
@@ -249,11 +247,11 @@ const overlaid = sceneColor.mul(tint).mul(fabric).mul(blotch);</code></pre>
 <!-- /wp:list-item -->
 
 <!-- wp:list-item -->
-<li><strong>Anchor and clump</strong>: Which mass it belongs to, and how deep in the hop chain.</li>
+<li><strong>Anchor and clump</strong>: Which pin and heart mass it belongs to.</li>
 <!-- /wp:list-item -->
 
 <!-- wp:list-item -->
-<li><strong>Field value</strong>: Density at the slot — used as a bloom ceiling, not to shrink a living flower.</li>
+<li><strong>Field value</strong>: Density at the slot — drives head size and bloom ceiling, not to shrink a living flower.</li>
 <!-- /wp:list-item -->
 
 <!-- wp:list-item -->
@@ -274,11 +272,11 @@ const overlaid = sceneColor.mul(tint).mul(fabric).mul(blotch);</code></pre>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
-<p>The clock is the same four stages as <em>False Earth</em>: <strong>Delay, Grow, Keep, Die</strong>. Readers of that article already know this machine. The new part of death is <strong>petal shed</strong>. Each petal shrinks toward its own centre and lifts, so the head comes apart instead of the whole flower scaling down. Then the stem retracts.</p>
+<p>The clock is the same four stages as <em>False Earth</em>: <strong>Delay, Grow, Keep, Die</strong>. Readers of <a href="https://tympanus.net/codrops/2026/04/21/false-earth-from-webgl-limits-to-a-webgpu-driven-world/">that article</a> already know this machine. The new part of death is <strong>petal shed</strong>. Each petal shrinks toward its own centre and lifts, so the head comes apart instead of the whole flower scaling down. Then the stem retracts.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>When a plant finishes, it is not rebuilt. A clump <strong>heart</strong> has been wandering slowly. The dead plant picks among current hearts and hops. Live flowers are never yanked. Occupancy follows the field; geometry stays. The garden keeps changing while he stays still.</p>
+<p>When a plant finishes, it is not rebuilt. A clump <strong>heart</strong> has been wandering slowly inside its own pin — a hip flower never rehoms onto the backpack. The dead plant picks a heart on that pin and hops. Live flowers are never yanked. Occupancy follows the hearts; the density field stays put; geometry stays. The garden keeps changing while he stays still.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:video -->
@@ -302,11 +300,11 @@ const overlaid = sceneColor.mul(tint).mul(fabric).mul(blotch);</code></pre>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>I could not hand-place hundreds of vines. They had to feel grown, stay on the orange suit, and still look like the same drawing.</p>
+<p>The vines cannot be placed by hand. They have to feel grown, stay on the orange suit, and share the same print look.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>I looked at <a href="https://github.com/mattatz/THREE.Tree">mattatz/THREE.Tree</a> for how a procedural plant <em>grows</em> — segment hierarchy, taper, a mesh that can reveal itself. I did not drop that generator into the scene. There is no recursive branching tree here. What I kept is a growth front along distance, packed tubes that taper, and thickness from how much load a route carries, not from generation count. The hard problem was wrapping that growth on a posed body.</p>
+<p>I looked at <a href="https://github.com/mattatz/THREE.Tree">mattatz/THREE.Tree</a> for how a procedural plant <em>grows</em> — segment hierarchy, taper, a mesh that can reveal itself. I did not drop that generator into the scene. There is no recursive branching tree here. What I kept is a growth front along distance, packed tubes that taper, and thickness from how much load a route carries, not from generation count. The hard problem is wrapping that growth on a posed body.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":4} -->
@@ -408,7 +406,7 @@ const hit = bvh.raycastFirst(ray, THREE.DoubleSide, 0, rayOffset * 1.6);</code><
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>I started as an interactive developer for physical installations. Three.js still feels like the same leap: a link, a browser, no special hardware. <em>False Earth</em> was the step into WebGPU — storage buffers, compute, an endless field.</p>
+<p>I started as an interactive developer for physical installations. Three.js still feels like the same leap: a link, a browser, no special hardware. <em><a href="https://tympanus.net/codrops/2026/04/21/false-earth-from-webgl-limits-to-a-webgpu-driven-world/">False Earth</a></em> was the step into WebGPU — storage buffers, compute, an endless field.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
