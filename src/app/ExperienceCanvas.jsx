@@ -1,31 +1,38 @@
-import { useLayoutEffect, memo, Suspense, useEffect, useRef, useState } from 'react';
-import { PerformanceMonitor } from '@react-three/drei';
-import { CameraViewControl } from '../components/camera/CameraViewControl';
-import { AsyncCompile, AudioManager, Bgm, CanvasCapture } from '@core';
-import { Canvas, useThree } from '@react-three/fiber';
-import { useControls } from 'leva';
-import * as THREE from 'three/webgpu';
-import { Character } from '../components/character/Character';
-import { Backpack } from '../components/character/Backpack.tsx';
-import { ClimbTendrils } from '../components/plants/climb/ClimbTendrils';
-import { PlantField } from '../components/plants/field/PlantField';
-import { usePlantWindControls } from '../components/plants/wind/usePlantWindControls';
-import { useFlowerCullControls } from '../components/plants/vat/useFlowerCullControls';
-import { DirectionalLight } from '../components/scene/DirectionalLight';
-import Effects from '../components/scene/Effects';
-import { ShadowCatcher } from '../components/scene/ShadowCatcher';
-import { setSimSpeedMul } from '../components/plants/lifecycle/simSpeed';
-import { useLifecyclePauseHotkey } from '../components/plants/lifecycle/useLifecyclePauseHotkey';
-import { getLiveThemeColors } from '../components/scene/themeTween';
-import { FLOW_OVERHEAD } from '../components/camera/cameraShots';
-import { TIER1_TARGETS, useExperienceStore } from '../core/experienceStore';
-import { BGM_TRACKS } from '../ui/AudioButton';
-import { Demo, useDemoControls } from '../components/demo/Demo';
+import {
+  useLayoutEffect,
+  memo,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { PerformanceMonitor } from "@react-three/drei";
+import { CameraViewControl } from "../components/camera/CameraViewControl";
+import { AsyncCompile, AudioManager, Bgm, CanvasCapture } from "@core";
+import { Canvas, useThree } from "@react-three/fiber";
+import { useControls } from "leva";
+import * as THREE from "three/webgpu";
+import { Character } from "../components/character/Character";
+import { Backpack } from "../components/character/Backpack.tsx";
+import { ClimbTendrils } from "../components/plants/climb/ClimbTendrils";
+import { PlantField } from "../components/plants/field/PlantField";
+import { usePlantWindControls } from "../components/plants/wind/usePlantWindControls";
+import { useFlowerCullControls } from "../components/plants/vat/useFlowerCullControls";
+import { DirectionalLight } from "../components/scene/DirectionalLight";
+import Effects from "../components/scene/Effects";
+import { ShadowCatcher } from "../components/scene/ShadowCatcher";
+import { setSimSpeedMul } from "../components/plants/lifecycle/simSpeed";
+import { useLifecyclePauseHotkey } from "../components/plants/lifecycle/useLifecyclePauseHotkey";
+import { getLiveThemeColors } from "../components/scene/themeTween";
+import { FLOW_OVERHEAD } from "../components/camera/cameraShots";
+import { TIER1_TARGETS, useExperienceStore } from "../core/experienceStore";
+import { BGM_TRACKS } from "../ui/AudioButton";
+import { Demo } from "../components/demo/Demo";
 
 function createWebGPURenderer(canvas) {
   const renderer = new THREE.WebGPURenderer({
     ...canvas,
-    powerPreference: 'high-performance',
+    powerPreference: "high-performance",
     antialias: true,
     alpha: false,
     stencil: false,
@@ -60,67 +67,69 @@ function SceneContent() {
   const [backpackBounds, setBackpackBounds] = useState(null);
   useLifecyclePauseHotkey();
 
-  const { simSpeed } = useControls('Sim', {
-    simSpeed: { value: 1, min: 0, max: 12, step: 0.1, label: 'simSpeed ×' },
+  const { simSpeed } = useControls("Sim", {
+    simSpeed: { value: 1, min: 0, max: 12, step: 0.1, label: "simSpeed ×" },
   });
-  useEffect(() => { setSimSpeedMul(simSpeed); }, [simSpeed]);
+  useEffect(() => {
+    setSimSpeedMul(simSpeed);
+  }, [simSpeed]);
 
   const plantWind = usePlantWindControls();
   const flowerCull = useFlowerCullControls();
-  const { lookSphere } = useDemoControls();
 
-  const setComponentReady = useExperienceStore((state) => state.setComponentReady);
-  const setAudioListener = useExperienceStore((state) => state.setAudioListener);
+  const setComponentReady = useExperienceStore(
+    (state) => state.setComponentReady,
+  );
+  const setAudioListener = useExperienceStore(
+    (state) => state.setAudioListener,
+  );
 
   return (
     <>
       <group ref={fieldParentRef} position={[0, -1, 0]}>
-        {lookSphere ? (
-          <Suspense fallback={null}>
-            <Demo />
-          </Suspense>
-        ) : (
-          <>
-            <Suspense fallback={null}>
-              <AsyncCompile id={TIER1_TARGETS[0]} onReady={setComponentReady}>
-                <Character
-                  position={[0, 0.6, 0]}
-                  scale={1.5}
-                  fieldParentRef={fieldParentRef}
-                  onBounds={setBodyBounds}
-                />
-              </AsyncCompile>
-              <AsyncCompile id={TIER1_TARGETS[1]} onReady={setComponentReady}>
-                <Backpack
-                  position={[-1.8, 0.1, -0.5]}
-                  rotation={[
-                    THREE.MathUtils.degToRad(0),
-                    THREE.MathUtils.degToRad(200),
-                    THREE.MathUtils.degToRad(-5),
-                  ]}
-                  scale={1.5}
-                  fieldParentRef={fieldParentRef}
-                  onBounds={setBackpackBounds}
-                />
-              </AsyncCompile>
-            </Suspense>
-            <Suspense fallback={null}>
-              <PlantField
-                bodyBounds={bodyBounds}
-                backpackBounds={backpackBounds}
-                wind={plantWind}
-                cullControls={flowerCull}
-              />
-            </Suspense>
-            <Suspense fallback={null}>
-              <ClimbTendrils
-                bodyBounds={bodyBounds}
-                backpackBounds={backpackBounds}
-                wind={plantWind}
-              />
-            </Suspense>
-          </>
-        )}
+        {/* <Suspense fallback={null}>
+          <AsyncCompile id={TIER1_TARGETS[0]} onReady={setComponentReady}>
+            <Character
+              position={[0, 0.6, 0]}
+              scale={1.5}
+              fieldParentRef={fieldParentRef}
+              onBounds={setBodyBounds}
+            />
+          </AsyncCompile>
+          <AsyncCompile id={TIER1_TARGETS[1]} onReady={setComponentReady}>
+            <Backpack
+              position={[-1.8, 0.1, -0.5]}
+              rotation={[
+                THREE.MathUtils.degToRad(0),
+                THREE.MathUtils.degToRad(200),
+                THREE.MathUtils.degToRad(-5),
+              ]}
+              scale={1.5}
+              fieldParentRef={fieldParentRef}
+              onBounds={setBackpackBounds}
+            />
+          </AsyncCompile>
+        </Suspense>
+        <Suspense fallback={null}>
+          <PlantField
+            bodyBounds={bodyBounds}
+            backpackBounds={backpackBounds}
+            wind={plantWind}
+            cullControls={flowerCull}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <ClimbTendrils
+            bodyBounds={bodyBounds}
+            backpackBounds={backpackBounds}
+            wind={plantWind}
+          />
+        </Suspense> */}
+
+        <Suspense fallback={null}>
+          <Demo />
+        </Suspense>
+        
         <ShadowCatcher />
       </group>
 
@@ -133,7 +142,7 @@ function SceneContent() {
       <CameraViewControl />
       <CanvasCapture />
       <DirectionalLight />
-      <Effects />
+      {/* <Effects /> */}
     </>
   );
 }
@@ -145,7 +154,7 @@ export const ExperienceCanvas = memo(function ExperienceCanvas() {
   return (
     <Canvas
       shadows
-      style={{ width: '100%', height: '100%' }}
+      style={{ width: "100%", height: "100%" }}
       camera={{
         fov: 45,
         near: 0.1,
@@ -162,6 +171,7 @@ export const ExperienceCanvas = memo(function ExperienceCanvas() {
           setDpr(1 + factor);
         }}
       />
+
       <SceneContent />
     </Canvas>
   );
