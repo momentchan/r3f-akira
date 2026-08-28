@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useControls } from 'leva';
+import { folder, useControls } from 'leva';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
 import {
@@ -44,38 +44,57 @@ export function ShadowCatcher({
   }, [scene]);
 
   const d = SHADOW_DEFAULTS;
+  // `wash*` and `contour*` prefixes throughout: the old names put `edgeSoft` and
+  // `edgeWarp` (the blob) in the same apparent family as `edgeAt`, `edgeNoise` and
+  // `edgeScale` (the line), which read as one group in the shader when they are
+  // opposite halves of it.
   const ctrl = useControls('Shadow', {
-    color: { value: d.color, label: 'wash color' },
-    strength: { value: d.strength, min: 0, max: 1, step: 0.01, label: 'wash strength' },
-    spread: { value: d.spread, min: 0.02, max: 0.9, step: 0.01, label: 'spread' },
-    edgeSoft: { value: d.edgeSoft, min: 0.02, max: 0.8, step: 0.01, label: 'edge soft' },
-    edgeWarp: { value: d.edgeWarp, min: 0, max: 0.5, step: 0.01, label: 'edge warp' },
-    washNoise: { value: d.washNoise, min: 0, max: 1.5, step: 0.01, label: 'wash noise' },
-    washScale: { value: d.washScale, min: 1, max: 10, step: 0.1, label: 'wash scale' },
-    contourColor: { value: d.contourColor, label: 'contour color' },
-    contour: { value: d.contour, min: 0, max: 1, step: 0.01, label: 'contour strength' },
-    contourWidth: { value: d.contourWidth, min: 0.2, max: 6, step: 0.1, label: 'contour width' },
-    edgeAt: { value: d.edgeAt, min: 0.02, max: 0.9, step: 0.01, label: 'edge at' },
-    edgeNoise: { value: d.edgeNoise, min: 0, max: 2, step: 0.01, label: 'edge noise' },
-    edgeScale: { value: d.edgeScale, min: 1, max: 60, step: 1, label: 'edge scale' },
+    Wash: folder({
+      washColor: { value: d.washColor, label: 'color' },
+      washStr: { value: d.washStr, min: 0, max: 1, step: 0.01, label: 'strength' },
+      /** Lower = bigger blob: more of the penumbra clears the threshold. */
+      washAt: { value: d.washAt, min: 0.02, max: 0.9, step: 0.01, label: 'boundary at' },
+      washSoft: {
+        value: d.washSoft, min: 0.02, max: 0.8, step: 0.01, label: 'boundary softness',
+      },
+      washScale: { value: d.washScale, min: 1, max: 10, step: 0.1, label: 'paper scale' },
+      /** Before the threshold, so it moves the boundary. Shape. */
+      washBleed: { value: d.washBleed, min: 0, max: 0.5, step: 0.01, label: 'edge bleed' },
+      /** After, so it cannot move the boundary. Density. */
+      washMottle: {
+        value: d.washMottle, min: 0, max: 1.5, step: 0.01, label: 'interior mottle',
+      },
+    }, { collapsed: true }),
+
+    Contour: folder({
+      contourColor: { value: d.contourColor, label: 'color' },
+      contourStr: { value: d.contourStr, min: 0, max: 1, step: 0.01, label: 'strength' },
+      /** Which level of the field to trace. Independent of `washAt`. */
+      contourAt: { value: d.contourAt, min: 0.02, max: 0.9, step: 0.01, label: 'level at' },
+      /** Screen-space via fwidth, so the line does not thin with distance. */
+      contourWidth: { value: d.contourWidth, min: 0.2, max: 6, step: 0.1, label: 'pen width' },
+      contourWobble: {
+        value: d.contourWobble, min: 0, max: 2, step: 0.01, label: 'line wobble',
+      },
+      contourScale: { value: d.contourScale, min: 1, max: 60, step: 1, label: 'wobble scale' },
+    }, { collapsed: true }),
   }, { collapsed: true });
 
-  const u = useMemo(() => ({
-    bg: uniform(new THREE.Color(SCENE_DEFAULTS.bgColor)),
-    washColor: uniform(new THREE.Color(d.color)),
-    contourColor: uniform(new THREE.Color(d.contourColor)),
-    washStr: uniform(d.strength),
-    spread: uniform(d.spread),
-    edgeSoft: uniform(d.edgeSoft),
-    edgeWarp: uniform(d.edgeWarp),
-    washNoise: uniform(d.washNoise),
-    washScale: uniform(d.washScale),
-    contourStr: uniform(d.contour),
-    contourWidth: uniform(d.contourWidth),
-    edgeAt: uniform(d.edgeAt),
-    edgeNoise: uniform(d.edgeNoise),
-    edgeScale: uniform(d.edgeScale),
-  }), []);
+  /** Floats only; the two colours are handled separately. Keys match `ctrl`. */
+  const FLOATS = [
+    'washStr', 'washAt', 'washSoft', 'washScale', 'washBleed', 'washMottle',
+    'contourStr', 'contourAt', 'contourWidth', 'contourWobble', 'contourScale',
+  ];
+
+  const u = useMemo(() => {
+    const out = {
+      bg: uniform(new THREE.Color(SCENE_DEFAULTS.bgColor)),
+      washColor: uniform(new THREE.Color(d.washColor)),
+      contourColor: uniform(new THREE.Color(d.contourColor)),
+    };
+    for (const key of FLOATS) out[key] = uniform(d[key]);
+    return out;
+  }, []);
 
   const material = useMemo(() => {
     const m = new THREE.MeshBasicNodeMaterial({ toneMapped: false });
@@ -84,18 +103,29 @@ export function ShadowCatcher({
       return m;
     }
     m.colorNode = Fn(() => {
-      const s = shadow(light);
-      const amt = s.oneMinus().toVar();
+      // A continuous 0..1 field, not a binary mask — that is what lets the wash
+      // threshold it for a shape and the contour trace it for a stroke.
+      const amt = shadow(light).oneMinus().toVar();
+      // One noise field, used twice: bleed before the threshold, mottle after.
       const ink = fbm2(positionWorld.xz.mul(u.washScale)).toVar();
-      const field = amt.add(ink.mul(u.edgeWarp));
-      const fill = smoothstep(u.spread, u.spread.add(u.edgeSoft), field);
-      const wash = fill.mul(float(1.0).sub(ink.mul(u.washNoise).max(float(0.0))));
-      const n = mx_noise_float(positionWorld.xz.mul(u.edgeScale)).mul(u.edgeNoise);
-      const w = fwidth(amt).mul(u.contourWidth).max(float(0.0001));
-      const dist = amt.sub(u.edgeAt.add(n)).abs();
-      const edge = float(1.0).sub(smoothstep(float(0.0), w, dist));
-      const shColor = mix(u.washColor, u.contourColor, edge);
-      const mask = max(wash.mul(u.washStr), edge.mul(u.contourStr));
+
+      // Wash — thresholded, not blurred. The noise is added to the shadow VALUE,
+      // not to the sample position, so this is not a domain warp; the threshold
+      // below is what turns a value offset into a boundary that moves.
+      const inked = amt.add(ink.mul(u.washBleed));
+      const fill = smoothstep(u.washAt, u.washAt.add(u.washSoft), inked);
+      const wash = fill.mul(float(1.0).sub(ink.mul(u.washMottle).max(float(0.0))));
+
+      // Contour — a second level of the same field, drawn at a constant pen width.
+      const wobble = mx_noise_float(positionWorld.xz.mul(u.contourScale))
+        .mul(u.contourWobble);
+      const penWidth = fwidth(amt).mul(u.contourWidth).max(float(0.0001));
+      const dist = amt.sub(u.contourAt.add(wobble)).abs();
+      const line = float(1.0).sub(smoothstep(float(0.0), penWidth, dist));
+
+      // `max`, not layering: one flat ink mark instead of two stacked passes.
+      const shColor = mix(u.washColor, u.contourColor, line);
+      const mask = max(wash.mul(u.washStr), line.mul(u.contourStr));
       return mix(u.bg, shColor, mask);
     })();
     return m;
@@ -103,19 +133,9 @@ export function ShadowCatcher({
   useEffect(() => () => material.dispose(), [material]);
 
   useEffect(() => {
-    u.washColor.value.set(ctrl.color);
+    u.washColor.value.set(ctrl.washColor);
     u.contourColor.value.set(ctrl.contourColor);
-    u.washStr.value = ctrl.strength;
-    u.spread.value = ctrl.spread;
-    u.edgeSoft.value = ctrl.edgeSoft;
-    u.edgeWarp.value = ctrl.edgeWarp;
-    u.washNoise.value = ctrl.washNoise;
-    u.washScale.value = ctrl.washScale;
-    u.contourStr.value = ctrl.contour;
-    u.contourWidth.value = ctrl.contourWidth;
-    u.edgeAt.value = ctrl.edgeAt;
-    u.edgeNoise.value = ctrl.edgeNoise;
-    u.edgeScale.value = ctrl.edgeScale;
+    for (const key of FLOATS) u[key].value = ctrl[key];
   }, [u, ctrl]);
 
   useFrame(() => {
