@@ -1,11 +1,10 @@
 /**
  * Ground shadow: an ink wash plus a drawn contour.
  *
- * Both are readings of the SAME 0..1 shadow field at different levels — `washAt`
- * floods everything deeper than itself, `contourAt` traces one level line. They
- * are independent, so the contour can sit inside, on, or outside the wash edge.
- * At these defaults `contourAt` (0.35) is below `washAt` (0.47), which puts the
- * line just outside the blob rather than on its border.
+ * Both read the same 0..1 `shade` field. `washAt` fills everything darker
+ * than itself; `contourShade` draws a line where `shade` is close to that value.
+ * They are independent, so the line can sit inside, on, or outside the wash.
+ * Defaults: `contourShade` 0.35, `washAt` 0.47 → line just outside the blob.
  */
 export const SHADOW_DEFAULTS = {
   // --- Wash: the filled blob -------------------------------------------------
@@ -28,10 +27,10 @@ export const SHADOW_DEFAULTS = {
   // --- Contour: the drawn line -----------------------------------------------
   contourColor: '#232a42',
   contourStr: 0.45,
-  /** Which level of the field to trace. Independent of `washAt`. */
-  contourAt: 0.35,
+  /** Draw the line where `shade` is close to this. Lower = further out. */
+  contourShade: 0.35,
   contourWidth: 1.5,
   /** Separate, much finer noise than the wash: jitters the level per pixel. */
   contourWobble: 1.25,
-  contourScale: 21,
+  contourWobbleScale: 21,
 };
