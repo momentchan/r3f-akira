@@ -75,17 +75,12 @@ export function createPetalShedUniforms(defaults = {}) {
 const petalHash = (petalId, salt) => fract(sin(petalId.mul(127.1).add(salt)).mul(43758.5453));
 
 /**
- * Petal shed: each petal shrinks toward ITS OWN centre while floating upward, so
- * the flower comes apart petal by petal instead of the whole head scaling down.
+ * Shrink each petal toward its own centre and lift it, so the head comes apart
+ * instead of scaling as one. Pivot is COLOR_0.b (vertex index from
+ * assignPetalSegments), sampled in the current VAT frame so it follows the bloom.
  *
- * The pivot is recovered from COLOR_0.b (a vertex index written by
- * assignPetalSegments) rebuilt into a VAT texel with the same layout
- * setupVATGeometry uses, then sampled at the current frame — so the pivot follows
- * the animation rather than sitting at the rest pose.
- *
- * Returns the shrunk LOCAL position plus the world-space lift height. The lift is
- * kept out of local space on purpose: local units are scaled by the tiny per-tip
- * scale, so expressing "rise ~2x the stem length" is only meaningful in world.
+ * Lift is returned in world units (multiples of stem length). Local space is
+ * already scaled by the tiny tip scale, so rise cannot be expressed there.
  */
 function applyPetalShed(basePos, vertexColor, shed, frame, posTex, meta, shedUniforms) {
   const petalId = vertexColor.g;

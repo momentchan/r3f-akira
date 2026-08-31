@@ -45,10 +45,11 @@ export const CLIMB_DEFAULTS = {
   routePoolFactor: 3,
   reshuffleRoutes: true,
 
-  // Independent partial-ring shape.
+  // Independent partial-wrap shape.
   wrapAngleRange: [90, 150],
   axialWeave: 1,
   surfaceOffset: 0.02,
+  hitchOnGraphVertex: true,
 
   // Rendered tube.
   tendrilRadius: 0.005,
@@ -66,14 +67,14 @@ export const CLIMB_DEFAULTS = {
   leafDroop: 0,
   leafCurl: 0.5,
 
-  // Bloom slots: density × awake rings. Hosts rebind when a route swaps, and
+  // Bloom slots: density × awake wraps. Hosts rebind when a route swaps, and
   // attach T is rolled fresh in flowerSpan each bind so heads do not sit at a
   // fixed spot on a tendril.
   flowerDensity: 0.15,
   flowerSpan: [0.25, 0.82],
   flowerNormalVariation: 10,
 
-  // Per-tree lifecycle: ground -> branches -> rings -> hold -> reverse to ground.
+  // Per-tree lifecycle: ground -> branches -> wraps -> hold -> reverse to ground.
   restTimeRange: [2, 8],
   growthTimeRange: [5, 10],
   holdTimeRange: [5, 10],
@@ -83,6 +84,8 @@ export const CLIMB_DEFAULTS = {
     showDebug: false,
     showPaths: true,
     showSeeds: true,
+    showStations: true,
+    showRouteTargets: true,
     showCapsules: false,
     hideRenderedTendrils: false,
     pathCount: 96,

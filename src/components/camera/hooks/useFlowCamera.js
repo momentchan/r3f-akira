@@ -27,13 +27,27 @@ function easeInRest(u, v1) {
 const WHEEL_TO_RADIUS = 0.0025;
 const INTRO_DURATION = 20;
 const INTRO_TURNS = Math.PI * 2;
+const REJOIN_DURATION = 2.2;
 
-function applyLookAt(controls, angle, radius, height, target) {
+function nearestEquivalentAngle(angle, reference) {
+  const turn = Math.PI * 2;
+  return angle + Math.round((reference - angle) / turn) * turn;
+}
+
+function applyLookAt(controls, angle, radius, height, target, rejoin, weight) {
   const look = Array.isArray(target) ? target : CAMERA_DEFAULTS.target;
   const pos = pointOnOrbit(angle, radius, height, look);
   const camera = controls.camera;
   if (camera) camera.up.set(0, 1, 0);
-  controls.setLookAt(pos[0], pos[1], pos[2], look[0], look[1], look[2], false);
+  controls.setLookAt(
+    pos[0],
+    pos[1],
+    pos[2],
+    look[0] + rejoin.targetOffset.x * weight,
+    look[1] + rejoin.targetOffset.y * weight,
+    look[2] + rejoin.targetOffset.z * weight,
+    false,
+  );
 }
 
 /**
@@ -59,6 +73,7 @@ export function useFlowCamera({
   overheadHeight = CAMERA_DEFAULTS.overheadHeight,
   overheadRadius = CAMERA_DEFAULTS.overheadRadius,
   restartKey = 0,
+  smoothResume = false,
 }) {
   const setStillness = useExperienceStore((state) => state.setStillness);
   const setFlowIntroDone = useExperienceStore((state) => state.setFlowIntroDone);
@@ -69,6 +84,16 @@ export function useFlowCamera({
   const introRef = useRef({
     p: 0,
     endSlope: 0.2,
+  });
+  const wasEnabledRef = useRef(enabled);
+  const rejoinRef = useRef({
+    active: false,
+    elapsed: 0,
+    position: new THREE.Vector3(),
+    target: new THREE.Vector3(),
+    targetOffset: new THREE.Vector3(),
+    radiusOffset: 0,
+    heightOffset: 0,
   });
 
   useEffect(() => {
@@ -86,6 +111,81 @@ export function useFlowCamera({
     controlsRef.current?.stop?.();
     return undefined;
   }, [controlsRef, enabled, setStillness]);
+
+  useEffect(() => {
+    const wasEnabled = wasEnabledRef.current;
+    wasEnabledRef.current = enabled;
+
+    if (!enabled) {
+      rejoinRef.current.active = false;
+      return;
+    }
+    if (
+      wasEnabled ||
+      !isStarted ||
+      !smoothResume ||
+      !introDoneRef.current
+    ) {
+      return;
+    }
+
+    const controls = controlsRef.current;
+    if (!controls) return;
+    const look = Array.isArray(target) ? target : CAMERA_DEFAULTS.target;
+    const rejoin = rejoinRef.current;
+    controls.getPosition(rejoin.position);
+    controls.getTarget(rejoin.target);
+
+    const dx = rejoin.position.x - look[0];
+    const dz = rejoin.position.z - look[2];
+    const horizontalRadius = Math.hypot(dx, dz);
+    if (horizontalRadius > 1e-5) {
+      const currentAzimuth = Math.atan2(dx, dz);
+      angleRef.current = nearestEquivalentAngle(
+        currentAzimuth,
+        angleRef.current,
+      );
+    }
+
+    const radiusWave = alongPath(
+      angleRef.current,
+      radiusAmp,
+      radiusCycles,
+    );
+    const nextRadius = THREE.MathUtils.clamp(
+      horizontalRadius - radiusWave,
+      radiusMin,
+      radiusMax,
+    );
+    liveRadiusRef.current = nextRadius;
+    smoothRadiusRef.current = nextRadius;
+
+    const authoredRadius = Math.max(radiusMin, nextRadius + radiusWave);
+    const authoredHeight =
+      height + alongPath(angleRef.current, heightAmp, heightCycles);
+    rejoin.radiusOffset = horizontalRadius - authoredRadius;
+    rejoin.heightOffset = rejoin.position.y - look[1] - authoredHeight;
+    rejoin.targetOffset.set(
+      rejoin.target.x - look[0],
+      rejoin.target.y - look[1],
+      rejoin.target.z - look[2],
+    );
+    rejoin.elapsed = 0;
+    rejoin.active = true;
+  }, [
+    controlsRef,
+    enabled,
+    height,
+    heightAmp,
+    heightCycles,
+    isStarted,
+    radiusAmp,
+    radiusCycles,
+    radiusMax,
+    radiusMin,
+    smoothResume,
+    target,
+  ]);
 
   useEffect(() => {
     if (!enabled || !isStarted || introDoneRef.current) return undefined;
@@ -207,6 +307,7 @@ export function useFlowCamera({
     let restH;
     let restR;
     let amp;
+    let rejoinWeight = 0;
 
     if (parked) {
       restH = overheadHeight;
@@ -224,7 +325,21 @@ export function useFlowCamera({
     } else {
       restH = height;
       amp = 1;
-      angleRef.current += orbitSpeed * dt;
+      let liveOrbitSpeed = orbitSpeed;
+      const rejoin = rejoinRef.current;
+      if (rejoin.active) {
+        rejoin.elapsed += dt;
+        const p = THREE.MathUtils.clamp(
+          rejoin.elapsed / REJOIN_DURATION,
+          0,
+          1,
+        );
+        const eased = sineInOut(p);
+        rejoinWeight = 1 - eased;
+        liveOrbitSpeed *= eased;
+        if (p >= 1) rejoin.active = false;
+      }
+      angleRef.current += liveOrbitSpeed * dt;
       smoothRadiusRef.current = THREE.MathUtils.damp(
         smoothRadiusRef.current,
         liveRadiusRef.current,
@@ -234,9 +349,23 @@ export function useFlowCamera({
       restR = smoothRadiusRef.current;
     }
 
-    const elev = restH + alongPath(angleRef.current, heightAmp, heightCycles) * amp;
+    const rejoin = rejoinRef.current;
+    const elev =
+      restH +
+      alongPath(angleRef.current, heightAmp, heightCycles) * amp +
+      rejoin.heightOffset * rejoinWeight;
     const swirl = restR + alongPath(angleRef.current, radiusAmp, radiusCycles) * amp;
-    const r = done ? Math.max(radiusMin, swirl) : Math.max(0, swirl);
-    applyLookAt(controls, angleRef.current, r, elev, target);
+    const r =
+      (done ? Math.max(radiusMin, swirl) : Math.max(0, swirl)) +
+      rejoin.radiusOffset * rejoinWeight;
+    applyLookAt(
+      controls,
+      angleRef.current,
+      r,
+      elev,
+      target,
+      rejoin,
+      rejoinWeight,
+    );
   });
 }

@@ -6,7 +6,7 @@ import { pass } from 'three/tsl';
 import { useControls, folder } from 'leva';
 import Stats from 'stats-gl';
 import { createSilkWeaveNode, createSilkWeaveUniforms } from '../postfx/createSilkWeaveNode';
-import { SILK_WEAVE_DEFAULTS } from '../postfx/silkWeaveDefaults';
+import { SILK_WEAVE_DEFAULTS, SILK_WEAVE_PREVIEW } from '../postfx/silkWeaveDefaults';
 import { getLiveThemeColors } from './themeTween';
 import { isDebugRoute } from '../../core/debugRoute';
 
@@ -26,7 +26,8 @@ export default function Effects() {
     const silkControls = useControls('PostFX', {
         SilkWeave: folder({
             enabled: { value: d.enabled },
-            threadCount: { value: d.threadCount, min: 40, max: 1700, step: 1 },
+            preview: { value: d.preview, options: SILK_WEAVE_PREVIEW },
+            threadCount: { value: d.threadCount, min: 10, max: 1700, step: 1 },
             strength: { value: d.strength, min: 0, max: 1, step: 0.01 },
             sharpness: { value: d.sharpness, min: 0.1, max: 4, step: 0.05 },
             threadVariation: { value: d.threadVariation, min: 0, max: 0.6, step: 0.01 },
@@ -73,7 +74,7 @@ export default function Effects() {
         const pp = new THREE.PostProcessing(renderer);
         const scenePass = pass(scene, camera)
 
-        pp.outputNode = createSilkWeaveNode(scenePass, silkUniforms);
+        pp.outputNode = createSilkWeaveNode(scenePass, silkUniforms, silkControls.preview);
         postProcessingRef.current = pp;
 
         return () => {
@@ -83,7 +84,7 @@ export default function Effects() {
             }
             postProcessingRef.current = null;
         };
-    }, [gl, scene, camera, silkUniforms]);
+    }, [gl, scene, camera, silkUniforms, silkControls.preview]);
 
     // `enabled` only mixes the weave away at the end of the shader, so the full
     // per-pixel cost is still paid when it is off. Bypass the whole pass instead
@@ -101,7 +102,7 @@ export default function Effects() {
             silkUniforms.tintStrength.value = live.silkTintStrength;
         }
         const pp = postProcessingRef.current;
-        if (pp && silkControls.enabled) {
+        if (pp && (silkControls.enabled || silkControls.preview !== 'final')) {
             pp.render();
         } else if (gl) {
             gl.render(scene, camera);

@@ -368,7 +368,7 @@ function allocateCounts(buckets, total) {
 }
 
 /**
- * Allocate ring stations from actual surface coverage rather than guide length.
+ * Allocate wrap stations from actual surface coverage rather than guide length.
  * Guides provide semantic direction; the mesh decides coverage and density.
  */
 export function allocateSurfaceCoverageStations(hosts, tendrilCount, {
@@ -458,15 +458,15 @@ export function allocateSurfaceCoverageStations(hosts, tendrilCount, {
     const counts = allocateCounts(buckets, hostCounts[hostIndex]);
     for (let bucketIndex = 0; bucketIndex < buckets.length; bucketIndex += 1) {
       const bucket = buckets[bucketIndex];
-      const ringsOnRegion = counts[bucketIndex];
-      if (ringsOnRegion < 1) {
+      const wrapsOnRegion = counts[bucketIndex];
+      if (wrapsOnRegion < 1) {
         globalBucketIndex += 1;
         continue;
       }
       const rng = seededRng(layoutSeed * 977 + globalBucketIndex * 131 + 17);
-      for (let ringIndex = 0; ringIndex < ringsOnRegion; ringIndex += 1) {
-        const centerQ = (ringIndex + 0.5) / ringsOnRegion;
-        const jitter = (rng() - 0.5) * variation * 0.86 / ringsOnRegion;
+      for (let wrapIndex = 0; wrapIndex < wrapsOnRegion; wrapIndex += 1) {
+        const centerQ = (wrapIndex + 0.5) / wrapsOnRegion;
+        const jitter = (rng() - 0.5) * variation * 0.86 / wrapsOnRegion;
         const q = THREE.MathUtils.clamp(centerQ + jitter, 0, 1);
         const assignment = bucket.assignments[Math.min(
           Math.floor(q * bucket.assignments.length),
@@ -476,8 +476,8 @@ export function allocateSurfaceCoverageStations(hosts, tendrilCount, {
           host: bucket.host,
           capsule: bucket.guide,
           targetPoint: assignment.point.clone(),
-          ringIndex,
-          ringsOnRegion,
+          wrapIndex,
+          wrapsOnRegion,
           station: assignment.u,
         });
       }

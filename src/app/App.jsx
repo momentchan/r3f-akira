@@ -7,10 +7,12 @@ import { isDebugRoute } from '../core/debugRoute';
 import { useExperienceStore } from '../core/experienceStore';
 import { useExperienceReady } from '../core/useExperienceReady';
 import { AudioButton, BGM_TRACKS } from '../ui/AudioButton';
-import { ThemeToggle } from '../ui/themeToggle/ThemeToggle';
 import { ChapterIntro } from '../ui/chapterIntro/ChapterIntro';
 import { CHAPTER_CONTENT } from '../ui/chapterIntro/chapterContent';
+import { CameraModeToggle } from '../ui/cameraModeToggle/CameraModeToggle';
 import { FlowTimeRail } from '../ui/flowTimeRail/FlowTimeRail';
+import { ThemeToggle } from '../ui/themeToggle/ThemeToggle';
+import '../ui/hudControlDock.css';
 
 useLoader.preload(AudioLoader, BGM_TRACKS.map((track) => track.url));
 
@@ -66,8 +68,11 @@ export default function App() {
       {!gpuError && <ExperienceCanvas />}
       
       <AudioButton />
-      <ThemeToggle />
-      <FlowTimeRail />
+      <div className="hud-control-dock">
+        <FlowTimeRail />
+        <CameraModeToggle />
+        <ThemeToggle />
+      </div>
     </>
   );
 }

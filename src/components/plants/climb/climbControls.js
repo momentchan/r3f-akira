@@ -60,6 +60,10 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
         step: 0.001,
         label: 'Surface Gap',
       },
+      hitchOnGraphVertex: {
+        value: d.hitchOnGraphVertex ?? true,
+        label: 'Hitch on Graph Vertex',
+      },
       tendrilRadius: {
         value: d.tendrilRadius,
         min: 0.001,
@@ -197,6 +201,8 @@ export function createClimbControlsSchema(defaults = CLIMB_DEFAULTS) {
       showDebug: { value: d.debug.showDebug, label: 'Show Debug' },
       showPaths: { value: d.debug.showPaths, label: 'Paths' },
       showSeeds: { value: d.debug.showSeeds, label: 'Ground Roots' },
+      showStations: { value: d.debug.showStations ?? true, label: 'Wrap Stations' },
+      showRouteTargets: { value: d.debug.showRouteTargets ?? true, label: 'Route Targets' },
       showCapsules: { value: d.debug.showCapsules, label: 'Body Regions' },
       hideRenderedTendrils: {
         value: Boolean(d.debug.hideRenderedTendrils),

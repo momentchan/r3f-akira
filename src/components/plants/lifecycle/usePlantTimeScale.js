@@ -9,9 +9,9 @@ export const FLOW_TIME_MIN = 0;
 export const FLOW_TIME_MAX = 8;
 /** Inset from window top/bottom before speed hits min/max. */
 const FLOW_Y_PAD = 0.2;
-const EXPLORE_MIN = 1;
-const EXPLORE_MAX = 8;
 const HOLD_SCALE = 1;
+const POINTER_DAMPING = 1.8;
+const SCRUB_DAMPING = 10;
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -25,16 +25,14 @@ function flowTimeUnit(pointerY) {
   );
 }
 
-/** Raw window Y that maps to 1x, so FLOW starts at normal speed until the mouse moves. */
-const FLOW_REST_Y = FLOW_Y_PAD
-  + ((1 - FLOW_TIME_MIN) / (FLOW_TIME_MAX - FLOW_TIME_MIN)) * (1 - FLOW_Y_PAD * 2);
-
 function isHudTarget(target) {
   return (
     target instanceof Element &&
     Boolean(
       target.closest('.theme-toggle') ||
         target.closest('.audio-button') ||
+        target.closest('.camera-mode-toggle') ||
+        target.closest('.flow-time-rail') ||
         target.closest('.flower-cull-hud'),
     )
   );
@@ -59,16 +57,30 @@ function canWriteFlowTime() {
  * Camera motion is independent: this never reads orbit speed.
  * FLOW desktop: mouse Y (lower band = 0x, upper band = 8x; edges clamp early).
  * FLOW touch: one-finger vertical drag; lift keeps the last speed.
- * Explore (D) maps stillness. Frozen at 0 until ENTER.
+ * EXPLORE inherits the current scale and holds it unless the TIME rail changes.
  * FLOW holds 1x through the camera intro, then damps toward pointer Y.
  */
 export function usePlantTimeScale({ enabled = true } = {}) {
   const cameraMode = useExperienceStore((state) => state.cameraMode);
-  const stillness = useExperienceStore((state) => state.stillness);
   const flowIntroDone = useExperienceStore((state) => state.flowIntroDone);
   const setPlantTimeScale = useExperienceStore((state) => state.setPlantTimeScale);
-  const pointerY = useRef(FLOW_REST_Y);
+  const plantTimeTarget = useExperienceStore((state) => state.plantTimeTarget);
+  const setPlantTimeTarget = useExperienceStore(
+    (state) => state.setPlantTimeTarget,
+  );
+  const isTimeScrubbing = useExperienceStore(
+    (state) => state.isTimeScrubbing,
+  );
   const smoothed = useRef(1);
+  const previousMode = useRef(cameraMode);
+
+  useEffect(() => {
+    const enteringExplore =
+      cameraMode === CAMERA_MODE.Explore &&
+      previousMode.current !== CAMERA_MODE.Explore;
+    previousMode.current = cameraMode;
+    if (enteringExplore) setPlantTimeTarget(smoothed.current);
+  }, [cameraMode, setPlantTimeTarget]);
 
   useEffect(() => {
     const heldIds = new Set();
@@ -80,6 +92,11 @@ export function usePlantTimeScale({ enabled = true } = {}) {
       dragId = null;
       dragOrigin = null;
       dragging = false;
+    };
+
+    const writePointerTime = (clientY) => {
+      const u = flowTimeUnit(unitY(clientY));
+      setPlantTimeTarget(lerp(FLOW_TIME_MIN, FLOW_TIME_MAX, u));
     };
 
     const onPointerDown = (event) => {
@@ -96,7 +113,9 @@ export function usePlantTimeScale({ enabled = true } = {}) {
 
     const onPointerMove = (event) => {
       if (!isHeldPointer(event)) {
-        pointerY.current = unitY(event.clientY);
+        if (canWriteFlowTime() && !isHudTarget(event.target)) {
+          writePointerTime(event.clientY);
+        }
         return;
       }
       if (dragId !== event.pointerId || heldIds.size !== 1 || !canWriteFlowTime()) {
@@ -108,7 +127,7 @@ export function usePlantTimeScale({ enabled = true } = {}) {
         if (dx * dx + dy * dy < 64) return;
         dragging = true;
       }
-      if (dragging) pointerY.current = unitY(event.clientY);
+      if (dragging) writePointerTime(event.clientY);
     };
 
     const onPointerUp = (event) => {
@@ -127,7 +146,7 @@ export function usePlantTimeScale({ enabled = true } = {}) {
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, []);
+  }, [setPlantTimeTarget]);
 
   useFrame((_, delta) => {
     if (!enabled) {
@@ -145,22 +164,25 @@ export function usePlantTimeScale({ enabled = true } = {}) {
         setPlantTimeScale(1);
         return;
       }
-      const u = flowTimeUnit(pointerY.current);
-      const target = lerp(FLOW_TIME_MIN, FLOW_TIME_MAX, u);
-      smoothed.current = THREE.MathUtils.damp(smoothed.current, target, 1.8, dt);
+    }
+
+    if (
+      cameraMode === CAMERA_MODE.Flow ||
+      cameraMode === CAMERA_MODE.Explore
+    ) {
+      smoothed.current = THREE.MathUtils.damp(
+        smoothed.current,
+        plantTimeTarget,
+        isTimeScrubbing ? SCRUB_DAMPING : POINTER_DAMPING,
+        dt,
+      );
       setAuthoredSimScale(smoothed.current);
       setPlantTimeScale(smoothed.current);
       return;
     }
 
-    if (cameraMode === CAMERA_MODE.Explore) {
-      const explore = lerp(EXPLORE_MIN, EXPLORE_MAX, stillness);
-      setAuthoredSimScale(explore);
-      setPlantTimeScale(explore);
-      return;
-    }
-
-    setAuthoredSimScale(HOLD_SCALE);
-    setPlantTimeScale(HOLD_SCALE);
+    smoothed.current = HOLD_SCALE;
+    setAuthoredSimScale(smoothed.current);
+    setPlantTimeScale(smoothed.current);
   });
 }

@@ -17,7 +17,8 @@ function write3(arr, k, x, y, z) {
   arr[k + 2] = z;
 }
 
-function radiusScale(t, radiusAttenuation, baseFlare, extra = 1) {
+/** Per-ring radius multiplier along the tube (`t` is 0 at the base, 1 at the tip). */
+export function radiusScale(t, radiusAttenuation, baseFlare, extra = 1) {
   return (1 - (1 - radiusAttenuation) * t) + baseFlare * extra * (1 - t) ** 3;
 }
 

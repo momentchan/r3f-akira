@@ -1,5 +1,6 @@
 export const SILK_WEAVE_DEFAULTS = {
   enabled: true,
+  preview: 'final',
   threadCount: 815,
   strength: 0.35,
   sharpness: 0.6,
@@ -10,3 +11,11 @@ export const SILK_WEAVE_DEFAULTS = {
   blotchScale: 6,
   blotchStrength: 0.22,
 };
+
+export const SILK_WEAVE_PREVIEW = [
+  'warp',
+  'weft',
+  'fabric',
+  'blotch',
+  'final',
+];

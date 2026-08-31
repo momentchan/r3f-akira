@@ -33,6 +33,7 @@ import {
 } from './buildWrapCurve';
 import { ClimbDebug } from './ClimbDebug';
 import { treeSegmentGrowth } from './climbLifecycle';
+import { TENDRIL_ROLE } from './climbRoles';
 import { CLIMB_CONTROLS_SCHEMA } from './climbControls';
 import {
   CLIMB_HOST_PROFILES,
@@ -160,23 +161,23 @@ function bindClimbFlowerToPlant(plant, hosts, bindOpts) {
   };
 }
 
-function pickRingPlantIndex(plants, ringIndices, treeId, used, activeTrees) {
+function pickWrapPlantIndex(plants, wrapIndices, treeId, used, activeTrees) {
   if (treeId != null) {
     const local = [];
-    for (let n = 0; n < ringIndices.length; n += 1) {
-      const index = ringIndices[n];
+    for (let n = 0; n < wrapIndices.length; n += 1) {
+      const index = wrapIndices[n];
       if (plants[index].treeId === treeId && !used.has(index)) local.push(index);
     }
     if (local.length) return local[Math.floor(Math.random() * local.length)];
   }
   const fallback = [];
-  for (let n = 0; n < ringIndices.length; n += 1) {
-    const index = ringIndices[n];
+  for (let n = 0; n < wrapIndices.length; n += 1) {
+    const index = wrapIndices[n];
     if (activeTrees.has(plants[index].treeId) && !used.has(index)) fallback.push(index);
   }
   if (fallback.length) return fallback[Math.floor(Math.random() * fallback.length)];
-  if (ringIndices.length) {
-    return ringIndices[Math.floor(Math.random() * ringIndices.length)];
+  if (wrapIndices.length) {
+    return wrapIndices[Math.floor(Math.random() * wrapIndices.length)];
   }
   return -1;
 }
@@ -190,9 +191,9 @@ function writeClimbFlowerSlot(slots, slotIndex, plantIndex, bind) {
 function assignClimbFlowerSlots(slots, plants, activeTrees, hostById, bindOpts) {
   const used = new Set();
   for (let slotIndex = 0; slotIndex < slots.indices.length; slotIndex += 1) {
-    const plantIndex = pickRingPlantIndex(
+    const plantIndex = pickWrapPlantIndex(
       plants,
-      slots.ringIndices,
+      slots.wrapIndices,
       null,
       used,
       activeTrees,
@@ -225,9 +226,9 @@ function rebindClimbFlowerSlotsForTreeSwap(
     const host = plants[slots.indices[slotIndex]];
     if (host?.treeId !== sleepingTreeId) continue;
     used.delete(slots.indices[slotIndex]);
-    const plantIndex = pickRingPlantIndex(
+    const plantIndex = pickWrapPlantIndex(
       plants,
-      slots.ringIndices,
+      slots.wrapIndices,
       wakingTreeId,
       used,
       activeTrees,
@@ -301,6 +302,7 @@ function pathKeyFromControls(c) {
     c.wrapAngleRange,
     c.axialWeave,
     c.surfaceOffset,
+    c.hitchOnGraphVertex,
     c.noiseAmount,
     c.noiseFrequency,
   ].join(':');
@@ -397,6 +399,7 @@ export function ClimbTendrils({
     wrapAngleRange: controls.wrapAngleRange,
     axialWeave: controls.axialWeave,
     surfaceOffset: controls.surfaceOffset,
+    hitchOnGraphVertex: controls.hitchOnGraphVertex,
     noiseAmount: controls.noiseAmount,
     noiseFrequency: controls.noiseFrequency,
   }));
@@ -406,10 +409,12 @@ export function ClimbTendrils({
       key: livePathKey,
       tendrilCount: controls.tendrilCount,
       routePoolFactor: controls.routePoolFactor,
+      reshuffleRoutes: controls.reshuffleRoutes,
       headDensity: controls.headDensity,
       wrapAngleRange: controls.wrapAngleRange,
       axialWeave: controls.axialWeave,
       surfaceOffset: controls.surfaceOffset,
+      hitchOnGraphVertex: controls.hitchOnGraphVertex,
       noiseAmount: controls.noiseAmount,
       noiseFrequency: controls.noiseFrequency,
     };
@@ -424,6 +429,7 @@ export function ClimbTendrils({
     controls.wrapAngleRange,
     controls.axialWeave,
     controls.surfaceOffset,
+    controls.hitchOnGraphVertex,
     controls.noiseAmount,
     controls.noiseFrequency,
   ]);
@@ -465,6 +471,7 @@ export function ClimbTendrils({
         curveSamples: CLIMB_INTERNALS.curveSamples,
         spacingVariation: CLIMB_INTERNALS.spacingVariation,
         surfaceOffset: debouncedPath.surfaceOffset,
+        hitchOnGraphVertex: debouncedPath.hitchOnGraphVertex,
         entrySide: 'random-lateral',
         entrySideBias: 1,
         wrapAngleRange: debouncedPath.wrapAngleRange,
@@ -501,16 +508,16 @@ export function ClimbTendrils({
     }
 
     const plantData = createPlantDataTexture(wraps.length);
-    const packed = wraps.map((wrap, plantId) => {
-      const hasBranchStart = Number.isFinite(wrap.radiusStartScale);
+    const packed = wraps.map((segment, plantId) => {
+      const hasBranchStart = Number.isFinite(segment.radiusStartScale);
       return {
-        curve: wrap.curve,
+        curve: segment.curve,
         plantId,
-        radiusStartScale: wrap.radiusStartScale,
-        radiusEndScale: Number.isFinite(wrap.radiusEndScale)
-          ? wrap.radiusEndScale
+        radiusStartScale: segment.radiusStartScale,
+        radiusEndScale: Number.isFinite(segment.radiusEndScale)
+          ? segment.radiusEndScale
           : hasBranchStart ? controls.radiusAttenuation : undefined,
-        baseFlareScale: wrap.baseFlareScale,
+        baseFlareScale: segment.baseFlareScale,
       };
     });
 
@@ -533,30 +540,30 @@ export function ClimbTendrils({
     }
 
     const motionSample = new THREE.Vector3();
-    const plants = wraps.map((wrap, plantId) => {
-      wrap.curve.getPointAt(0.5, motionSample);
-      const hasBranchStart = Number.isFinite(wrap.radiusStartScale);
+    const plants = wraps.map((segment, plantId) => {
+      segment.curve.getPointAt(0.5, motionSample);
+      const hasBranchStart = Number.isFinite(segment.radiusStartScale);
       return {
-        seed: wrap.seed,
+        seed: segment.seed,
         plantId,
-        hostId: wrap.hostId,
-        treeId: wrap.treeId ?? `${wrap.hostId}:independent:${wrap.seed}`,
-        role: wrap.role ?? 'ring',
-        pathStartDistance: wrap.pathStartDistance ?? 0,
-        pathEndDistance: wrap.pathEndDistance ?? wrap.curve.getLength(),
-        curve: wrap.curve,
+        hostId: segment.hostId,
+        treeId: segment.treeId ?? `${segment.hostId}:independent:${segment.seed}`,
+        role: segment.role ?? TENDRIL_ROLE.WRAP,
+        pathStartDistance: segment.pathStartDistance ?? 0,
+        pathEndDistance: segment.pathEndDistance ?? segment.curve.getLength(),
+        curve: segment.curve,
         motionPosition: [motionSample.x, motionSample.y, motionSample.z],
         position: [0, 0, 0],
         params: {
-          stemLength: wrap.curve.getLength(),
+          stemLength: segment.curve.getLength(),
           stemRadius: controls.tendrilRadius,
           radiusAttenuation: controls.radiusAttenuation,
           baseFlare: controls.baseFlare,
-          radiusStartScale: wrap.radiusStartScale,
-          radiusEndScale: Number.isFinite(wrap.radiusEndScale)
-            ? wrap.radiusEndScale
+          radiusStartScale: segment.radiusStartScale,
+          radiusEndScale: Number.isFinite(segment.radiusEndScale)
+            ? segment.radiusEndScale
             : hasBranchStart ? controls.radiusAttenuation : undefined,
-          baseFlareScale: wrap.baseFlareScale,
+          baseFlareScale: segment.baseFlareScale,
         },
       };
     });
@@ -591,20 +598,20 @@ export function ClimbTendrils({
   }, [stemBuild.plantData, flowerUniforms]);
 
   const flowerAttachments = useMemo(() => {
-    // Fixed bloom count: density × awake rings. Hosts rebind on tree swap so
+    // Fixed bloom count: density × awake wraps. Hosts rebind on tree swap so
     // heads jump with the new wrap instead of vanishing on a sleeping route.
     const density = THREE.MathUtils.clamp(controls.flowerDensity, 0, 1);
     const plants = stemBuild.plants;
-    const ringIndices = [];
+    const wrapIndices = [];
     for (let index = 0; index < plants.length; index += 1) {
-      if (plants[index].role === 'ring') ringIndices.push(index);
+      if (plants[index].role === TENDRIL_ROLE.WRAP) wrapIndices.push(index);
     }
     const awakeFraction = debouncedPath.reshuffleRoutes && plants.length
       ? Math.min(1, debouncedPath.tendrilCount / plants.length)
       : 1;
     const slotCount = Math.min(
-      ringIndices.length,
-      Math.round(density * ringIndices.length * awakeFraction),
+      wrapIndices.length,
+      Math.round(density * wrapIndices.length * awakeFraction),
     );
     const slotPlants = [];
     const indices = [];
@@ -639,7 +646,7 @@ export function ClimbTendrils({
       attachTs.push(0.5);
       attachNormals.push(null);
     }
-    return { plants: slotPlants, indices, attachTs, attachNormals, ringIndices };
+    return { plants: slotPlants, indices, attachTs, attachNormals, wrapIndices };
   }, [
     stemBuild.plants,
     controls.flowerDensity,
@@ -727,7 +734,7 @@ export function ClimbTendrils({
     debouncedPath.tendrilCount,
   ]);
 
-  // Bind bloom slots onto awake rings. Route swaps rebind in useFrame; span/tilt
+  // Bind bloom slots onto awake wraps. Route swaps rebind in useFrame; span/tilt
   // only move the head along the current host.
   useEffect(() => {
     if (!flowerAttachments.indices.length) return;
@@ -856,7 +863,7 @@ export function ClimbTendrils({
         plant.pathStartDistance,
         plant.pathEndDistance,
       );
-      const [motionX, motionZ] = plant.role === 'feeder'
+      const [motionX, motionZ] = plant.role === TENDRIL_ROLE.GROUND_PATH
         ? [0, 0]
         : computeWindSway(
           plant.motionPosition[0],
@@ -945,6 +952,8 @@ export function ClimbTendrils({
         surfaceOffset={debouncedPath.surfaceOffset}
         noiseAmount={debouncedPath.noiseAmount}
         showSeeds={controls.showSeeds}
+        showStations={controls.showStations}
+        showRouteTargets={controls.showRouteTargets}
         showHitch={false}
         showPaths={controls.showPaths}
         showDirs={false}

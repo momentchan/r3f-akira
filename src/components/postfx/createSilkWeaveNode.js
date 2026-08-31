@@ -57,58 +57,65 @@ const valueNoise2 = Fn(([p]) => {
 });
 
 /**
- * Overlays a procedural silk-canvas weave (vertical warp / horizontal weft
- * threads), an aged tint, and stain blotches on top of a scene pass node.
+ * Fullscreen silk weave: warp/weft threads, warm tint, and stain blotches
+ * multiplied over a scene pass.
  */
-export function createSilkWeaveNode(inputNode, uniforms) {
+export function createSilkWeaveNode(inputNode, uniforms, preview = 'final') {
   return Fn(() => {
     const sceneColor = vec4(inputNode).toVar();
+    const rgb = sceneColor.rgb.toVar();
 
-    // Aspect-corrected coordinate measured in thread cells.
+    // Thread grid
     const aspect = screenSize.x.div(screenSize.y);
     const coord = screenUV.mul(vec2(aspect, 1.0)).mul(uniforms.threadCount).toVar();
-
-    // Jitter each row/column phase so the weave doesn't look machine-made.
     const rowJitter = hash(floor(coord.y).add(13.7)).sub(0.5).mul(uniforms.irregularity);
     const colJitter = hash(floor(coord.x).add(91.3)).sub(0.5).mul(uniforms.irregularity);
     const x = coord.x.add(rowJitter).toVar();
     const y = coord.y.add(colJitter).toVar();
 
-    // Thread cross-section: 1 at thread center, 0 in the groove between threads.
-    const warp = pow(abs(sin(x.mul(PI))), uniforms.sharpness);
-    const weft = pow(abs(sin(y.mul(PI))), uniforms.sharpness);
-
-    // Alternate which thread lies on top, like real over/under weaving.
+    // Warp / weft
+    const warp = pow(abs(sin(x.mul(PI))), uniforms.sharpness).toVar();
+    const weft = pow(abs(sin(y.mul(PI))), uniforms.sharpness).toVar();
     const col = floor(x).toVar();
     const row = floor(y).toVar();
     const checker = mod(col.add(row), 2.0);
-    const weave = mix(warp, weft, checker);
+    const weave = mix(warp, weft, checker).toVar();
 
-    // Random per-thread tone so individual fibers read differently.
+    // Fabric: same dimming on any thread field (strength + per-fiber tone).
     const threadTone = mix(hash(col.mul(7.77)), hash(row.mul(3.33)), checker)
       .sub(0.5)
       .mul(uniforms.threadVariation);
+    const asCloth = (thread) =>
+      clamp(
+        float(1.0).sub(uniforms.strength.mul(float(1.0).sub(thread))).add(threadTone),
+        0.0,
+        1.0,
+      );
+    const warpCloth = asCloth(warp).toVar();
+    const weftCloth = asCloth(weft).toVar();
+    const fabric = asCloth(weave).toVar();
 
-    const fabric = clamp(
-      float(1.0).sub(uniforms.strength.mul(float(1.0).sub(weave))).add(threadTone),
-      0.0,
-      1.0,
-    );
-
-    // Low-frequency mottled staining of aged silk (two noise octaves).
+    // Stains
     const stainUV = screenUV.mul(vec2(aspect, 1.0)).mul(uniforms.blotchScale);
     const stain = valueNoise2(stainUV)
       .mul(0.65)
       .add(valueNoise2(stainUV.mul(2.7).add(19.19)).mul(0.35));
-    const blotch = float(1.0).sub(
-      uniforms.blotchStrength.mul(smoothstep(0.45, 0.95, stain)),
-    );
+    const blotch = float(1.0)
+      .sub(uniforms.blotchStrength.mul(smoothstep(0.45, 0.95, stain)))
+      .toVar();
 
-    // Warm silk tint as a multiply blend, then the weave/stain shading.
-    const tint = mix(vec3(1.0), uniforms.tintColor, uniforms.tintStrength);
-    const overlaid = sceneColor.rgb.mul(tint).mul(fabric).mul(blotch);
+    // Tint and composite: stain the cloth, then tint that pair.
+    const tint = mix(vec3(1.0), uniforms.tintColor, uniforms.tintStrength).toVar();
+    const stainedFabric = fabric.mul(blotch).toVar();
+    const overlay = tint.mul(stainedFabric).toVar();
+    const overlaid = rgb.mul(overlay);
+    const finalColor = mix(rgb, overlaid, uniforms.enabled);
 
-    const finalColor = mix(sceneColor.rgb, overlaid, uniforms.enabled);
+    // Keep the scene in every debug view. Warp/weft/fabric are cloth-softened.
+    if (preview === 'warp') return vec4(rgb.mul(warpCloth), sceneColor.a);
+    if (preview === 'weft') return vec4(rgb.mul(weftCloth), sceneColor.a);
+    if (preview === 'fabric') return vec4(rgb.mul(fabric), sceneColor.a);
+    if (preview === 'blotch') return vec4(rgb.mul(stainedFabric), sceneColor.a);
     return vec4(finalColor, sceneColor.a);
   })();
 }
