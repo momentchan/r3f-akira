@@ -186,7 +186,7 @@ function createSurfaceGraph(geometry, seamDistance) {
     components.push({ nodes: componentNodes });
   }
 
-  // A larger lookup grid is used only to attach ring contacts to graph nodes.
+  // A larger lookup grid is used only to attach wrap contacts to graph nodes.
   const lookupCellSize = Math.max(seamDistance * 4, 0.04);
   const inverseLookupCell = 1 / lookupCellSize;
   const lookup = new Map();
@@ -330,7 +330,7 @@ function offsetNode(graph, node, surfaceOffset) {
 /**
  * Begin a child inside its incoming parent edge. The shared approach gives
  * separately packed tubes the same direction/radius before the child turns,
- * hiding the otherwise open, independently-oriented tube rings at the fork.
+ * hiding the otherwise open, independently-oriented tube wraps at the fork.
  */
 function junctionOverlapPoint({
   graph,
@@ -426,6 +426,7 @@ export function buildGroundedSurfaceRoutes({
       routes: [],
       reached: new Set(),
       targetDistances: new Map(),
+      targetGraphPoints: new Map(),
       targetAttachments: new Map(),
       targetRadiusScales: new Map(),
       targetTreeIds: new Map(),
@@ -436,6 +437,7 @@ export function buildGroundedSurfaceRoutes({
     routes: [],
     reached: new Set(),
     targetDistances: new Map(),
+    targetGraphPoints: new Map(),
     targetAttachments: new Map(),
     targetRadiusScales: new Map(),
     targetTreeIds: new Map(),
@@ -460,6 +462,7 @@ export function buildGroundedSurfaceRoutes({
       routes: [],
       reached: new Set(),
       targetDistances: new Map(),
+      targetGraphPoints: new Map(),
       targetAttachments: new Map(),
       targetRadiusScales: new Map(),
       targetTreeIds: new Map(),
@@ -478,7 +481,7 @@ export function buildGroundedSurfaceRoutes({
       continue;
     }
 
-    // A floating/disconnected exported part gets a local vertical feeder from
+    // A floating/disconnected exported part gets a local vertical ground path from
     // the ground below its closest vertex. This never bridges horizontally to
     // another body part and works for arbitrary static props without bones.
     let closestNode = component.nodes[0];
@@ -577,11 +580,13 @@ export function buildGroundedSurfaceRoutes({
   );
   const treeIdForNode = (node) => `${host.id}:root:${activeRoot(node)}`;
   const targetTreeIds = new Map();
+  const targetGraphPoints = new Map();
 
   for (const [targetId, node] of targetNodes) {
     const distance = absoluteTreeDistance(node);
     targetDistances.set(targetId, distance);
     targetTreeIds.set(targetId, treeIdForNode(node));
+    targetGraphPoints.set(targetId, offsetNode(graph, node, surfaceOffset));
   }
 
   const routes = [];
@@ -692,6 +697,7 @@ export function buildGroundedSurfaceRoutes({
       else {
         reached.delete(target.id);
         targetDistances.delete(target.id);
+        targetGraphPoints.delete(target.id);
         targetTreeIds.delete(target.id);
       }
     }
@@ -701,6 +707,7 @@ export function buildGroundedSurfaceRoutes({
     routes,
     reached,
     targetDistances,
+    targetGraphPoints,
     targetAttachments,
     targetRadiusScales,
     targetTreeIds,

@@ -3,10 +3,11 @@
     --ui-glow: rgba(237, 228, 211, 0.82);
     --ui-track: rgba(48, 40, 32, 0.32);
     --ui-tick: rgba(42, 36, 28, 0.78);
-    --hud-left: max(10px, env(safe-area-inset-left));
-    --hud-bottom: max(14px, env(safe-area-inset-bottom));
+    --hud-left: max(16px, env(safe-area-inset-left));
+    --hud-bottom: max(20px, env(safe-area-inset-bottom));
     --hud-type: 0.62rem;
     --hud-type-sm: 0.58rem;
+    --hud-control-start: 4rem;
 }
 
 :root[data-theme="dark"] {

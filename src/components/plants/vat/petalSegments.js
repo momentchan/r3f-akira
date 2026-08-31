@@ -1,22 +1,16 @@
 import * as THREE from 'three/webgpu';
 
 /**
- * Tag every vertex with the petal it belongs to.
+ * Tag vertices by petal. The VAT mesh is separate islands (dahlia: 120 × 145
+ * verts), so union-find on the index buffer recovers them without a re-export.
  *
- * VAT flower meshes are modelled as separate petal surfaces (the dahlia is 120
- * islands of 145 verts each), so a union-find over the index buffer recovers the
- * petals with no authoring and no re-export.
+ * Packed into COLOR_0 (the VAT path is near the 8-buffer cap):
+ *   .r = flower/stem tag (unchanged)
+ *   .g = petal id 0..1
+ *   .b = pivot vertex index (nearest the petal centroid)
  *
- * Results pack into the existing COLOR_0 attribute rather than new attributes,
- * because the instanced VAT geometry is already near WebGPU's 8 vertex-buffer cap:
- *   .r = flower/stem tag  (left exactly as-is)
- *   .g = petal id 0..1    (also gives the vein shader real per-petal variation,
- *                          which was dead before — every vertex shared one value)
- *   .b = pivot VERTEX INDEX — the vertex nearest that petal's centroid.
- *
- * Storing an index rather than a position matters: the shader turns it back into
- * a VAT texel and samples it at the current frame, so the shrink pivot tracks the
- * animated petal instead of being frozen at the rest pose.
+ * An index, not a position: the shader samples that vertex in the current VAT
+ * frame so the shrink pivot follows the bloom.
  *
  * @returns {number} petal count, or 0 when the mesh is not petal-separable.
  */

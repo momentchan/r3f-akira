@@ -1,4 +1,7 @@
-import { getInitialCameraMode } from '../components/camera/cameraModes';
+import {
+  EXPLORE_PROFILE,
+  getInitialCameraMode,
+} from '../components/camera/cameraModes';
 import { tweenThemeTo } from '../components/scene/themeTween';
 import { isDebugRoute } from './debugRoute';
 import { create } from 'zustand';
@@ -38,6 +41,11 @@ export const useExperienceStore = create((set) => ({
   cameraMode: getInitialCameraMode(),
   setCameraMode: (cameraMode) =>
     set((state) => (state.cameraMode === cameraMode ? state : { cameraMode })),
+  exploreProfile: EXPLORE_PROFILE.Developer,
+  setExploreProfile: (exploreProfile) =>
+    set((state) =>
+      state.exploreProfile === exploreProfile ? state : { exploreProfile },
+    ),
 
   // 0 = active looking, 1 = sustained stillness. For environmental systems.
   stillness: 0,
@@ -46,13 +54,27 @@ export const useExperienceStore = create((set) => ({
       Math.abs(state.stillness - stillness) < 0.002 ? state : { stillness },
     ),
 
-  // Authored plant-time multiplier (FLOW mouse Y / touch drag, EXPLORE stillness).
+  // Authored plant-time multiplier shared by FLOW, EXPLORE, and the TIME rail.
   plantTimeScale: 1,
   setPlantTimeScale: (plantTimeScale) =>
     set((state) =>
       Math.abs(state.plantTimeScale - plantTimeScale) < 0.03
         ? state
         : { plantTimeScale },
+    ),
+  plantTimeTarget: 1,
+  setPlantTimeTarget: (plantTimeTarget) =>
+    set((state) =>
+      Math.abs(state.plantTimeTarget - plantTimeTarget) < 0.002
+        ? state
+        : { plantTimeTarget },
+    ),
+  isTimeScrubbing: false,
+  setTimeScrubbing: (isTimeScrubbing) =>
+    set((state) =>
+      state.isTimeScrubbing === isTimeScrubbing
+        ? state
+        : { isTimeScrubbing },
     ),
 
   // False until FLOW camera intro hands off to the live orbit.

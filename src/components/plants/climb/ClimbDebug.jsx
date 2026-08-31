@@ -1,10 +1,18 @@
-import { useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three/webgpu';
 import { annotateWrapClearance } from './buildWrapCurve';
+import { TENDRIL_ROLE } from './climbRoles';
 
 const AXIS_LEN = 0.09;
 const SEED_R = 0.012;
 const HITCH_R = 0.008;
+const STATION_R = 0.006;
+
+const STATION_COLOR = '#ffe66d';
+const ROUTE_TARGET_COLOR = '#ff006e';
+const CLEARANCE_CHUNK_SIZE = 1;
+const DEBUG_TUBE_SEGMENTS_MAX = 16;
+const DEBUG_TUBE_RADIAL_SEGMENTS = 2;
 
 function SegmentLine({
   a,
@@ -57,6 +65,62 @@ function DirArrow({ from, dir, length, color }) {
   return <SegmentLine a={from} b={to} color={color} opacity={0.95} />;
 }
 
+function DebugMarker({ point, radius, color, wireframe = false, opacity = 0.9 }) {
+  if (!point) return null;
+  return (
+    <mesh position={point.toArray()} frustumCulled={false}>
+      <sphereGeometry args={[radius, 8, 8]} />
+      <meshBasicMaterial
+        color={color}
+        depthTest={false}
+        depthWrite={false}
+        wireframe={wireframe}
+        transparent
+        opacity={opacity}
+      />
+    </mesh>
+  );
+}
+
+function DebugMarkerBatch({ points, radius, color, wireframe = false, opacity = 0.9 }) {
+  const meshRef = useRef(null);
+  const geometry = useMemo(() => new THREE.SphereGeometry(radius, 8, 8), [radius]);
+  const material = useMemo(() => new THREE.MeshBasicMaterial({
+    color,
+    depthTest: false,
+    depthWrite: false,
+    wireframe,
+    transparent: true,
+    opacity,
+  }), [color, opacity, wireframe]);
+  const matrix = useMemo(() => new THREE.Matrix4(), []);
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    for (let i = 0; i < points.length; i += 1) {
+      matrix.makeTranslation(points[i].x, points[i].y, points[i].z);
+      mesh.setMatrixAt(i, matrix);
+    }
+    mesh.count = points.length;
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [matrix, points]);
+
+  useEffect(() => () => {
+    geometry.dispose();
+    material.dispose();
+  }, [geometry, material]);
+
+  if (!points.length) return null;
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[geometry, material, points.length]}
+      frustumCulled={false}
+    />
+  );
+}
+
 function PathPolyline({
   points,
   peelStartIndex = -1,
@@ -81,7 +145,15 @@ function PathPolyline({
 
   return (
     <mesh frustumCulled={false}>
-      <tubeGeometry args={[curve, Math.max(points.length - 1, 8), 0.0015, 3, false]} />
+      <tubeGeometry
+        args={[
+          curve,
+          Math.max(Math.min(points.length - 1, DEBUG_TUBE_SEGMENTS_MAX), 8),
+          0.0015,
+          DEBUG_TUBE_RADIAL_SEGMENTS,
+          false,
+        ]}
+      />
       <meshBasicMaterial
         color={color}
         depthTest
@@ -93,20 +165,20 @@ function PathPolyline({
   );
 }
 
-function matchesDiagnosticMode(wrap, mode) {
-  const style = wrap.debug?.wrapStyle;
-  if (mode === 'invalid') return Boolean(wrap.debug?.clearanceExceeded);
-  if (mode === 'rings') return wrap.role === 'ring';
+function matchesDiagnosticMode(segment, mode) {
+  const style = segment.debug?.wrapStyle;
+  if (mode === 'invalid') return Boolean(segment.debug?.clearanceExceeded);
+  if (mode === 'wraps') return segment.role === TENDRIL_ROLE.WRAP;
   if (mode === 'attachments') {
-    return wrap.role === 'ring' && (wrap.debug?.attachmentPointCount ?? 0) > 1;
+    return segment.role === TENDRIL_ROLE.WRAP && (segment.debug?.attachmentPointCount ?? 0) > 1;
   }
   if (mode === 'surface-trunks') return style === 'surface-trunk';
   if (mode === 'ground-entries') return style === 'ground-entry';
   return true;
 }
 
-function diagnosticSegments(wrap, mode) {
-  const debug = wrap.debug;
+function diagnosticSegments(segment, mode) {
+  const debug = segment.debug;
   if (!debug?.points?.length) return [];
   if (mode === 'invalid') {
     return [{ points: debug.points, color: '#ff1744', linear: true }];
@@ -121,21 +193,21 @@ function diagnosticSegments(wrap, mode) {
       ? [{ points: debug.points, color: '#c77dff', linear: true }]
       : [];
   }
-  if (wrap.role !== 'ring') return [];
+  if (segment.role !== TENDRIL_ROLE.WRAP) return [];
 
   const attachmentCount = debug.attachmentPointCount ?? 0;
   const attachmentPoints = attachmentCount > 1
     ? debug.points.slice(0, attachmentCount)
     : [];
-  const ringPoints = attachmentCount > 1
+  const wrapArcPoints = attachmentCount > 1
     ? debug.points.slice(attachmentCount - 1)
     : debug.points;
   const segments = [];
   if ((mode === 'all' || mode === 'attachments') && attachmentPoints.length > 1) {
     segments.push({ points: attachmentPoints, color: '#ff9f1c', linear: true });
   }
-  if ((mode === 'all' || mode === 'rings') && ringPoints.length > 1) {
-    segments.push({ points: ringPoints, color: '#2ec4b6', linear: false });
+  if ((mode === 'all' || mode === 'wraps') && wrapArcPoints.length > 1) {
+    segments.push({ points: wrapArcPoints, color: '#2ec4b6', linear: false });
   }
   return segments;
 }
@@ -220,8 +292,8 @@ function CapsuleHelper({ capsule, color = '#00ffcc' }) {
 
 /**
  * Climb path debug overlays.
- * yellow = hitch before BVH snap, magenta = after snap
- * teal = wrap samples on surface, orange = peel tip
+ * yellow = ground roots and sampled wrap stations, magenta = route targets
+ * teal = wrap samples on surface, orange = route-to-wrap attachments
  * green = climb dir, blue = orbit, red = outward
  * lime wire = limb capsules, cyan/pink boxes = body / backpack AABB
  */
@@ -239,6 +311,8 @@ function ClimbDebugContent({
   wraps = [],
   hosts = [],
   showSeeds = true,
+  showStations = true,
+  showRouteTargets = true,
   showHitch = true,
   showPaths = true,
   showDirs = true,
@@ -249,17 +323,57 @@ function ClimbDebugContent({
   capsuleFilterId = null,
   pathCount = 24,
 }) {
-  // Measured here rather than in the builder: it is ~121 BVH queries per wrap and
-  // only this overlay reads the result. The 'invalid' filter below depends on it,
-  // so it has to run before the subset is taken.
-  const measuredWraps = useMemo(
-    () => annotateWrapClearance(wraps, hosts, { surfaceOffset, noiseAmount }),
-    [wraps, hosts, surfaceOffset, noiseAmount],
-  );
+  const [clearanceVersion, setClearanceVersion] = useState(0);
+  const clearanceRunRef = useRef(0);
+
+  // Clearance is useful for invalid-path diagnostics, but it is expensive:
+  // annotateWrapClearance performs about 121 BVH queries per wrap. Spread the
+  // scan across animation frames so opening the overlay never blocks camera input.
+  useEffect(() => {
+    if (!wraps.length || (!showClearanceMarkers && diagnosticMode !== 'invalid')) {
+      return undefined;
+    }
+
+    const runId = clearanceRunRef.current + 1;
+    clearanceRunRef.current = runId;
+    let nextIndex = 0;
+    let frameId = 0;
+
+    const scanNextChunk = () => {
+      if (clearanceRunRef.current !== runId) return;
+      const endIndex = Math.min(nextIndex + CLEARANCE_CHUNK_SIZE, wraps.length);
+      annotateWrapClearance(wraps, hosts, {
+        surfaceOffset,
+        noiseAmount,
+        startIndex: nextIndex,
+        endIndex,
+      });
+      nextIndex = endIndex;
+
+      if (nextIndex >= wraps.length) {
+        setClearanceVersion((version) => version + 1);
+        return;
+      }
+      frameId = window.requestAnimationFrame(scanNextChunk);
+    };
+
+    frameId = window.requestAnimationFrame(scanNextChunk);
+    return () => {
+      clearanceRunRef.current += 1;
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [
+    wraps,
+    hosts,
+    surfaceOffset,
+    noiseAmount,
+    showClearanceMarkers,
+    diagnosticMode,
+  ]);
 
   const subset = useMemo(() => {
-    if (!measuredWraps.length) return [];
-    const filtered = measuredWraps.filter((wrap) => matchesDiagnosticMode(wrap, diagnosticMode));
+    if (!wraps.length) return [];
+    const filtered = wraps.filter((wrap) => matchesDiagnosticMode(wrap, diagnosticMode));
     const n = Math.min(Math.max(pathCount, 0), filtered.length);
     if (n >= filtered.length) return filtered;
     const step = filtered.length / n;
@@ -268,7 +382,7 @@ function ClimbDebugContent({
       list.push(filtered[Math.min(Math.floor(i * step), filtered.length - 1)]);
     }
     return list;
-  }, [measuredWraps, pathCount, diagnosticMode]);
+  }, [wraps, pathCount, diagnosticMode, clearanceVersion]);
 
   const debugCapsules = useMemo(() => {
     const list = [];
@@ -284,6 +398,13 @@ function ClimbDebugContent({
     }
     return list;
   }, [hosts, capsuleFilterId]);
+
+  const stationPoints = useMemo(() => subset
+    .filter((wrap) => wrap.role === TENDRIL_ROLE.WRAP && wrap.debug?.coverageTarget)
+    .map((wrap) => wrap.debug.coverageTarget), [subset]);
+  const routeTargetPoints = useMemo(() => subset
+    .filter((wrap) => wrap.role === TENDRIL_ROLE.WRAP && wrap.routeTargetId && wrap.debug?.hitch)
+    .map((wrap) => wrap.debug.hitch), [subset]);
 
   return (
     <group name="ClimbDebug">
@@ -303,6 +424,24 @@ function ClimbDebugContent({
         />
       ))}
 
+      {showStations && (
+        <DebugMarkerBatch
+          key={`stations-${stationPoints.length}`}
+          points={stationPoints}
+          radius={STATION_R}
+          color={STATION_COLOR}
+          wireframe
+        />
+      )}
+      {showRouteTargets && (
+        <DebugMarkerBatch
+          key={`route-targets-${routeTargetPoints.length}`}
+          points={routeTargetPoints}
+          radius={HITCH_R}
+          color={ROUTE_TARGET_COLOR}
+        />
+      )}
+
       {subset.map((wrap, i) => {
         const d = wrap.debug;
         if (!d) return null;
@@ -311,26 +450,19 @@ function ClimbDebugContent({
         return (
           <group key={`dbg-${wrap.hostId}-${wrap.seed}-${i}`}>
             {showSeeds && d.hitchPre && (
-              <mesh position={d.hitchPre.toArray()} frustumCulled={false}>
-                <sphereGeometry args={[SEED_R, 8, 8]} />
-                <meshBasicMaterial
-                  color="#ffd166"
-                  depthTest={false}
-                  depthWrite={false}
-                  transparent
-                  opacity={0.7}
-                />
-              </mesh>
+              <DebugMarker
+                point={d.hitchPre}
+                radius={SEED_R}
+                color={STATION_COLOR}
+                opacity={0.7}
+              />
             )}
             {showSeeds && showHitch && hitch && (
-              <mesh position={hitch.toArray()} frustumCulled={false}>
-                <sphereGeometry args={[HITCH_R, 8, 8]} />
-                <meshBasicMaterial
-                  color="#ff006e"
-                  depthTest={false}
-                  depthWrite={false}
-                />
-              </mesh>
+              <DebugMarker
+                point={hitch}
+                radius={HITCH_R}
+                color={ROUTE_TARGET_COLOR}
+              />
             )}
             {showSeeds && showHitch && d.hitchPre && hitch && (
               <SegmentLine a={d.hitchPre} b={hitch} color="#ffd166" opacity={0.5} />

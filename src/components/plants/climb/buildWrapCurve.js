@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { seededRng } from '../stem/buildStemTube.js';
 import {
-  allocateRingStations,
+  allocateWrapStations,
 } from './limbCapsules.js';
 import { allocateSurfaceCoverageStations } from './surfaceCoverage.js';
 import {
@@ -9,6 +9,7 @@ import {
   roundedSurfacePolylineCurve,
 } from './surfaceRoutes.js';
 import { distortCurveWithSpatialNoise } from './spatialNoise.js';
+import { TENDRIL_ROLE } from './climbRoles.js';
 
 const _hit = {};
 const _closest = new THREE.Vector3();
@@ -26,7 +27,7 @@ const _tmp = new THREE.Vector3();
 const _planeUp = new THREE.Vector3(0, 1, 0);
 
 /** Bump whenever path topology/routing changes so Fast Refresh rebuilds geometry. */
-export const WRAP_PATH_ALGORITHM_VERSION = 21;
+export const WRAP_PATH_ALGORITHM_VERSION = 25;
 
 function hostSurfaceOffset(host, surfaceOffset) {
   return surfaceOffset * (host?.profile?.surfaceOffsetScale ?? 1);
@@ -84,6 +85,35 @@ function snapToSurface(bvh, point, center, outward, capsuleRadius, surfaceOffset
   }
   point.copy(_closest).addScaledVector(_rayDirection, surfaceOffset);
   return true;
+}
+
+export function retargetWrapPointsToGraphVertex({
+  points,
+  graphHitch,
+  capsuleRadius,
+}) {
+  if (!points?.length || !graphHitch) return null;
+  const retargeted = points.map((point) => point.clone());
+  const delta = graphHitch.clone().sub(retargeted[0]);
+  const maxHitchShift = Math.max(capsuleRadius * 0.5, 0.03);
+  if (delta.length() > maxHitchShift) return null;
+
+  const blendCount = Math.min(8, retargeted.length);
+  for (let i = 0; i < blendCount; i += 1) {
+    const phase = blendCount > 1 ? i / (blendCount - 1) : 1;
+    retargeted[i].addScaledVector(delta, (1 - phase) ** 2);
+    if (i === 0) retargeted[i].copy(graphHitch);
+    if (i < 1) continue;
+
+    const originalStep = points[i].distanceTo(points[i - 1]);
+    const allowedStep = Math.max(originalStep * 3, 0.03);
+    if (retargeted[i].distanceTo(retargeted[i - 1]) > allowedStep) return null;
+  }
+
+  return {
+    points: retargeted,
+    curve: new THREE.CatmullRomCurve3(retargeted, false, 'centripetal'),
+  };
 }
 
 /**
@@ -154,8 +184,8 @@ function buildPlanarSurfaceStroke({
   u,
   curveSamples,
   surfaceOffset,
-  ringIndex,
-  ringsOnRegion,
+  wrapIndex,
+  wrapsOnRegion,
   wrapAngleDegrees,
   axialWeave,
   coverageTarget,
@@ -182,7 +212,7 @@ function buildPlanarSurfaceStroke({
   const strokeLength = Math.max(capsule.planeWidth * angleRatio, 0.04);
   const weaveAmplitude = Math.min(
     strokeLength * 0.18 * THREE.MathUtils.clamp(axialWeave, 0, 2),
-    axisLength / Math.max(ringsOnRegion, 1),
+    axisLength / Math.max(wrapsOnRegion, 1),
   );
   const weavePhase = rng() * Math.PI * 2;
   const surfacePoints = [];
@@ -235,8 +265,8 @@ function buildPlanarSurfaceStroke({
       peelStartIndex: -1,
       capsuleId: capsule.id,
       u,
-      ringIndex,
-      ringsOnRegion,
+      wrapIndex,
+      wrapsOnRegion,
       entrySide: 'surface-target',
       wrapAngleDegrees,
       axialWeave,
@@ -253,11 +283,11 @@ function buildPlanarSurfaceStroke({
 }
 
 /**
- * One independently animatable ring at a fixed station on a directed capsule.
+ * One independently animatable wrap at a fixed station on a directed capsule.
  * The curve is open but its final point returns to its start, so growth can
- * reveal one circumference without linking to a neighboring ring.
+ * reveal one circumference without linking to a neighboring wrap.
  */
-export function buildIndependentRingCurve({
+export function buildIndependentWrapCurve({
   capsule,
   bvh,
   bodyRight = new THREE.Vector3(1, 0, 0),
@@ -266,8 +296,8 @@ export function buildIndependentRingCurve({
   u = 0.5,
   curveSamples = 24,
   surfaceOffset = 0.007,
-  ringIndex = 0,
-  ringsOnRegion = 1,
+  wrapIndex = 0,
+  wrapsOnRegion = 1,
   entrySide = 'underside',
   entrySideBias = 1,
   wrapAngleDegrees = 360,
@@ -275,6 +305,7 @@ export function buildIndependentRingCurve({
   entryBend = 0.55,
   coverageTarget = null,
   maxFreeAirDistance = -1,
+  debugOnFailure = false,
 }) {
   if (capsule.surfaceMode === 'planar' && coverageTarget) {
     return buildPlanarSurfaceStroke({
@@ -284,8 +315,8 @@ export function buildIndependentRingCurve({
       u,
       curveSamples,
       surfaceOffset,
-      ringIndex,
-      ringsOnRegion,
+      wrapIndex,
+      wrapsOnRegion,
       wrapAngleDegrees,
       axialWeave,
       coverageTarget,
@@ -361,7 +392,7 @@ export function buildIndependentRingCurve({
     arcDirection = positiveTopError <= negativeTopError ? 1 : -1;
   }
   const weaveAmplitude = THREE.MathUtils.clamp(axialWeave, 0, 2)
-    / Math.max(ringsOnRegion, 1);
+    / Math.max(wrapsOnRegion, 1);
   const weavePhase = rng() * Math.PI * 2;
   const weaveCycles = THREE.MathUtils.lerp(0.55, 1.15, rng());
   const surfacePoints = [];
@@ -371,6 +402,14 @@ export function buildIndependentRingCurve({
   let axis = null;
   let outward0 = null;
   let previousShell = null;
+  const shellPoints = [];
+  const debugFailure = () => (debugOnFailure ? {
+    curve: null,
+    debug: {
+      shellPoints,
+      surfacePoints,
+    },
+  } : null);
 
   for (let i = 0; i < count; i += 1) {
     const phase = i / (count - 1);
@@ -395,6 +434,7 @@ export function buildIndependentRingCurve({
     const center = capsule.a.clone().addScaledVector(info.axis, sampleStation * info.len);
     const outward = shell.clone().sub(center).normalize();
     const pos = shell.clone();
+    shellPoints.push(shell.clone());
     const snapped = snapToSurface(
       bvh,
       pos,
@@ -403,12 +443,12 @@ export function buildIndependentRingCurve({
       capsule.radius,
       surfaceOffset,
     );
-    if (!snapped) return null;
+    if (!snapped) return debugFailure();
 
     // A merged character BVH can return a valid hit on the wrong body part
     // (for example torso -> arm across an armpit). Distance-to-any-surface
     // cannot detect that. Require each hit to remain locally continuous with
-    // the preceding ring sample and retry/drop the ring when it jumps.
+    // the preceding wrap sample and retry/drop the wrap when it jumps.
     if (surfacePoints.length > 0 && previousShell) {
       const expectedStep = Math.max(shell.distanceTo(previousShell), 1e-4);
       const neighborDistance = pos.distanceTo(surfacePoints[surfacePoints.length - 1]);
@@ -422,7 +462,7 @@ export function buildIndependentRingCurve({
         maximumAllowedNeighborDistance,
         allowedNeighborDistance,
       );
-      if (neighborDistance > allowedNeighborDistance) return null;
+      if (neighborDistance > allowedNeighborDistance) return debugFailure();
     }
 
     surfaceSnapCount += 1;
@@ -431,10 +471,10 @@ export function buildIndependentRingCurve({
     previousShell = shell;
   }
 
-  if (surfacePoints.length < 4) return null;
+  if (surfacePoints.length < 4) return debugFailure();
   const contact = surfacePoints[0];
-  if (contact.y < groundY - 0.02) return null;
-  const ringTangent = surfacePoints[1].clone().sub(contact).normalize();
+  if (contact.y < groundY - 0.02) return debugFailure();
+  const wrapTangent = surfacePoints[1].clone().sub(contact).normalize();
   const bendStrength = THREE.MathUtils.clamp(entryBend, 0.05, 1);
   const airDistance = Math.max(contact.y - groundY, 0);
   const usesGroundRoot = maxFreeAirDistance >= 0
@@ -451,7 +491,7 @@ export function buildIndependentRingCurve({
       bendRise * THREE.MathUtils.lerp(0.35, 0.9, bendStrength),
     );
     const controlUp = root.clone().add(new THREE.Vector3(0, verticalHandle, 0));
-    const controlTangent = contact.clone().addScaledVector(ringTangent, -tangentHandle);
+    const controlTangent = contact.clone().addScaledVector(wrapTangent, -tangentHandle);
     const transition = new THREE.CubicBezierCurve3(
       root,
       controlUp,
@@ -477,8 +517,8 @@ export function buildIndependentRingCurve({
       peelStartIndex: -1,
       capsuleId: capsule.id,
       u: station,
-      ringIndex,
-      ringsOnRegion,
+      wrapIndex,
+      wrapsOnRegion,
       entrySide: resolvedEntrySide,
       wrapAngleDegrees,
       axialWeave,
@@ -487,16 +527,17 @@ export function buildIndependentRingCurve({
       coverageTarget: coverageTarget?.clone?.() ?? null,
       usesGroundRoot,
       airDistance,
-      wrapStyle: 'independent-ring',
+      wrapStyle: 'independent-wrap',
       surfaceSnapCount,
       surfaceSampleCount: surfacePoints.length,
+      shellPoints,
       maximumNeighborDistance,
       maximumAllowedNeighborDistance,
     },
   };
 }
 
-/** Build independent partial-ring tendrils across directed body regions. */
+/** Build independent partial-wrap tendrils across directed body regions. */
 export function buildWrapCurves({
   hosts,
   tendrilCount = 108,
@@ -513,11 +554,12 @@ export function buildWrapCurves({
   noiseAmount = 0,
   noiseFrequency = 3,
   noiseSeed = 0,
+  hitchOnGraphVertex = false,
 } = {}) {
   if (!hosts?.length || tendrilCount < 1) return [];
 
   const requestedCount = Math.max(Math.floor(tendrilCount), 1);
-  // Ring snapping/continuity validation is intentionally strict. Generate a
+  // Wrap snapping/continuity validation is intentionally strict. Generate a
   // deterministic surplus and keep sampling until the requested visible count
   // is filled instead of turning every rejected candidate into a coverage hole.
   const candidateBudget = Math.min(
@@ -540,7 +582,7 @@ export function buildWrapCurves({
     const regions = bodyHost.capsules.filter((capsule) => (
       !enabled || enabled.has(capsule.id)
     ));
-    stations = allocateRingStations(regions, candidateBudget, {
+    stations = allocateWrapStations(regions, candidateBudget, {
       layoutSeed,
       spacingVariation,
       totalBudget: candidateBudget,
@@ -551,11 +593,11 @@ export function buildWrapCurves({
     const swap = Math.floor(orderRng() * (i + 1));
     [stations[i], stations[swap]] = [stations[swap], stations[i]];
   }
-  const ringCandidates = [];
+  const wrapCandidates = [];
   const routeTargetsByHost = new Map();
 
   for (let i = 0; i < stations.length; i += 1) {
-    if (ringCandidates.length >= requestedCount) break;
+    if (wrapCandidates.length >= requestedCount) break;
     const slot = stations[i];
     const host = slot.host;
     if (!host?.bvh) continue;
@@ -572,7 +614,7 @@ export function buildWrapCurves({
     // A lateral entry can occasionally land too close to the ground. Retry the
     // alternate seeded side and a tiny station shift instead of leaving a hole.
     for (let attempt = 0; attempt < 3 && !built; attempt += 1) {
-      const retryWidth = Math.min(0.03, 0.3 / Math.max(slot.ringsOnRegion, 1));
+      const retryWidth = Math.min(0.03, 0.3 / Math.max(slot.wrapsOnRegion, 1));
       const stationMin = slot.capsule.uMin ?? 0.02;
       const stationMax = slot.capsule.uMax ?? 0.98;
       const station = THREE.MathUtils.clamp(
@@ -580,7 +622,7 @@ export function buildWrapCurves({
         stationMin,
         stationMax,
       );
-      built = buildIndependentRingCurve({
+      built = buildIndependentWrapCurve({
         capsule: slot.capsule,
         bvh: host.bvh,
         bodyRight,
@@ -589,8 +631,8 @@ export function buildWrapCurves({
         u: station,
         curveSamples,
         surfaceOffset: resolvedSurfaceOffset,
-        ringIndex: slot.ringIndex,
-        ringsOnRegion: slot.ringsOnRegion,
+        wrapIndex: slot.wrapIndex,
+        wrapsOnRegion: slot.wrapsOnRegion,
         entrySide,
         entrySideBias,
         wrapAngleDegrees,
@@ -622,13 +664,14 @@ export function buildWrapCurves({
       samples: curveSamples,
     });
     if (noisy.points) built.debug.points = noisy.points;
-    ringCandidates.push({
+    wrapCandidates.push({
       seed: tendrilSeed,
       hostId: host.id,
       capsuleId: slot.capsule.id,
-      ringIndex: slot.ringIndex,
-      role: 'ring',
-      treeId: routeTargetId ? null : `${host.id}:ring:${tendrilSeed}`,
+      capsuleRadius: slot.capsule.radius,
+      wrapIndex: slot.wrapIndex,
+      role: TENDRIL_ROLE.WRAP,
+      treeId: routeTargetId ? null : `${host.id}:wrap:${tendrilSeed}`,
       routeTargetId,
       curve: noisy.curve,
       debug: built.debug,
@@ -638,6 +681,7 @@ export function buildWrapCurves({
   const out = [];
   const reachedTargets = new Set();
   const targetDistances = new Map();
+  const targetGraphPoints = new Map();
   const targetAttachments = new Map();
   const targetRadiusScales = new Map();
   const targetTreeIds = new Map();
@@ -652,6 +696,9 @@ export function buildWrapCurves({
     for (const targetId of routed.reached) reachedTargets.add(targetId);
     for (const [targetId, distance] of routed.targetDistances) {
       targetDistances.set(targetId, distance);
+    }
+    for (const [targetId, point] of routed.targetGraphPoints) {
+      targetGraphPoints.set(targetId, point);
     }
     for (const [targetId, points] of routed.targetAttachments) {
       targetAttachments.set(targetId, points);
@@ -669,8 +716,8 @@ export function buildWrapCurves({
         seed: routeSeed,
         hostId: group.host.id,
         capsuleId: 'surface-route',
-        ringIndex: -1,
-        role: 'feeder',
+        wrapIndex: -1,
+        role: TENDRIL_ROLE.GROUND_PATH,
         treeId: route.treeId,
         pathStartDistance: route.startDistance,
         pathEndDistance: route.endDistance,
@@ -695,8 +742,8 @@ export function buildWrapCurves({
           peelStartIndex: -1,
           capsuleId: 'surface-route',
           u: null,
-          ringIndex: -1,
-          ringsOnRegion: 0,
+          wrapIndex: -1,
+          wrapsOnRegion: 0,
           entrySide: 'surface',
           wrapStyle: route.kind,
           usesGroundRoot: route.kind === 'ground-entry',
@@ -712,35 +759,54 @@ export function buildWrapCurves({
     }
   }
 
-  for (let i = 0; i < ringCandidates.length; i += 1) {
-    const ring = ringCandidates[i];
-    if (ring.routeTargetId && !reachedTargets.has(ring.routeTargetId)) continue;
-    if (ring.routeTargetId) {
-      const attachment = targetAttachments.get(ring.routeTargetId);
-      if (!attachment?.length) continue;
-      const ringPoints = ring.curve.getSpacedPoints(Math.max(curveSamples, 24));
-      const connectedPoints = [
-        ...attachment.slice(0, -1),
-        ...ringPoints,
-      ];
-      const connected = roundedSurfacePolylineCurve(connectedPoints);
-      if (!connected) continue;
-      ring.curve = connected;
-      ring.debug.attachmentPointCount = attachment.length;
-      ring.radiusStartScale = targetRadiusScales.get(ring.routeTargetId) ?? 1;
+  for (let i = 0; i < wrapCandidates.length; i += 1) {
+    const wrapSegment = wrapCandidates[i];
+    if (wrapSegment.routeTargetId && !reachedTargets.has(wrapSegment.routeTargetId)) continue;
+    if (wrapSegment.routeTargetId) {
+      const wrapPoints = wrapSegment.curve.getSpacedPoints(Math.max(curveSamples, 24));
+      const graphHitch = targetGraphPoints.get(wrapSegment.routeTargetId);
+      const retargeted = hitchOnGraphVertex && graphHitch
+        ? retargetWrapPointsToGraphVertex({
+            points: wrapPoints,
+            graphHitch,
+            capsuleRadius: wrapSegment.capsuleRadius,
+          })
+        : null;
+
+      if (retargeted) {
+        wrapSegment.curve = retargeted.curve;
+        wrapSegment.debug.points = retargeted.points;
+        wrapSegment.debug.surfacePoints = retargeted.points;
+        wrapSegment.debug.hitch = graphHitch.clone();
+        wrapSegment.debug.attachmentPointCount = 0;
+        wrapSegment.debug.hitchOnGraphVertex = true;
+      } else {
+        const attachment = targetAttachments.get(wrapSegment.routeTargetId);
+        if (!attachment?.length) continue;
+        const connectedPoints = [
+          ...attachment.slice(0, -1),
+          ...wrapPoints,
+        ];
+        const connected = roundedSurfacePolylineCurve(connectedPoints);
+        if (!connected) continue;
+        wrapSegment.curve = connected;
+        wrapSegment.debug.attachmentPointCount = attachment.length;
+        wrapSegment.debug.hitchOnGraphVertex = false;
+        wrapSegment.debug.points = [
+          ...attachment.slice(0, -1).map((point) => point.clone()),
+          ...(wrapSegment.debug.points ?? []),
+        ];
+      }
+      wrapSegment.radiusStartScale = targetRadiusScales.get(wrapSegment.routeTargetId) ?? 1;
       // ClimbTendrils resolves the end to the current global tip taper.
-      ring.radiusEndScale = null;
-      ring.baseFlareScale = 0;
-      ring.pathStartDistance = targetDistances.get(ring.routeTargetId) ?? 0;
-      ring.pathEndDistance = ring.pathStartDistance + ring.curve.getLength();
-      ring.treeId = targetTreeIds.get(ring.routeTargetId)
-        ?? `${ring.hostId}:ring:${ring.seed}`;
-      ring.debug.points = [
-        ...attachment.slice(0, -1).map((point) => point.clone()),
-        ...(ring.debug.points ?? []),
-      ];
+      wrapSegment.radiusEndScale = null;
+      wrapSegment.baseFlareScale = 0;
+      wrapSegment.pathStartDistance = targetDistances.get(wrapSegment.routeTargetId) ?? 0;
+      wrapSegment.pathEndDistance = wrapSegment.pathStartDistance + wrapSegment.curve.getLength();
+      wrapSegment.treeId = targetTreeIds.get(wrapSegment.routeTargetId)
+        ?? `${wrapSegment.hostId}:wrap:${wrapSegment.seed}`;
     }
-    out.push(ring);
+    out.push(wrapSegment);
   }
 
   return out;
@@ -757,10 +823,20 @@ export function buildWrapCurves({
 export function annotateWrapClearance(
   wraps,
   hosts,
-  { surfaceOffset = 0.007, noiseAmount = 0 } = {},
+  {
+    surfaceOffset = 0.007,
+    noiseAmount = 0,
+    startIndex = 0,
+    endIndex = wraps.length,
+  } = {},
 ) {
   const hostById = new Map((hosts ?? []).map((host) => [host.id, host]));
-  for (let i = 0; i < wraps.length; i += 1) {
+  const from = Math.min(Math.max(Math.floor(startIndex), 0), wraps.length);
+  const to = Math.min(
+    Math.max(Math.floor(endIndex), from),
+    wraps.length,
+  );
+  for (let i = from; i < to; i += 1) {
     const wrap = wraps[i];
     if (!wrap?.debug) continue;
     const host = hostById.get(wrap.hostId);

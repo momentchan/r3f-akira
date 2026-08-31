@@ -1,35 +1,49 @@
 import { useExperienceStore } from '../../core/experienceStore';
-import { useShortcut } from '@core/hooks/useShortcut';
-import './themeToggle.css';
 
 export function ThemeToggle() {
   const isStarted = useExperienceStore((state) => state.isStarted);
+  const flowIntroDone = useExperienceStore((state) => state.flowIntroDone);
   const theme = useExperienceStore((state) => state.theme);
   const setTheme = useExperienceStore((state) => state.setTheme);
 
-  useShortcut('d', () => {
-    if (!useExperienceStore.getState().isStarted) return;
-    setTheme(useExperienceStore.getState().theme === 'dark' ? 'light' : 'dark');
-  });
-
   if (!isStarted) return null;
 
+  const visible = flowIntroDone;
   const isDark = theme === 'dark';
 
   return (
-    <button
-      type="button"
-      className="theme-toggle"
-      aria-label={isDark ? 'Switch to light background' : 'Switch to dark background'}
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
+    <div
+      className={
+        visible
+          ? 'hud-control-row hud-control-row--deferred hud-control-row--deferred--visible theme-toggle'
+          : 'hud-control-row hud-control-row--deferred theme-toggle'
+      }
+      role="group"
+      aria-label="Theme"
+      aria-hidden={!visible}
     >
-      <span className={isDark ? 'theme-toggle__mode' : 'theme-toggle__mode theme-toggle__mode--on'}>
-        LIGHT
-      </span>
-      <span className="theme-toggle__rule" />
-      <span className={isDark ? 'theme-toggle__mode theme-toggle__mode--on' : 'theme-toggle__mode'}>
-        DARK
-      </span>
-    </button>
+      <span className="hud-control-row__title">THEME</span>
+      <div className="hud-control-row__options">
+        <button
+          type="button"
+          className={isDark ? 'hud-control-row__mode' : 'hud-control-row__mode hud-control-row__mode--on'}
+          aria-pressed={!isDark}
+          tabIndex={visible ? 0 : -1}
+          onClick={() => setTheme('light')}
+        >
+          LIGHT
+        </button>
+        <span className="hud-control-row__rule" />
+        <button
+          type="button"
+          className={isDark ? 'hud-control-row__mode hud-control-row__mode--on' : 'hud-control-row__mode'}
+          aria-pressed={isDark}
+          tabIndex={visible ? 0 : -1}
+          onClick={() => setTheme('dark')}
+        >
+          DARK
+        </button>
+      </div>
+    </div>
   );
 }

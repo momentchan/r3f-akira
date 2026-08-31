@@ -27,7 +27,12 @@ import { getLiveThemeColors } from "../components/scene/themeTween";
 import { FLOW_OVERHEAD } from "../components/camera/cameraShots";
 import { TIER1_TARGETS, useExperienceStore } from "../core/experienceStore";
 import { BGM_TRACKS } from "../ui/AudioButton";
-import { Demo } from "../components/demo/Demo";
+import { Demo, ACTIVE_DEMO } from "../components/demo/Demo";
+import { DemoFixedCamera } from "../components/demo/DemoFixedCamera";
+import { CameraPoseDump } from "../components/demo/CameraPoseDump";
+import { LOCK_DEMO_CAMERA } from "../components/demo/demoCamera";
+
+const ENABLE_DEMO = false;
 
 function createWebGPURenderer(canvas) {
   const renderer = new THREE.WebGPURenderer({
@@ -87,7 +92,7 @@ function SceneContent() {
   return (
     <>
       <group ref={fieldParentRef} position={[0, -1, 0]}>
-        {/* <Suspense fallback={null}>
+        <Suspense fallback={null}>
           <AsyncCompile id={TIER1_TARGETS[0]} onReady={setComponentReady}>
             <Character
               position={[0, 0.6, 0]}
@@ -124,12 +129,18 @@ function SceneContent() {
             backpackBounds={backpackBounds}
             wind={plantWind}
           />
-        </Suspense> */}
-
-        <Suspense fallback={null}>
-          <Demo />
         </Suspense>
-        
+
+        {ENABLE_DEMO && (
+          <>
+            <Suspense fallback={null}>
+              <Demo />
+            </Suspense>
+            {ACTIVE_DEMO && LOCK_DEMO_CAMERA ? <DemoFixedCamera /> : null}
+            <CameraPoseDump />
+          </>
+        )}
+
         <ShadowCatcher />
       </group>
 
@@ -142,7 +153,7 @@ function SceneContent() {
       <CameraViewControl />
       <CanvasCapture />
       <DirectionalLight />
-      {/* <Effects /> */}
+      <Effects />
     </>
   );
 }
@@ -164,13 +175,13 @@ export const ExperienceCanvas = memo(function ExperienceCanvas() {
       gl={createWebGPURenderer}
       dpr={dpr}
     >
-      <PerformanceMonitor
+      {/* <PerformanceMonitor
         bounds={() => [28, 32]}
         onFallback={() => setDpr(1)}
         onChange={({ factor }) => {
           setDpr(1 + factor);
         }}
-      />
+      /> */}
 
       <SceneContent />
     </Canvas>

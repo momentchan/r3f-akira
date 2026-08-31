@@ -25,3 +25,12 @@ export const CAMERA_DEFAULTS = {
   maxPolarAngle: Math.PI / 2.08,
   exploreSmoothTime: 0.45,
 };
+
+// Visitor-facing Explore keeps the authored scene framed. The developer
+// profile continues to use the wider Leva-controlled limits above.
+export const PUBLIC_EXPLORE_DEFAULTS = {
+  minDistance: 1.5,
+  maxDistance: 7,
+  minPolarAngle: 0.35,
+  maxPolarAngle: Math.PI / 2.18,
+};

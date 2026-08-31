@@ -60,7 +60,7 @@ export function AudioButton() {
   );
 
   useEffect(() => {
-    if (isStarted) setIsSoundOn(false);
+    if (isStarted) setIsSoundOn(true);
   }, [isStarted, setIsSoundOn]);
 
   useShortcut('m', () => {

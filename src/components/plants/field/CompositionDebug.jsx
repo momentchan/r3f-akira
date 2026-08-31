@@ -219,10 +219,6 @@ function AnchorMarker({ anchor }) {
           opacity={0.4}
         />
       ) : null}
-      <mesh position={[0, 0.06, 0]} frustumCulled={false}>
-        <sphereGeometry args={[0.03, 10, 10]} />
-        <meshBasicMaterial color={color} depthTest={false} depthWrite={false} />
-      </mesh>
     </group>
   );
 }
@@ -231,9 +227,10 @@ function AnchorMarker({ anchor }) {
  * Composition overlay. Two independently toggled layers:
  *
  * `showAnchors`        — each pin: elongated reach ring (same frame as the
- *                        field) and a weight dot. Under migration the mass
- *                        wanders around this centre, so the ring shows the
- *                        cause and the bound, not the current mass.
+ *                        field). Under migration the mass wanders around this
+ *                        centre, so the ring shows the cause and the bound,
+ *                        not the current mass. The centre is not dotted — that
+ *                        mark is reserved for hearts.
  * `densityField`       — a heat grid sampled through the same `sampleAnchorField`
  *                        the sampler uses, so it shows what the sampler sees.
  */

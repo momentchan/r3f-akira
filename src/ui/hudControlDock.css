@@ -1,0 +1,92 @@
+.hud-control-dock {
+  position: fixed;
+  left: var(--hud-left);
+  bottom: var(--hud-bottom);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.hud-control-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--hud-control-start) auto;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: Cousine, Arial, Helvetica, sans-serif;
+  font-size: var(--hud-type-sm);
+  letter-spacing: 0.28em;
+  line-height: 1.15;
+  color: var(--ui-ink);
+  text-align: left;
+  text-shadow: none;
+  user-select: none;
+}
+
+.hud-control-row__title {
+  grid-column: 1;
+  opacity: 1;
+}
+
+.hud-control-row--deferred {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease, color 0.5s ease;
+}
+
+.hud-control-row--deferred--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.hud-control-row__options {
+  grid-column: 2;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.hud-control-row__mode {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  opacity: 0.38;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: opacity 0.35s ease, color 0.35s ease;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hud-control-row__mode:hover,
+.hud-control-row__mode:focus-visible,
+.hud-control-row__mode--on {
+  opacity: 1;
+  color: var(--ui-tick);
+}
+
+.hud-control-row__mode:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 4px;
+}
+
+.hud-control-row__rule {
+  width: 1px;
+  height: 12px;
+  background: currentColor;
+  opacity: 0.35;
+}

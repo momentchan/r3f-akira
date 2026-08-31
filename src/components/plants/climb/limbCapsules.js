@@ -291,9 +291,9 @@ function stationRng(seed) {
  * Allocate one global tendril count proportionally by region length, then use
  * bounded-random gaps inside each region. This preserves coverage without the
  * mechanical look of identical spacing.
- * @returns {Array<{ capsule: LimbCapsule, ringIndex: number, ringsOnRegion: number, station: number }>}
+ * @returns {Array<{ capsule: LimbCapsule, wrapIndex: number, wrapsOnRegion: number, station: number }>}
  */
-export function allocateRingStations(capsules, tendrilCount, {
+export function allocateWrapStations(capsules, tendrilCount, {
   layoutSeed = 0,
   spacingVariation = 1,
   totalBudget = 512,
@@ -329,11 +329,11 @@ export function allocateRingStations(capsules, tendrilCount, {
   const out = [];
   for (let regionIndex = 0; regionIndex < capsules.length; regionIndex += 1) {
     const capsule = capsules[regionIndex];
-    const ringsOnRegion = counts[regionIndex];
-    if (ringsOnRegion < 1) continue;
+    const wrapsOnRegion = counts[regionIndex];
+    if (wrapsOnRegion < 1) continue;
 
     const rng = stationRng(layoutSeed * 977 + regionIndex * 131 + 17);
-    const gaps = new Array(ringsOnRegion + 1);
+    const gaps = new Array(wrapsOnRegion + 1);
     let gapTotal = 0;
     for (let i = 0; i < gaps.length; i += 1) {
       const randomGap = THREE.MathUtils.lerp(0.18, 1.82, rng());
@@ -342,12 +342,12 @@ export function allocateRingStations(capsules, tendrilCount, {
     }
 
     let cursor = 0;
-    for (let i = 0; i < ringsOnRegion; i += 1) {
+    for (let i = 0; i < wrapsOnRegion; i += 1) {
       cursor += gaps[i];
       out.push({
         capsule,
-        ringIndex: i,
-        ringsOnRegion,
+        wrapIndex: i,
+        wrapsOnRegion,
         station: THREE.MathUtils.clamp(cursor / gapTotal, 0.02, 0.98),
       });
     }
