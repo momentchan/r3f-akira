@@ -66,7 +66,7 @@ export default function App() {
       )}
 
       {!gpuError && <ExperienceCanvas />}
-      
+
       <AudioButton />
       <div className="hud-control-dock">
         <FlowTimeRail />

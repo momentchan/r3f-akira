@@ -1,6 +1,8 @@
 :root {
     --ui-ink: rgba(48, 40, 32, 0.72);
-    --ui-glow: rgba(237, 228, 211, 0.82);
+    --ui-blend-ink: rgba(73, 73, 73, 0.82);
+    --ui-blend-ink-active: rgba(135, 135, 135, 0.82);
+    --ui-glow: rgba(0, 0, 0, 0.82);
     --ui-track: rgba(48, 40, 32, 0.32);
     --ui-tick: rgba(42, 36, 28, 0.78);
     --hud-left: max(16px, env(safe-area-inset-left));
@@ -8,6 +10,15 @@
     --hud-type: 0.62rem;
     --hud-type-sm: 0.58rem;
     --hud-control-start: 4rem;
+}
+
+@media (pointer: coarse), (max-width: 767px) {
+    :root {
+        --hud-type: 0.5rem;
+        --hud-type-sm: 0.46rem;
+        --hud-left: max(10px, env(safe-area-inset-left));
+        --hud-bottom: max(14px, env(safe-area-inset-bottom));
+    }
 }
 
 :root[data-theme="dark"] {

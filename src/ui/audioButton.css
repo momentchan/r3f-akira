@@ -3,6 +3,7 @@
   right: 0;
   bottom: 0;
   z-index: 40;
+  mix-blend-mode: difference;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }

@@ -5,7 +5,6 @@ import * as THREE from 'three/webgpu';
 import { DistortedCircle, WebGPUCanvas } from '@core';
 import { useShortcut } from '@core/hooks/useShortcut';
 import { TIER1_TARGETS, useExperienceStore } from '../core/experienceStore';
-import { getLiveThemeColors } from '../components/scene/themeTween';
 import './audioButton.css';
 
 export const BGM_TRACKS = [
@@ -15,10 +14,19 @@ export const BGM_TRACKS = [
 const RADIUS = 10;
 const SIZE = 45;
 
+function getActiveUiColor() {
+  const fallback = 'rgba(237, 228, 211, 0.82)';
+  const value =
+    typeof window === 'undefined'
+      ? fallback
+      : getComputedStyle(document.documentElement).getPropertyValue('--ui-blend-ink-active').trim() || fallback;
+  return new THREE.Color().setStyle(value);
+}
+
 function AudioButtonScene() {
   const isSoundOn = useExperienceStore((state) => state.isSoundOn);
   const setIsSoundOn = useExperienceStore((state) => state.setIsSoundOn);
-  const audioColor = getLiveThemeColors().audio;
+  const audioColor = getActiveUiColor();
 
   return (
     <>

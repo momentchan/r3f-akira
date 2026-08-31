@@ -38,7 +38,7 @@ function isHudTarget(target) {
   );
 }
 
-function isHeldPointer(event) {
+function isTouchPointer(event) {
   return event.pointerType === 'touch' || event.pointerType === 'pen';
 }
 
@@ -56,9 +56,9 @@ function canWriteFlowTime() {
  *
  * Camera motion is independent: this never reads orbit speed.
  * FLOW desktop: mouse Y (lower band = 0x, upper band = 8x; edges clamp early).
- * FLOW touch: one-finger vertical drag; lift keeps the last speed.
+ * FLOW touch / pen: the TIME rail owns speed input, just like EXPLORE.
  * EXPLORE inherits the current scale and holds it unless the TIME rail changes.
- * FLOW holds 1x through the camera intro, then damps toward pointer Y.
+ * FLOW holds 1x through the camera intro, then damps toward its active target.
  */
 export function usePlantTimeScale({ enabled = true } = {}) {
   const cameraMode = useExperienceStore((state) => state.cameraMode);
@@ -83,68 +83,23 @@ export function usePlantTimeScale({ enabled = true } = {}) {
   }, [cameraMode, setPlantTimeTarget]);
 
   useEffect(() => {
-    const heldIds = new Set();
-    let dragId = null;
-    let dragOrigin = null;
-    let dragging = false;
-
-    const endDrag = () => {
-      dragId = null;
-      dragOrigin = null;
-      dragging = false;
-    };
-
     const writePointerTime = (clientY) => {
       const u = flowTimeUnit(unitY(clientY));
       setPlantTimeTarget(lerp(FLOW_TIME_MIN, FLOW_TIME_MAX, u));
     };
 
-    const onPointerDown = (event) => {
-      if (!isHeldPointer(event)) return;
-      heldIds.add(event.pointerId);
-      if (heldIds.size !== 1 || !canWriteFlowTime() || isHudTarget(event.target)) {
-        endDrag();
-        return;
-      }
-      dragId = event.pointerId;
-      dragOrigin = { x: event.clientX, y: event.clientY };
-      dragging = false;
-    };
-
     const onPointerMove = (event) => {
-      if (!isHeldPointer(event)) {
-        if (canWriteFlowTime() && !isHudTarget(event.target)) {
-          writePointerTime(event.clientY);
-        }
-        return;
+      // Touch and pen input is reserved for the TIME rail. This prevents a
+      // camera gesture from also changing FLOW speed across the whole canvas.
+      if (isTouchPointer(event)) return;
+      if (canWriteFlowTime() && !isHudTarget(event.target)) {
+        writePointerTime(event.clientY);
       }
-      if (dragId !== event.pointerId || heldIds.size !== 1 || !canWriteFlowTime()) {
-        return;
-      }
-      if (!dragging && dragOrigin) {
-        const dx = event.clientX - dragOrigin.x;
-        const dy = event.clientY - dragOrigin.y;
-        if (dx * dx + dy * dy < 64) return;
-        dragging = true;
-      }
-      if (dragging) writePointerTime(event.clientY);
     };
 
-    const onPointerUp = (event) => {
-      if (!isHeldPointer(event)) return;
-      heldIds.delete(event.pointerId);
-      if (event.pointerId === dragId) endDrag();
-    };
-
-    window.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove, { passive: true });
-    window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', onPointerUp);
     return () => {
-      window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerUp);
     };
   }, [setPlantTimeTarget]);
 

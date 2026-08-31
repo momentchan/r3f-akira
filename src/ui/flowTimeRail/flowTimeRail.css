@@ -1,5 +1,5 @@
 .flow-time-rail {
-  --rail-col: 1.55rem;
+  --rail-col: 0.8rem;
   --rail-gutter: 8px;
   position: fixed;
   left: var(--hud-left);
@@ -15,7 +15,7 @@
   pointer-events: none;
   user-select: none;
   font-family: Cousine, Arial, Helvetica, sans-serif;
-  color: var(--ui-ink);
+  color: var(--ui-blend-ink-active);
   text-shadow: none;
   opacity: 0;
   transition:
@@ -27,6 +27,12 @@
 @media (orientation: landscape) and (max-height: 500px) {
   .flow-time-rail {
     height: min(52vh, 220px);
+  }
+}
+
+@media (pointer: coarse), (max-width: 767px) {
+  .flow-time-rail {
+    height: min(35vh, 320px);
   }
 }
 
@@ -45,8 +51,8 @@
   position: relative;
   flex: 1;
   width: 1px;
-  background: var(--ui-track);
-  box-shadow: 0 0 8px var(--ui-glow);
+  background: var(--ui-blend-ink-active);
+  box-shadow: none;
   cursor: ns-resize;
   pointer-events: none;
   touch-action: none;
@@ -76,6 +82,7 @@
   font-size: var(--hud-type-sm);
   letter-spacing: 0.08em;
   opacity: 0.5;
+  color: var(--ui-blend-ink);
   white-space: nowrap;
   text-align: left;
 }
@@ -86,8 +93,7 @@
   width: 11px;
   height: 1px;
   margin-left: -5.5px;
-  background: var(--ui-tick);
-  box-shadow: 0 0 8px var(--ui-glow);
+  background: var(--ui-blend-ink-active);
   transform: translateY(50%);
   transition:
     bottom 0.12s linear,
