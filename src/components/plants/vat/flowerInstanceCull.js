@@ -1,6 +1,4 @@
 import * as THREE from 'three/webgpu';
-import { useCpuCull } from './flowerCullBackend';
-import { dispatchFlowerCullCpu } from './flowerCullCpu';
 import { dispatchFlowerCullGpu } from './flowerCullGpu';
 import { FLOWER_INSTANCE_FLOATS, FLOWER_TIP0_OFFSET } from './flowerInstanceLayout';
 
@@ -23,11 +21,6 @@ export function dispatchFlowerCull(gl, camera, batch, options = {}) {
   camera.updateMatrixWorld();
   camera.getWorldPosition(_cameraWorld);
   _viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-
-  if (useCpuCull(gl)) {
-    dispatchFlowerCullCpu(_cameraWorld, _viewProjection, batch, options);
-    return;
-  }
   dispatchFlowerCullGpu(gl, _cameraWorld, _viewProjection, batch, options);
 }
 
@@ -68,9 +61,6 @@ export async function readDrawnFlowerCounts(gl, flowerBatches) {
     for (let i = 0; i < lods.length; i += 1) slots.push(lods[i]);
   }
 
-  if (useCpuCull(gl)) {
-    return slots.map((lod) => (lod.mesh?.visible === false ? 0 : (lod.mesh.count ?? 0)));
-  }
   if (typeof gl.getArrayBufferAsync !== 'function') return [];
 
   const buffers = await Promise.all(

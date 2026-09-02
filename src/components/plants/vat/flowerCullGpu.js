@@ -15,7 +15,7 @@ import { FLOWER_CULL_DEFAULTS } from './flowerCullDefaults';
 import { keepRadiusForSlots } from './flowerInstanceLayout';
 
 /**
- * Desktop Blink WebGPU path. Rose-style padded clip frustum + keep-sphere,
+ * WebGPU path. Rose-style padded clip frustum + keep-sphere,
  * then If/Else LOD routing into per-band visible-indices + drawIndirect.
  */
 export function createFlowerCullComputes({
@@ -44,28 +44,32 @@ export function createFlowerCullComputes({
   const buildLODRouting = createLODRouting(lodSlots);
 
   const cullFn = Fn(() => {
-    const data = instanceStorage.node.element(instanceIndex);
-    const tip0 = data.get('tip0');
-    If(tip0.w.greaterThan(0.001), () => {
-      const pos = tip0.xyz;
-      const distToCamera = distance(pos, uniforms.uCameraPosition);
-      const clipPos = uniforms.uViewProjectionMatrix.mul(vec4(pos, 1.0));
-      const cullRadius = uniforms.uCullPadding;
-      const w = clipPos.w;
-      const isInFront = w.greaterThan(cullRadius.negate());
-      const limit = w.add(cullRadius);
-      const inFrustum = isInFront
-        .and(abs(clipPos.x).lessThanEqual(limit))
-        .and(abs(clipPos.y).lessThanEqual(limit))
-        .and(abs(clipPos.z).lessThanEqual(limit));
-      const inCircle = distToCamera.lessThan(uniforms.uKeepRadius);
+    // Keep the invocation bounds explicit before reading instance data or
+    // appending to the visible-index / indirect-count buffers.
+    If(instanceIndex.lessThan(uint(count)), () => {
+      const data = instanceStorage.node.element(instanceIndex);
+      const tip0 = data.get('tip0');
+      If(tip0.w.greaterThan(0.001), () => {
+        const pos = tip0.xyz;
+        const distToCamera = distance(pos, uniforms.uCameraPosition);
+        const clipPos = uniforms.uViewProjectionMatrix.mul(vec4(pos, 1.0));
+        const cullRadius = uniforms.uCullPadding;
+        const w = clipPos.w;
+        const isInFront = w.greaterThan(cullRadius.negate());
+        const limit = w.add(cullRadius);
+        const inFrustum = isInFront
+          .and(abs(clipPos.x).lessThanEqual(limit))
+          .and(abs(clipPos.y).lessThanEqual(limit))
+          .and(abs(clipPos.z).lessThanEqual(limit));
+        const inCircle = distToCamera.lessThan(uniforms.uKeepRadius);
 
-      If(uniforms.uCullEnabled.lessThan(0.5).or(inFrustum.or(inCircle)), () => {
-        buildLODRouting(distToCamera, instanceIndex);
-        if (shadowSlot) {
-          const shadowIndex = atomicAdd(shadowSlot.drawStorage.get('instanceCount'), uint(1));
-          shadowSlot.indices.element(shadowIndex).assign(uint(instanceIndex));
-        }
+        If(uniforms.uCullEnabled.lessThan(0.5).or(inFrustum.or(inCircle)), () => {
+          buildLODRouting(distToCamera, instanceIndex);
+          if (shadowSlot) {
+            const shadowIndex = atomicAdd(shadowSlot.drawStorage.get('instanceCount'), uint(1));
+            shadowSlot.indices.element(shadowIndex).assign(uint(instanceIndex));
+          }
+        });
       });
     });
   });

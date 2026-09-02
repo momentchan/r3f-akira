@@ -4,8 +4,8 @@ import { createVisibleIndicesBuffer, drawIndirectStructure } from '@core/vat';
 import { FLOWER_CULL_DEFAULTS } from './flowerCullDefaults';
 
 /**
- * Per-flower GPU record. CPU writes tips each frame; both cull backends and
- * the VAT vertex shader read this. Extra LOD meshes only add their own
+ * Per-flower GPU record. CPU writes tips each frame; GPU culling and the VAT
+ * vertex shader read this. Extra LOD meshes only add their own
  * visible-index + indirect buffers.
  *
  *   tip0     = world pos.xyz, scale
